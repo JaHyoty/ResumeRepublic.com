@@ -57,7 +57,7 @@ const Hero: React.FC = () => {
             </button>
           </div>
           <p className="text-purple-400 text-sm">
-            Made to overcome the shortcomings of AI in the hiring process.<br/>
+            Made to promote responsible AI usage in the application process.<br/>
             As such, we'd like to offer this service for free to all users.
           </p>
         </div>
