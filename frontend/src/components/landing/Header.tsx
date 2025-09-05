@@ -2,9 +2,9 @@ import React from 'react'
 
 const Header: React.FC = () => {
   return (
-    <header className="bg-white sticky top-0 z-40">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center py-4">
+    <header className="bg-white sticky top-0 z-40 w-screen left-0 right-0" style={{ marginLeft: 'calc(50% - 50vw)' }}>
+      <div className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="max-w-6xl mx-auto flex justify-between items-center py-4">
           <h1 className="text-lg font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
             CareerPathPro
           </h1>
@@ -13,9 +13,6 @@ const Header: React.FC = () => {
           >
             Login
           </button>
-          <div className="bg-red-500 text-white p-4">
-            Tailwind is working if this box is red.
-          </div>
         </div>
       </div>
     </header>

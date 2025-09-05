@@ -12,7 +12,6 @@ import {
 const LandingPage: React.FC = () => {
   return (
     <div className="bg-white min-h-screen">
-
       <Header />
       <Hero />
       <Features />
