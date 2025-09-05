@@ -1,7 +1,20 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import { APP_NAME } from '../../config/constants'
 
 const CTA: React.FC = () => {
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+
+  const handleGetStarted = () => {
+    if (isAuthenticated) {
+      navigate('/dashboard')
+    } else {
+      navigate('/login')
+    }
+  }
+
   return (
     <section className="py-16 bg-gradient-to-r from-primary-600 to-primary-700" aria-labelledby="cta-heading">
       <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
@@ -12,7 +25,10 @@ const CTA: React.FC = () => {
           Join others who are already using {APP_NAME} to build better resumes and advance their careers.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-          <button className="bg-purple-600 text-white hover:bg-purple-400 font-semibold text-lg px-8 py-3 rounded-lg flex items-center gap-2 shadow-xl hover:shadow-xl transition-all duration-300">
+          <button 
+            onClick={handleGetStarted}
+            className="bg-purple-600 text-white hover:bg-purple-400 font-semibold text-lg px-8 py-3 rounded-lg flex items-center gap-2 shadow-xl hover:shadow-xl transition-all duration-300"
+          >
             Get Started
           </button>
         </div>

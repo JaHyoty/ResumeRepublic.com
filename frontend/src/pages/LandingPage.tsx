@@ -3,8 +3,6 @@ import {
   Header,
   Hero,
   Features,
-  HowItWorks,
-  Testimonials,
   CTA,
   Footer
 } from '../components/landing'

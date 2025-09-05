@@ -1,13 +1,15 @@
-import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from 'react-query'
 
 // Components
 import Layout from './components/layout/Layout'
 import LandingPage from './pages/LandingPage'
+import AuthPage from './pages/AuthPage'
 import Dashboard from './pages/dashboard/Dashboard'
 import ESC from './pages/esc/ESC'
 import Resume from './pages/resume/Resume'
+import ProtectedRoute from './components/auth/ProtectedRoute'
+import { AuthProvider } from './contexts/AuthContext'
 
 // Create a client
 const queryClient = new QueryClient()
@@ -15,16 +17,40 @@ const queryClient = new QueryClient()
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/esc" element={<ESC />} />
-            <Route path="/resume" element={<Resume />} />
-          </Routes>
-        </Layout>
-      </Router>
+      <AuthProvider>
+        <Router>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<AuthPage />} />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/esc" 
+                element={
+                  <ProtectedRoute>
+                    <ESC />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/resume" 
+                element={
+                  <ProtectedRoute>
+                    <Resume />
+                  </ProtectedRoute>
+                } 
+              />
+            </Routes>
+          </Layout>
+        </Router>
+      </AuthProvider>
     </QueryClientProvider>
   )
 }

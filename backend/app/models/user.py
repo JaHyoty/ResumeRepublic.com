@@ -17,6 +17,7 @@ class User(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     preferred_first_name = Column(String(100), nullable=True)
+    password_hash = Column(String(255), nullable=True)  # Nullable for OAuth users
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

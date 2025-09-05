@@ -1,7 +1,20 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import { APP_TAGLINE } from '../../config/constants'
 
 const Hero: React.FC = () => {
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
+
+  const handleTailorResume = () => {
+    if (isAuthenticated) {
+      navigate('/dashboard')
+    } else {
+      navigate('/login')
+    }
+  }
+
   return (
     <section className="relative w-full text-white py-16 lg:py-24" role="banner">
       {/* Purple gradient background with circular darker center */}
@@ -33,7 +46,10 @@ const Hero: React.FC = () => {
             {APP_TAGLINE}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
-            <button className="bg-gray-200 text-black border-2 border-gray-300 hover:bg-yellow-50 font-semibold text-lg px-8 py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300">
+            <button 
+              onClick={handleTailorResume}
+              className="bg-gray-200 text-black border-2 border-gray-300 hover:bg-yellow-50 font-semibold text-lg px-8 py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300"
+            >
               Tailor My Resume
             </button>
             <button className="border-2 border-white text-white hover:bg-purple-500 hover:text-primary-700 font-semibold text-lg px-8 py-3 rounded-lg flex items-center justify-center gap-2 transition-all duration-300">

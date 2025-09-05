@@ -9,7 +9,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import structlog
 
 from app.core.config import settings
-from app.api import auth, esc, resume, users
+from app.api import auth_demo as auth, esc, resume, users
 
 # Configure structured logging
 structlog.configure(
