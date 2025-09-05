@@ -122,6 +122,7 @@ public
 # Temporary folders
 tmp/
 temp/
+archive/
 
 # Database
 *.db
