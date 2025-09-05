@@ -23,7 +23,7 @@ const HowItWorks: React.FC = () => {
     {
       stepNumber: 1,
       title: "Upload & Parse",
-      description: "Upload your existing resume and let our AI extract all your professional information automatically."
+      description: "Upload your existing resume and let our system extract all your professional information automatically."
     },
     {
       stepNumber: 2,

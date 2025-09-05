@@ -1,4 +1,5 @@
 import React from 'react'
+import { APP_TAGLINE } from '../../config/constants'
 
 const Hero: React.FC = () => {
   return (
@@ -29,8 +30,7 @@ const Hero: React.FC = () => {
             <span className="block text-yellow-300 mt-2">Tailored Resumes</span>
           </h1>
           <p className="text-lg md:text-xl text-purple-100 mb-8 leading-relaxed max-w-2xl mx-auto">
-            Transform your professional profile with a tool that truly knows your value.
-            No more inaccurate AI Resume Generators.
+            {APP_TAGLINE}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
             <button className="bg-gray-200 text-black border-2 border-gray-300 hover:bg-yellow-50 font-semibold text-lg px-8 py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300">
@@ -41,7 +41,7 @@ const Hero: React.FC = () => {
             </button>
           </div>
           <p className="text-purple-400 text-sm">
-            Made to overcome the challenges of AI in the hiring process.<br/>
+            Made to overcome the shortcomings of AI in the hiring process.<br/>
             As such, we'd like to offer this service for free to all users.
           </p>
         </div>

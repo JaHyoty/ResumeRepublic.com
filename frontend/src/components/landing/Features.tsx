@@ -31,7 +31,7 @@ const Features: React.FC = () => {
     {
       icon: <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center"></div>,
       title: "Smart Resume Parsing",
-      description: "Upload your existing resume and let our AI extract experiences, skills, and certifications automatically.",
+      description: "Upload your existing resume and let our system extract key details automatically.",
       features: [
         "PDF and DOCX support",
         "Intelligent data extraction", 
@@ -40,18 +40,18 @@ const Features: React.FC = () => {
     },
     {
       icon: <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center"></div>,
-      title: "ESC Management",
-      description: "Organize your Experiences, Skills, and Certifications in one centralized dashboard.",
+      title: "Experience and Skills Catalog",
+      description: "Manage your experiences and skills in one centralized dashboard.",
       features: [
-        "Structured data management",
-        "Version control",
-        "Progress tracking"
+        "Store your experiences, skills, certifications, etc.",
+        "Used for accurate resume generation",
+        "Skill development suggestions"
       ]
     },
     {
       icon: <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center"></div>,
-      title: "LaTeX Resume Generation",
-      description: "Generate professional, ATS-optimized resumes with our LaTeX engine.",
+      title: "PDF Resume Generation",
+      description: "Generate professional, ATS-optimized resumes with our clean resume templates.",
       features: [
         "Multiple templates",
         "ATS optimization",
@@ -75,7 +75,7 @@ const Features: React.FC = () => {
       features: [
         "Version history",
         "Quick switching",
-        "Metadata tracking"
+        "Application tracking"
       ]
     },
     {
@@ -95,10 +95,10 @@ const Features: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 id="features-heading" className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Everything you need to manage your career
+            Everything you need to take the next step
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            From intelligent resume parsing to ATS optimization, we've got you covered
+            From intelligent skill matching to ATS optimization, we've got you covered
           </p>
         </div>
         

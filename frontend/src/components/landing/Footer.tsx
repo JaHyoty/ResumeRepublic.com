@@ -1,4 +1,5 @@
 import React from 'react'
+import { APP_NAME } from '../../config/constants'
 
 interface FooterNavProps {
   title: string
@@ -57,7 +58,7 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <h3 className="text-xl font-bold text-white mb-4 bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">
-              CareerPathPro
+              {APP_NAME}
             </h3>
             <p className="text-gray-300 mb-4">
               Optimize your career with AI-powered resume generation and management.
@@ -84,7 +85,7 @@ const Footer: React.FC = () => {
         </div>
         
         <div className="border-t border-gray-700 mt-8 pt-8 text-center text-gray-300">
-          <p>&copy; {new Date().getFullYear()} CareerPathPro. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} {APP_NAME}. All rights reserved.</p>
         </div>
       </div>
     </footer>

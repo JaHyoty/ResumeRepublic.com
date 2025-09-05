@@ -1,4 +1,5 @@
 import React from 'react'
+import { APP_NAME } from '../../config/constants'
 
 interface TestimonialCardProps {
   quote: string
@@ -31,7 +32,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = ({ quote, author }) => {
 const Testimonials: React.FC = () => {
   const testimonials = [
     {
-      quote: "CareerPathPro saved me hours of work. The AI parsing is incredibly accurate and the LaTeX output looks professional.",
+      quote: `${APP_NAME} saved me hours of work. The AI parsing is incredibly accurate and the LaTeX output looks professional.`,
       author: {
         name: "Jessica Smith",
         role: "Software Engineer",
@@ -70,7 +71,7 @@ const Testimonials: React.FC = () => {
             Trusted by professionals worldwide
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            See what our users are saying about CareerPathPro
+            See what our users are saying about {APP_NAME}
           </p>
         </div>
         
