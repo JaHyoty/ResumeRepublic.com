@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     APPLE_CLIENT_SECRET: Optional[str] = None
     
     # CORS - Configurable via environment
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:4173"]
     ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
     
     # External Services

@@ -1,15 +1,6 @@
-import React, { useState } from 'react'
-
-interface Application {
-  id: number
-  jobTitle: string
-  company: string
-  appliedDate: string
-  onlineAssessment: boolean
-  interview: boolean
-  rejected: boolean
-  jobDescription: string
-}
+import React, { useState, useEffect } from 'react'
+import { applicationService } from '../../services/applications/applicationService'
+import type { Application, ApplicationStats } from '../../services/applications/applicationService'
 
 const ApplicationsView: React.FC = () => {
   // State for tracking which application is expanded
@@ -17,69 +8,59 @@ const ApplicationsView: React.FC = () => {
   // State for new application modal
   const [isNewApplicationModalOpen, setIsNewApplicationModalOpen] = useState(false)
   const [newJobDescription, setNewJobDescription] = useState('')
+  // State for applications data
+  const [recentApplications, setRecentApplications] = useState<Application[]>([])
+  const [stats, setStats] = useState<ApplicationStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Mock data - in a real app, this would come from an API
-  const [recentApplications, setRecentApplications] = useState<Application[]>([
-    {
-      id: 1,
-      jobTitle: 'Senior Software Engineer',
-      company: 'TechCorp Inc.',
-      appliedDate: '2024-01-15',
-      onlineAssessment: true,
-      interview: true,
-      rejected: false,
-      jobDescription: 'We are looking for a Senior Software Engineer to join our growing team. You will be responsible for designing and implementing scalable web applications using React, Node.js, and AWS. The ideal candidate has 5+ years of experience in full-stack development, strong problem-solving skills, and experience with microservices architecture. You will work closely with product managers and designers to deliver high-quality software solutions.'
-    },
-    {
-      id: 2,
-      jobTitle: 'Full Stack Developer',
-      company: 'StartupXYZ',
-      appliedDate: '2024-01-12',
-      onlineAssessment: true,
-      interview: false,
-      rejected: true,
-      jobDescription: 'Join our fast-paced startup as a Full Stack Developer! You will work on our core product using modern technologies like TypeScript, Next.js, and PostgreSQL. We are looking for someone who can wear multiple hats, from frontend development to database optimization. This is a great opportunity to grow with a company and have a significant impact on our product direction.'
-    },
-    {
-      id: 3,
-      jobTitle: 'Frontend Developer',
-      company: 'DesignStudio',
-      appliedDate: '2024-01-10',
-      onlineAssessment: false,
-      interview: false,
-      rejected: false,
-      jobDescription: 'We are seeking a creative Frontend Developer to join our design-focused team. You will be responsible for creating beautiful, responsive user interfaces using React, CSS-in-JS, and modern design systems. The ideal candidate has a strong eye for design, experience with animation libraries, and a passion for creating exceptional user experiences. You will collaborate closely with our design team to bring mockups to life.'
-    },
-    {
-      id: 4,
-      jobTitle: 'Backend Engineer',
-      company: 'DataFlow Systems',
-      appliedDate: '2024-01-08',
-      onlineAssessment: true,
-      interview: true,
-      rejected: false,
-      jobDescription: 'Join our backend team to build robust, scalable APIs and data processing systems. You will work with Python, Django, and cloud technologies to handle large-scale data processing. The ideal candidate has experience with database optimization, API design, and cloud infrastructure. You will be responsible for maintaining high availability and performance of our core services.'
-    },
-    {
-      id: 5,
-      jobTitle: 'DevOps Engineer',
-      company: 'CloudTech',
-      appliedDate: '2024-01-05',
-      onlineAssessment: true,
-      interview: false,
-      rejected: true,
-      jobDescription: 'We are looking for a DevOps Engineer to help us scale our infrastructure and improve our deployment processes. You will work with Docker, Kubernetes, AWS, and CI/CD pipelines to ensure reliable and efficient deployments. The ideal candidate has experience with infrastructure as code, monitoring systems, and automation. You will play a key role in improving our development workflow and system reliability.'
+  // Load applications and stats on component mount
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      const [applicationsData, statsData] = await Promise.all([
+        applicationService.getApplications(),
+        applicationService.getApplicationStats()
+      ])
+      setRecentApplications(applicationsData)
+      setStats(statsData)
+    } catch (err) {
+      setError('Failed to load applications data')
+      console.error('Error loading data:', err)
+    } finally {
+      setLoading(false)
     }
-  ])
+  }
 
-  const handleStatusChange = (applicationId: number, statusType: keyof Pick<Application, 'onlineAssessment' | 'interview' | 'rejected'>) => {
-    setRecentApplications(prevApplications =>
-      prevApplications.map(app =>
-        app.id === applicationId
-          ? { ...app, [statusType]: !app[statusType] }
-          : app
+
+  const handleStatusChange = async (applicationId: number, statusType: 'online_assessment' | 'interview' | 'rejected') => {
+    try {
+      const application = recentApplications.find(app => app.id === applicationId)
+      if (!application) return
+
+      const updateData = {
+        [statusType]: !application[statusType]
+      }
+
+      const updatedApplication = await applicationService.updateApplication(applicationId, updateData)
+      
+      setRecentApplications(prevApplications =>
+        prevApplications.map(app =>
+          app.id === applicationId ? updatedApplication : app
+        )
       )
-    )
+
+      // Reload stats after update
+      const statsData = await applicationService.getApplicationStats()
+      setStats(statsData)
+    } catch (err) {
+      console.error('Error updating application status:', err)
+      setError('Failed to update application status')
+    }
   }
 
   const handleToggleApplication = (applicationId: number) => {
@@ -103,47 +84,50 @@ const ApplicationsView: React.FC = () => {
     handleCloseNewApplicationModal()
   }
 
-  const handleAddToApplications = () => {
-    // Create a new application with the job description
-    const newApplication: Application = {
-      id: Math.max(...recentApplications.map(app => app.id)) + 1,
-      jobTitle: 'New Job Application', // This could be extracted from the job description
-      company: 'Unknown Company', // This could be extracted from the job description
-      appliedDate: new Date().toISOString().split('T')[0],
-      onlineAssessment: false,
-      interview: false,
-      rejected: false,
-      jobDescription: newJobDescription
-    }
+  const handleAddToApplications = async () => {
+    try {
+      // Create a new application with the job description
+      const newApplicationData = {
+        job_title: 'New Job Application', // This could be extracted from the job description
+        company: 'Unknown Company', // This could be extracted from the job description
+        job_description: newJobDescription,
+        online_assessment: false,
+        interview: false,
+        rejected: false
+      }
 
-    // Add the new application to the list
-    setRecentApplications(prevApplications => [newApplication, ...prevApplications])
-    
-    // Close the modal
-    handleCloseNewApplicationModal()
-  }
-
-  // Calculate dynamic statistics based on current application data
-  const calculateStats = () => {
-    const totalApplications = recentApplications.length
-    const onlineAssessments = recentApplications.filter(app => app.onlineAssessment).length
-    const interviews = recentApplications.filter(app => app.interview).length
-    const rejected = recentApplications.filter(app => app.rejected).length
-
-    return {
-      applicationsSubmitted: totalApplications,
-      onlineAssessments,
-      interviews,
-      rejected
+      const newApplication = await applicationService.createApplication(newApplicationData)
+      
+      // Add the new application to the list
+      setRecentApplications(prevApplications => [newApplication, ...prevApplications])
+      
+      // Reload stats after adding
+      const statsData = await applicationService.getApplicationStats()
+      setStats(statsData)
+      
+      // Close the modal
+      handleCloseNewApplicationModal()
+    } catch (err) {
+      console.error('Error creating application:', err)
+      setError('Failed to create application')
     }
   }
 
-  const currentStats = calculateStats()
+  // Use API stats or fallback to calculated stats
+  const currentStats = stats || {
+    total_applications: recentApplications.length,
+    online_assessments: recentApplications.filter(app => app.online_assessment).length,
+    interviews: recentApplications.filter(app => app.interview).length,
+    rejected: recentApplications.filter(app => app.rejected).length,
+    online_assessment_rate: 0,
+    interview_rate: 0,
+    rejection_rate: 0
+  }
 
-  const stats = [
+  const statsDisplay = [
     {
       title: 'Applications Submitted',
-      value: currentStats.applicationsSubmitted,
+      value: currentStats.total_applications,
       percentage: null,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
@@ -151,10 +135,8 @@ const ApplicationsView: React.FC = () => {
     },
     {
       title: 'Online Assessments',
-      value: currentStats.onlineAssessments,
-      percentage: currentStats.applicationsSubmitted > 0 
-        ? Math.round((currentStats.onlineAssessments / currentStats.applicationsSubmitted) * 100)
-        : 0,
+      value: currentStats.online_assessments,
+      percentage: currentStats.online_assessment_rate,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
       icon: '💻'
@@ -162,9 +144,7 @@ const ApplicationsView: React.FC = () => {
     {
       title: 'Interviews',
       value: currentStats.interviews,
-      percentage: currentStats.applicationsSubmitted > 0 
-        ? Math.round((currentStats.interviews / currentStats.applicationsSubmitted) * 100)
-        : 0,
+      percentage: currentStats.interview_rate,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
       icon: '🎯'
@@ -172,14 +152,34 @@ const ApplicationsView: React.FC = () => {
     {
       title: 'Rejected',
       value: currentStats.rejected,
-      percentage: currentStats.applicationsSubmitted > 0 
-        ? Math.round((currentStats.rejected / currentStats.applicationsSubmitted) * 100)
-        : 0,
+      percentage: currentStats.rejection_rate,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
       icon: '❌'
     }
   ]
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Applications</h2>
+        <div className="flex justify-center items-center h-64">
+          <div className="text-gray-500">Loading applications...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Applications</h2>
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+          {error}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6">
@@ -187,7 +187,7 @@ const ApplicationsView: React.FC = () => {
       
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat, index) => (
+        {statsDisplay.map((stat, index) => (
           <div key={index} className={`${stat.bgColor} rounded-lg p-6 border border-gray-200`}>
             <div className="flex items-center justify-between">
               <div>
@@ -228,7 +228,7 @@ const ApplicationsView: React.FC = () => {
                 <div className="hidden md:flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-4 mb-2">
-                      <h4 className="text-lg font-medium text-gray-900">{application.jobTitle}</h4>
+                      <h4 className="text-lg font-medium text-gray-900">{application.job_title}</h4>
                       <span className="text-sm text-gray-500">at</span>
                       <span className="text-lg font-medium text-gray-700">{application.company}</span>
                     </div>
@@ -238,8 +238,8 @@ const ApplicationsView: React.FC = () => {
                       <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                         <input
                           type="checkbox"
-                          checked={application.onlineAssessment}
-                          onChange={() => handleStatusChange(application.id, 'onlineAssessment')}
+                          checked={application.online_assessment}
+                          onChange={() => handleStatusChange(application.id, 'online_assessment')}
                           className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                         />
                         <span>Online Assessment</span>
@@ -265,7 +265,7 @@ const ApplicationsView: React.FC = () => {
                     </div>
                     
                     <div className="text-sm text-gray-500">
-                      Applied on {application.appliedDate}
+                      Applied on {new Date(application.applied_date).toLocaleDateString()}
                     </div>
                   </div>
                   
@@ -283,7 +283,7 @@ const ApplicationsView: React.FC = () => {
                 {/* Mobile Layout */}
                 <div className="md:hidden">
                   <div className="mb-3">
-                    <h4 className="text-lg font-medium text-gray-900 mb-1">{application.jobTitle}</h4>
+                    <h4 className="text-lg font-medium text-gray-900 mb-1">{application.job_title}</h4>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">at</span>
                       <span className="text-lg font-medium text-gray-700">{application.company}</span>
@@ -295,8 +295,8 @@ const ApplicationsView: React.FC = () => {
                     <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={application.onlineAssessment}
-                        onChange={() => handleStatusChange(application.id, 'onlineAssessment')}
+                        checked={application.online_assessment}
+                        onChange={() => handleStatusChange(application.id, 'online_assessment')}
                         className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                       />
                       <span>Assessment</span>
@@ -323,7 +323,7 @@ const ApplicationsView: React.FC = () => {
                   
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-gray-500">
-                      Applied on {application.appliedDate}
+                      Applied on {new Date(application.applied_date).toLocaleDateString()}
                     </div>
                     
                     {/* Action Button - Mobile */}
@@ -342,7 +342,7 @@ const ApplicationsView: React.FC = () => {
                 <div className="bg-gray-50 border-t border-gray-200 px-6 py-4">
                   <h5 className="text-sm font-semibold text-gray-700 mb-3">Job Description</h5>
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
-                    {application.jobDescription}
+                    {application.job_description}
                   </p>
                 </div>
               )}
