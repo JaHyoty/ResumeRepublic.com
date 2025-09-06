@@ -24,7 +24,7 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen w-screen left-0 right-0" style={{ marginLeft: 'calc(50% - 50vw)' }}>
       <DashboardHeader />
       <DashboardNavigation activeView={activeView} onViewChange={setActiveView} />
       <main className="max-w-6xl mx-auto">
