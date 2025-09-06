@@ -1,0 +1,110 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY: careerpathpro-backend
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+    
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+    
+    - name: Run frontend tests
+      run: |
+        cd frontend
+        npm run test -- --coverage --watchAll=false
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install backend dependencies
+      run: |
+        cd backend
+        pip install -r requirements.txt
+    
+    - name: Run backend tests
+      run: |
+        cd backend
+        pytest
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+    
+    - name: Build, tag, and push backend image
+      run: |
+        cd backend
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+    
+    - name: Deploy infrastructure
+      run: |
+        cd aws-deployment/terraform
+        terraform init
+        terraform plan -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="db_password=${{ secrets.DB_PASSWORD }}" -var="secret_key=${{ secrets.SECRET_KEY }}"
+        terraform apply -var="aws_account_id=${{ secrets.AWS_ACCOUNT_ID }}" -var="db_password=${{ secrets.DB_PASSWORD }}" -var="secret_key=${{ secrets.SECRET_KEY }}" -auto-approve
+    
+    - name: Build and deploy frontend
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+        
+        # Get S3 bucket name from Terraform output
+        cd ../aws-deployment/terraform
+        S3_BUCKET=$(terraform output -raw s3_bucket_name)
+        
+        # Sync to S3
+        aws s3 sync ../../frontend/dist/ s3://$S3_BUCKET --delete
+        
+        # Invalidate CloudFront cache
+        CLOUDFRONT_DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Origins.Items[0].DomainName=='$S3_BUCKET.s3.amazonaws.com'].Id" --output text)
+        if [ ! -z "$CLOUDFRONT_DISTRIBUTION_ID" ]; then
+          aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
+        fi
+    
+    - name: Update ECS service
+      run: |
+        aws ecs update-service \
+          --cluster careerpathpro-cluster \
+          --service careerpathpro-backend-service \
+          --force-new-deployment
