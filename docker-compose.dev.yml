@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: careerpathpro_db_dev
+    environment:
+      POSTGRES_DB: careerpathpro
+      POSTGRES_USER: careeruser
+      POSTGRES_PASSWORD: careerpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+      - ./database_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U careeruser -d careerpathpro"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - careerpathpro_network
+
+  # Backend API (Development)
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: careerpathpro_backend_dev
+    environment:
+      DATABASE_URL: postgresql://careeruser:careerpass@postgres:5432/careerpathpro
+      DATABASE_URL_ASYNC: postgresql+asyncpg://careeruser:careerpass@postgres:5432/careerpathpro
+      ENVIRONMENT: development
+      SECRET_KEY: dev-secret-key-not-for-production
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+    networks:
+      - careerpathpro_network
+    command: >
+      sh -c "
+        alembic upgrade head &&
+        python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+volumes:
+  postgres_data_dev:
+
+networks:
+  careerpathpro_network:
+    driver: bridge
