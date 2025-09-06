@@ -38,20 +38,26 @@ class ApiClient {
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
           
-          try {
-            const refreshToken = localStorage.getItem('refresh_token');
-            if (refreshToken) {
-              const response = await this.post<{ access_token: string }>('/api/auth/refresh');
-              const { access_token } = response.data;
-              localStorage.setItem('auth_token', access_token);
-              originalRequest.headers.Authorization = `Bearer ${access_token}`;
-              return this.client(originalRequest);
+          // Only redirect if it's not a login/register endpoint
+          const url = error.config?.url || ''
+          const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/register')
+          
+          if (!isAuthEndpoint) {
+            try {
+              const refreshToken = localStorage.getItem('refresh_token');
+              if (refreshToken) {
+                const response = await this.post<{ access_token: string }>('/api/auth/refresh');
+                const { access_token } = response.data;
+                localStorage.setItem('auth_token', access_token);
+                originalRequest.headers.Authorization = `Bearer ${access_token}`;
+                return this.client(originalRequest);
+              }
+            } catch (refreshError) {
+              // Refresh failed, redirect to login
+              localStorage.removeItem('auth_token');
+              localStorage.removeItem('refresh_token');
+              window.location.href = '/login';
             }
-          } catch (refreshError) {
-            // Refresh failed, redirect to login
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('refresh_token');
-            window.location.href = '/login';
           }
         }
         

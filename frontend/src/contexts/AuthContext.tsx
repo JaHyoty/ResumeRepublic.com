@@ -27,14 +27,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initializeAuth = async () => {
       const storedToken = authService.getToken();
       
-      if (storedToken && !authService.isTokenExpired(storedToken)) {
+      if (storedToken) {
         try {
           setToken(storedToken);
           const userData = await authService.getCurrentUser();
           setUser(userData);
         } catch (error) {
           console.error('Failed to get current user:', error);
-          authService.removeToken();
+          authService.logout();
         }
       }
       
@@ -60,62 +60,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (credentials: RegisterCredentials): Promise<void> => {
     try {
-      const authToken = await authService.register(credentials);
+      const userData = await authService.register(credentials);
+      setUser(userData);
+      
+      // After registration, login to get token
+      const authToken = await authService.login({
+        email: credentials.email,
+        password: credentials.password
+      });
       authService.setToken(authToken.access_token);
       setToken(authToken.access_token);
-      
-      const userData = await authService.getCurrentUser();
-      setUser(userData);
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
     }
   };
 
+  // OAuth methods can be added later
   const loginWithGoogle = async (credentials: OAuthCredentials): Promise<void> => {
-    try {
-      const authToken = await authService.loginWithGoogle(credentials);
-      authService.setToken(authToken.access_token);
-      setToken(authToken.access_token);
-      
-      const userData = await authService.getCurrentUser();
-      setUser(userData);
-    } catch (error) {
-      console.error('Google login failed:', error);
-      throw error;
-    }
+    throw new Error('Google login not implemented yet');
   };
 
   const loginWithGitHub = async (credentials: OAuthCredentials): Promise<void> => {
-    try {
-      const authToken = await authService.loginWithGitHub(credentials);
-      authService.setToken(authToken.access_token);
-      setToken(authToken.access_token);
-      
-      const userData = await authService.getCurrentUser();
-      setUser(userData);
-    } catch (error) {
-      console.error('GitHub login failed:', error);
-      throw error;
-    }
+    throw new Error('GitHub login not implemented yet');
   };
 
   const logout = (): void => {
-    authService.removeToken();
+    authService.logout();
     setUser(null);
     setToken(null);
   };
 
+  // Token refresh can be added later
   const refreshToken = async (): Promise<void> => {
-    try {
-      const authToken = await authService.refreshToken();
-      authService.setToken(authToken.access_token);
-      setToken(authToken.access_token);
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      logout();
-      throw error;
-    }
+    throw new Error('Token refresh not implemented yet');
   };
 
   const value: AuthContextType = {

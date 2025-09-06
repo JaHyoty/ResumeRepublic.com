@@ -6,6 +6,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
+from app.core.password import verify_password, get_password_hash
 
 
 class User(Base):
@@ -30,6 +31,16 @@ class User(Base):
     certifications = relationship("Certification", back_populates="user", cascade="all, delete-orphan")
     resume_versions = relationship("ResumeVersion", back_populates="user", cascade="all, delete-orphan")
     applications = relationship("Application", back_populates="user", cascade="all, delete-orphan")
+
+    def set_password(self, password: str):
+        """Set password hash"""
+        self.password_hash = get_password_hash(password)
+    
+    def check_password(self, password: str) -> bool:
+        """Check password against hash"""
+        if not self.password_hash:
+            return False
+        return verify_password(password, self.password_hash)
 
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}')>"
