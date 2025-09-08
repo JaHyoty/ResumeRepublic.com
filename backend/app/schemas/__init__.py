@@ -6,3 +6,4 @@ from .experience import (
     ExperienceTitleBase, ExperienceTitleCreate, ExperienceTitle,
     AchievementBase, AchievementCreate, Achievement
 )
+from .skill import SkillBase, SkillCreate, SkillUpdate, Skill

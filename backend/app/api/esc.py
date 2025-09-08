@@ -11,7 +11,9 @@ from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.models.user import User
 from app.models.experience import Experience as ExperienceModel, ExperienceTitle as ExperienceTitleModel, Achievement as AchievementModel
+from app.models.skill import Skill as SkillModel
 from app.schemas.experience import Experience, ExperienceCreate, ExperienceUpdate
+from app.schemas.skill import Skill, SkillCreate, SkillUpdate
 
 router = APIRouter()
 
@@ -156,11 +158,114 @@ def delete_experience(
     return None
 
 
+# Skills endpoints
+@router.get("/skills", response_model=List[Skill])
+def get_user_skills(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all skills for the current user, sorted by category and name"""
+    skills = db.query(SkillModel).filter(
+        SkillModel.user_id == current_user.id
+    ).order_by(
+        SkillModel.source,
+        SkillModel.name
+    ).all()
+    return skills
+
+
+@router.post("/skills", response_model=Skill)
+def create_skill(
+    skill: SkillCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new skill for the current user"""
+    db_skill = SkillModel(
+        **skill.dict(),
+        user_id=current_user.id
+    )
+    db.add(db_skill)
+    db.commit()
+    db.refresh(db_skill)
+    return db_skill
+
+
+@router.get("/skills/{skill_id}", response_model=Skill)
+def get_skill(
+    skill_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific skill by ID"""
+    skill = db.query(SkillModel).filter(
+        SkillModel.id == skill_id,
+        SkillModel.user_id == current_user.id
+    ).first()
+    
+    if not skill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Skill not found"
+        )
+    
+    return skill
+
+
+@router.put("/skills/{skill_id}", response_model=Skill)
+def update_skill(
+    skill_id: int,
+    skill_update: SkillUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a skill"""
+    skill = db.query(SkillModel).filter(
+        SkillModel.id == skill_id,
+        SkillModel.user_id == current_user.id
+    ).first()
+    
+    if not skill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Skill not found"
+        )
+    
+    # Update only provided fields
+    update_data = skill_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(skill, field, value)
+    
+    db.commit()
+    db.refresh(skill)
+    return skill
+
+
+@router.delete("/skills/{skill_id}")
+def delete_skill(
+    skill_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a skill"""
+    skill = db.query(SkillModel).filter(
+        SkillModel.id == skill_id,
+        SkillModel.user_id == current_user.id
+    ).first()
+    
+    if not skill:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Skill not found"
+        )
+    
+    db.delete(skill)
+    db.commit()
+    
+    return {"message": "Skill deleted successfully"}
+
+
 # TODO: Implement other ESC routes
-# - GET /skills
-# - POST /skills
-# - PUT /skills/{id}
-# - DELETE /skills/{id}
 # - GET /tools
 # - POST /tools
 # - GET /publications

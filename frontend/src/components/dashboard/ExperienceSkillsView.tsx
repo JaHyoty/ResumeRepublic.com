@@ -2,7 +2,9 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ExperienceModal from '../experience/ExperienceModal'
 import DeleteConfirmationModal from '../experience/DeleteConfirmationModal'
+import SkillsModal from '../skills/SkillsModal'
 import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
+import { skillService, type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null)
@@ -12,6 +14,9 @@ const ExperienceSkillsView: React.FC = () => {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
   const [deletingExperience, setDeletingExperience] = useState<Experience | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false)
+  const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
+  const [skillsModalMode, setSkillsModalMode] = useState<'create' | 'edit'>('create')
   
   const queryClient = useQueryClient()
 
@@ -64,6 +69,53 @@ const ExperienceSkillsView: React.FC = () => {
     }
   })
 
+  // Fetch skills
+  const { data: skills = [], isLoading: skillsLoading, error: skillsError } = useQuery({
+    queryKey: ['skills'],
+    queryFn: skillService.getSkills,
+  })
+
+  // Create skill mutation
+  const createSkillMutation = useMutation({
+    mutationFn: skillService.createSkill,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] })
+      setIsSkillsModalOpen(false)
+      setEditingSkill(null)
+    },
+    onError: (error) => {
+      console.error('Failed to create skill:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Update skill mutation
+  const updateSkillMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CreateSkillRequest }) => 
+      skillService.updateSkill(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] })
+      setIsSkillsModalOpen(false)
+      setEditingSkill(null)
+    },
+    onError: (error) => {
+      console.error('Failed to update skill:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Delete skill mutation
+  const deleteSkillMutation = useMutation({
+    mutationFn: (id: number) => skillService.deleteSkill(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] })
+    },
+    onError: (error) => {
+      console.error('Failed to delete skill:', error)
+      // You could add toast notification here
+    }
+  })
+
   const sections = [
     {
       id: 'experience',
@@ -77,11 +129,11 @@ const ExperienceSkillsView: React.FC = () => {
     {
       id: 'skills',
       title: 'Skills',
-      description: 'Technical and soft skills with proficiency levels',
+      description: 'Technical and soft skills you possess',
       icon: '🎓',
       color: 'bg-green-50 border-green-200',
       iconColor: 'text-green-600',
-      fields: ['Skill Name', 'Proficiency Level', 'Years of Experience', 'Source (Work/Education/Certification)']
+      fields: ['Skill Name']
     },
     {
       id: 'tools',
@@ -148,6 +200,30 @@ const ExperienceSkillsView: React.FC = () => {
       })
     } else {
       await createExperienceMutation.mutateAsync(data)
+    }
+  }
+
+  // Skills handlers
+  const handleAddSkillClick = () => {
+    setSkillsModalMode('create')
+    setEditingSkill(null)
+    setIsSkillsModalOpen(true)
+  }
+
+
+  const handleDeleteSkillClick = (skill: Skill) => {
+    deleteSkillMutation.mutate(skill.id!)
+  }
+
+
+  const handleSkillSubmit = async (data: CreateSkillRequest) => {
+    if (skillsModalMode === 'edit' && editingSkill) {
+      await updateSkillMutation.mutateAsync({ 
+        id: editingSkill.id!, 
+        data 
+      })
+    } else {
+      await createSkillMutation.mutateAsync(data)
     }
   }
 
@@ -265,10 +341,32 @@ const ExperienceSkillsView: React.FC = () => {
     )
   }
 
+  const SkillCard = ({ skill }: { skill: Skill }) => {
+    return (
+      <div className="inline-block bg-white border border-gray-200 rounded-lg mr-2 mb-2 hover:shadow-md transition-all duration-200 group overflow-hidden">
+        <div className="flex items-center px-3 py-1.5">
+          <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{skill.name}</span>
+          <div className="w-0 group-hover:w-8 transition-all duration-200 overflow-hidden">
+            <button 
+              className="text-red-600 hover:text-red-800 hover:bg-red-50 ml-2 p-1 rounded-full"
+              onClick={() => handleDeleteSkillClick(skill)}
+              title="Delete skill"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const SectionCard = ({ section }: { section: typeof sections[0] }) => {
     const isExpanded = activeSection === section.id
     const isExperienceSection = section.id === 'experience'
-    const hasData = isExperienceSection && experiences.length > 0
+    const isSkillsSection = section.id === 'skills'
+    const hasData = (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0)
 
     return (
       <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color} ${isExpanded ? 'ring-2 ring-offset-2 ring-gray-300' : ''}`}>
@@ -287,6 +385,17 @@ const ExperienceSkillsView: React.FC = () => {
                   {experiences.map((experience) => (
                     <ExperienceCard key={experience.id} experience={experience} />
                   ))}
+                </div>
+              )}
+
+              {/* Show existing skills */}
+              {isSkillsSection && hasData && (
+                <div className="mb-4 w-full">
+                  <div className="flex flex-wrap">
+                    {skills.map((skill) => (
+                      <SkillCard key={skill.id} skill={skill} />
+                    ))}
+                  </div>
                 </div>
               )}
               
@@ -310,6 +419,12 @@ const ExperienceSkillsView: React.FC = () => {
                      experiencesError ? 'Error loading experiences' :
                      hasData ? `${experiences.length} experience${experiences.length !== 1 ? 's' : ''} added` : 'No experiences added yet'}
                   </span>
+                ) : isSkillsSection ? (
+                  <span className="text-sm text-gray-500">
+                    {skillsLoading ? 'Loading...' : 
+                     skillsError ? 'Error loading skills' :
+                     hasData ? `${skills.length} skill${skills.length !== 1 ? 's' : ''} added` : 'No skills added yet'}
+                  </span>
                 ) : (
                   <span className="text-sm text-gray-500">No entries added yet</span>
                 )}
@@ -325,7 +440,7 @@ const ExperienceSkillsView: React.FC = () => {
             </div>
           </div>
           <button 
-            onClick={() => handleAddClick(section.id)}
+            onClick={() => isSkillsSection ? handleAddSkillClick() : handleAddClick(section.id)}
             className="flex items-center space-x-1 bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <span className="text-lg">+</span>
@@ -404,6 +519,20 @@ const ExperienceSkillsView: React.FC = () => {
         experienceName={deletingExperience?.company || ''}
         isLoading={deleteExperienceMutation.isPending}
       />
+
+      {/* Skills Modal */}
+      <SkillsModal
+        isOpen={isSkillsModalOpen}
+        onClose={() => {
+          setIsSkillsModalOpen(false)
+          setEditingSkill(null)
+        }}
+        onSubmit={handleSkillSubmit}
+        isLoading={createSkillMutation.isPending || updateSkillMutation.isPending}
+        initialData={editingSkill || undefined}
+        mode={skillsModalMode}
+      />
+
     </div>
   )
 }
