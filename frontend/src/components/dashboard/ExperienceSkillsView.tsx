@@ -1,7 +1,32 @@
 import React, { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import ExperienceModal from '../experience/ExperienceModal'
+import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null)
+  const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false)
+  
+  const queryClient = useQueryClient()
+
+  // Fetch experiences
+  const { data: experiences = [], isLoading: experiencesLoading, error: experiencesError } = useQuery({
+    queryKey: ['experiences'],
+    queryFn: experienceService.getExperiences,
+  })
+
+  // Create experience mutation
+  const createExperienceMutation = useMutation({
+    mutationFn: experienceService.createExperience,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['experiences'] })
+      setIsExperienceModalOpen(false)
+    },
+    onError: (error) => {
+      console.error('Failed to create experience:', error)
+      // You could add toast notification here
+    }
+  })
 
   const sections = [
     {
@@ -51,8 +76,62 @@ const ExperienceSkillsView: React.FC = () => {
     }
   ]
 
+  const handleAddClick = (sectionId: string) => {
+    if (sectionId === 'experience') {
+      setIsExperienceModalOpen(true)
+    } else {
+      // Handle other sections later
+      console.log(`Add clicked for ${sectionId}`)
+    }
+  }
+
+  const handleExperienceSubmit = async (data: CreateExperienceRequest) => {
+    await createExperienceMutation.mutateAsync(data)
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short'
+    })
+  }
+
+  const ExperienceCard = ({ experience }: { experience: Experience }) => (
+    <div className="bg-white border border-gray-200 rounded-lg p-4 mb-3">
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <h4 className="font-semibold text-gray-900">{experience.company}</h4>
+          {experience.titles.length > 0 && (
+            <p className="text-gray-700">
+              {experience.titles.find(t => t.is_primary)?.title || experience.titles[0].title}
+              {experience.titles.length > 1 && ` (+${experience.titles.length - 1} more)`}
+            </p>
+          )}
+          <p className="text-sm text-gray-500">
+            {formatDate(experience.start_date)} - {experience.is_current ? 'Present' : (experience.end_date ? formatDate(experience.end_date) : 'Present')}
+            {experience.location && ` • ${experience.location}`}
+          </p>
+          {experience.description && (
+            <p className="text-sm text-gray-600 mt-2">{experience.description}</p>
+          )}
+          {experience.achievements.length > 0 && (
+            <div className="mt-2">
+              <p className="text-xs text-gray-500 mb-1">{experience.achievements.length} achievement{experience.achievements.length !== 1 ? 's' : ''}</p>
+            </div>
+          )}
+        </div>
+        <div className="flex space-x-2 ml-4">
+          <button className="text-xs text-blue-600 hover:text-blue-800">Edit</button>
+          <button className="text-xs text-red-600 hover:text-red-800">Delete</button>
+        </div>
+      </div>
+    </div>
+  )
+
   const SectionCard = ({ section }: { section: typeof sections[0] }) => {
     const isExpanded = activeSection === section.id
+    const isExperienceSection = section.id === 'experience'
+    const hasData = isExperienceSection && experiences.length > 0
 
     return (
       <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color} ${isExpanded ? 'ring-2 ring-offset-2 ring-gray-300' : ''}`}>
@@ -64,6 +143,15 @@ const ExperienceSkillsView: React.FC = () => {
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{section.title}</h3>
               <p className="text-gray-600 text-sm mb-4">{section.description}</p>
+              
+              {/* Show existing experiences */}
+              {isExperienceSection && hasData && (
+                <div className="mb-4">
+                  {experiences.map((experience) => (
+                    <ExperienceCard key={experience.id} experience={experience} />
+                  ))}
+                </div>
+              )}
               
               {isExpanded && (
                 <div className="mt-4">
@@ -79,7 +167,15 @@ const ExperienceSkillsView: React.FC = () => {
               )}
               
               <div className="mt-4 flex items-center justify-between">
-                <span className="text-sm text-gray-500">No entries added yet</span>
+                {isExperienceSection ? (
+                  <span className="text-sm text-gray-500">
+                    {experiencesLoading ? 'Loading...' : 
+                     experiencesError ? 'Error loading experiences' :
+                     hasData ? `${experiences.length} experience${experiences.length !== 1 ? 's' : ''} added` : 'No experiences added yet'}
+                  </span>
+                ) : (
+                  <span className="text-sm text-gray-500">No entries added yet</span>
+                )}
                 <div className="flex space-x-2">
                   <button
                     onClick={() => setActiveSection(isExpanded ? null : section.id)}
@@ -91,7 +187,10 @@ const ExperienceSkillsView: React.FC = () => {
               </div>
             </div>
           </div>
-          <button className="flex items-center space-x-1 bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+          <button 
+            onClick={() => handleAddClick(section.id)}
+            className="flex items-center space-x-1 bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
             <span className="text-lg">+</span>
             <span>Add</span>
           </button>
@@ -129,6 +228,14 @@ const ExperienceSkillsView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Experience Modal */}
+      <ExperienceModal
+        isOpen={isExperienceModalOpen}
+        onClose={() => setIsExperienceModalOpen(false)}
+        onSubmit={handleExperienceSubmit}
+        isLoading={createExperienceMutation.isPending}
+      />
     </div>
   )
 }

@@ -1,0 +1,374 @@
+import React, { useState } from 'react'
+
+interface ExperienceTitle {
+  title: string
+  is_primary: boolean
+}
+
+interface Achievement {
+  description: string
+}
+
+interface ExperienceFormData {
+  company: string
+  location?: string
+  start_date: string
+  end_date?: string
+  description?: string
+  is_current: boolean
+  titles: ExperienceTitle[]
+  achievements: Achievement[]
+}
+
+interface ExperienceFormProps {
+  onSubmit: (data: ExperienceFormData) => Promise<void>
+  onCancel: () => void
+  isLoading?: boolean
+}
+
+const ExperienceForm: React.FC<ExperienceFormProps> = ({
+  onSubmit,
+  onCancel,
+  isLoading = false
+}) => {
+  const [formData, setFormData] = useState<ExperienceFormData>({
+    company: '',
+    location: '',
+    start_date: '',
+    end_date: '',
+    description: '',
+    is_current: false,
+    titles: [{ title: '', is_primary: true }],
+    achievements: [{ description: '' }]
+  })
+
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const handleInputChange = (field: keyof ExperienceFormData, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+    
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }))
+    }
+  }
+
+  const handleTitleChange = (index: number, field: keyof ExperienceTitle, value: string | boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      titles: prev.titles.map((title, i) => 
+        i === index ? { ...title, [field]: value } : title
+      )
+    }))
+  }
+
+  const handleAchievementChange = (index: number, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      achievements: prev.achievements.map((achievement, i) => 
+        i === index ? { ...achievement, description: value } : achievement
+      )
+    }))
+  }
+
+  const addTitle = () => {
+    setFormData(prev => ({
+      ...prev,
+      titles: [...prev.titles, { title: '', is_primary: false }]
+    }))
+  }
+
+  const removeTitle = (index: number) => {
+    if (formData.titles.length > 1) {
+      setFormData(prev => ({
+        ...prev,
+        titles: prev.titles.filter((_, i) => i !== index)
+      }))
+    }
+  }
+
+  const addAchievement = () => {
+    setFormData(prev => ({
+      ...prev,
+      achievements: [...prev.achievements, { description: '' }]
+    }))
+  }
+
+  const removeAchievement = (index: number) => {
+    if (formData.achievements.length > 1) {
+      setFormData(prev => ({
+        ...prev,
+        achievements: prev.achievements.filter((_, i) => i !== index)
+      }))
+    }
+  }
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {}
+
+    if (!formData.company.trim()) {
+      newErrors.company = 'Company name is required'
+    }
+
+    if (!formData.start_date) {
+      newErrors.start_date = 'Start date is required'
+    }
+
+    if (!formData.is_current && !formData.end_date) {
+      newErrors.end_date = 'End date is required for past positions'
+    }
+
+    if (formData.titles.some(title => !title.title.trim())) {
+      newErrors.titles = 'All job titles must be filled'
+    }
+
+    if (formData.achievements.some(achievement => !achievement.description.trim())) {
+      newErrors.achievements = 'All achievements must be filled or removed'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validateForm()) {
+      return
+    }
+
+    // Filter out empty achievements and prepare data
+    const cleanedData = {
+      ...formData,
+      // Ensure dates are in YYYY-MM-DD format
+      start_date: formData.start_date,
+      end_date: formData.is_current ? undefined : formData.end_date || undefined,
+      // Ensure location is not empty string
+      location: formData.location?.trim() || undefined,
+      // Ensure description is not empty string  
+      description: formData.description?.trim() || undefined,
+      achievements: formData.achievements.filter(a => a.description.trim() !== '')
+    }
+
+    try {
+      await onSubmit(cleanedData)
+    } catch (error) {
+      console.error('Failed to submit experience:', error)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Company and Location */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Company *
+          </label>
+          <input
+            type="text"
+            value={formData.company}
+            onChange={(e) => handleInputChange('company', e.target.value)}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              errors.company ? 'border-red-500' : 'border-gray-300'
+            }`}
+            placeholder="Enter company name"
+          />
+          {errors.company && <p className="text-red-500 text-xs mt-1">{errors.company}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Location
+          </label>
+          <input
+            type="text"
+            value={formData.location}
+            onChange={(e) => handleInputChange('location', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="City, State/Country"
+          />
+        </div>
+      </div>
+
+      {/* Dates */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Start Date *
+          </label>
+          <input
+            type="date"
+            value={formData.start_date}
+            onChange={(e) => handleInputChange('start_date', e.target.value)}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              errors.start_date ? 'border-red-500' : 'border-gray-300'
+            }`}
+          />
+          {errors.start_date && <p className="text-red-500 text-xs mt-1">{errors.start_date}</p>}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            End Date
+          </label>
+          <input
+            type="date"
+            value={formData.end_date}
+            onChange={(e) => handleInputChange('end_date', e.target.value)}
+            disabled={formData.is_current}
+            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              formData.is_current ? 'bg-gray-100 cursor-not-allowed' : 'border-gray-300'
+            } ${errors.end_date ? 'border-red-500' : ''}`}
+          />
+          {errors.end_date && <p className="text-red-500 text-xs mt-1">{errors.end_date}</p>}
+        </div>
+      </div>
+
+      {/* Current Position Checkbox */}
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          id="is_current"
+          checked={formData.is_current}
+          onChange={(e) => {
+            handleInputChange('is_current', e.target.checked)
+            if (e.target.checked) {
+              handleInputChange('end_date', '')
+            }
+          }}
+          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+        />
+        <label htmlFor="is_current" className="ml-2 block text-sm text-gray-700">
+          I currently work here
+        </label>
+      </div>
+
+      {/* Job Titles */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Job Titles *
+        </label>
+        {formData.titles.map((title, index) => (
+          <div key={index} className="flex items-center space-x-2 mb-2">
+            <input
+              type="text"
+              value={title.title}
+              onChange={(e) => handleTitleChange(index, 'title', e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter job title"
+            />
+            <label className="flex items-center text-sm text-gray-600">
+              <input
+                type="radio"
+                name="primary_title"
+                checked={title.is_primary}
+                onChange={() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    titles: prev.titles.map((t, i) => ({
+                      ...t,
+                      is_primary: i === index
+                    }))
+                  }))
+                }}
+                className="mr-1"
+              />
+              Primary
+            </label>
+            {formData.titles.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeTitle(index)}
+                className="text-red-500 hover:text-red-700 text-sm"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addTitle}
+          className="text-blue-500 hover:text-blue-700 text-sm"
+        >
+          + Add another title
+        </button>
+        {errors.titles && <p className="text-red-500 text-xs mt-1">{errors.titles}</p>}
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Description
+        </label>
+        <textarea
+          value={formData.description}
+          onChange={(e) => handleInputChange('description', e.target.value)}
+          rows={4}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Describe your role and responsibilities..."
+        />
+      </div>
+
+      {/* Achievements */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Key Achievements
+        </label>
+        {formData.achievements.map((achievement, index) => (
+          <div key={index} className="flex items-start space-x-2 mb-2">
+            <textarea
+              value={achievement.description}
+              onChange={(e) => handleAchievementChange(index, e.target.value)}
+              rows={2}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Describe a key achievement or accomplishment..."
+            />
+            {formData.achievements.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeAchievement(index)}
+                className="text-red-500 hover:text-red-700 text-sm mt-2"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={addAchievement}
+          className="text-blue-500 hover:text-blue-700 text-sm"
+        >
+          + Add another achievement
+        </button>
+        {errors.achievements && <p className="text-red-500 text-xs mt-1">{errors.achievements}</p>}
+      </div>
+
+      {/* Form Actions */}
+      <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isLoading}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+        >
+          {isLoading ? 'Saving...' : 'Save Experience'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+export default ExperienceForm
