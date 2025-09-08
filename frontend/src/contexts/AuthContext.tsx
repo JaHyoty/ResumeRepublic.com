@@ -77,11 +77,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // OAuth methods can be added later
-  const loginWithGoogle = async (credentials: OAuthCredentials): Promise<void> => {
+  const loginWithGoogle = async (_credentials: OAuthCredentials): Promise<void> => {
     throw new Error('Google login not implemented yet');
   };
 
-  const loginWithGitHub = async (credentials: OAuthCredentials): Promise<void> => {
+  const loginWithGitHub = async (_credentials: OAuthCredentials): Promise<void> => {
     throw new Error('GitHub login not implemented yet');
   };
 

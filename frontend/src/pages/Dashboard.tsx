@@ -3,9 +3,8 @@ import {
   DashboardHeader,
   DashboardNavigation,
   ApplicationsView,
-  ResumesView,
   ExperienceSkillsView
-} from '../../components/dashboard'
+} from '../components/dashboard'
 
 const Dashboard: React.FC = () => {
   const [activeView, setActiveView] = useState('applications')
@@ -14,8 +13,6 @@ const Dashboard: React.FC = () => {
     switch (activeView) {
       case 'applications':
         return <ApplicationsView />
-      case 'resumes':
-        return <ResumesView />
       case 'experience-skills':
         return <ExperienceSkillsView />
       default:

@@ -5,9 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Layout from './components/layout/Layout'
 import LandingPage from './pages/LandingPage'
 import AuthPage from './pages/AuthPage'
-import Dashboard from './pages/dashboard/Dashboard'
-import ESC from './pages/esc/ESC'
-import Resume from './pages/resume/Resume'
+import Dashboard from './pages/Dashboard'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
 
@@ -29,22 +27,6 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Dashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/esc" 
-                element={
-                  <ProtectedRoute>
-                    <ESC />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/resume" 
-                element={
-                  <ProtectedRoute>
-                    <Resume />
                   </ProtectedRoute>
                 } 
               />
