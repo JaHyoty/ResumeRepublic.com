@@ -33,11 +33,12 @@ class Settings(BaseSettings):
     APPLE_CLIENT_SECRET: Optional[str] = None
     
     # CORS - Configurable via environment
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:4173"]
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
+    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:4173"
+    ALLOWED_HOSTS: str = "localhost,127.0.0.1"
     
     # External Services
     PARSING_SERVICE_URL: str = "http://localhost:8001"
+    BACKEND_URL: str = "http://localhost:8000"
     
     # AWS - Optional, will be None if not provided
     AWS_ACCESS_KEY_ID: Optional[str] = None
@@ -47,6 +48,11 @@ class Settings(BaseSettings):
     
     # Redis (for caching)
     REDIS_URL: str = "redis://localhost:6379"
+    
+    # LLM Configuration - Optional
+    OPENAI_API_KEY: Optional[str] = None
+    ANTHROPIC_API_KEY: Optional[str] = None
+    DEFAULT_LLM_PROVIDER: str = "openai"
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -73,6 +79,16 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"Missing required environment variables for production: {', '.join(missing_settings)}"
             )
+    
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Convert comma-separated ALLOWED_ORIGINS to list"""
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
+    
+    @property
+    def allowed_hosts_list(self) -> List[str]:
+        """Convert comma-separated ALLOWED_HOSTS to list"""
+        return [host.strip() for host in self.ALLOWED_HOSTS.split(",") if host.strip()]
     
     class Config:
         env_file = ".env"
