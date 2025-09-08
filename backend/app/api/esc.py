@@ -5,6 +5,7 @@ Experience and Skills Catalog API routes
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import case, desc, nullslast
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
@@ -20,9 +21,21 @@ def get_user_experiences(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all experiences for the current user"""
+    """Get all experiences for the current user, sorted by end date descending (most recent first)"""
+    
     experiences = db.query(ExperienceModel).filter(
         ExperienceModel.user_id == current_user.id
+    ).order_by(
+        # Sort by end_date descending, but put current positions (is_current=True) at the top
+        case(
+            (ExperienceModel.is_current == True, 0),
+            else_=1
+        ),
+        # Then sort by end_date descending (most recent first)
+        # Use nullslast to put experiences without end_date (current positions) at the top
+        nullslast(desc(ExperienceModel.end_date)),
+        # Finally sort by start_date descending as a tiebreaker
+        desc(ExperienceModel.start_date)
     ).all()
     return experiences
 

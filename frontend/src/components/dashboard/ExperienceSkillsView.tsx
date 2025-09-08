@@ -1,11 +1,17 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ExperienceModal from '../experience/ExperienceModal'
+import DeleteConfirmationModal from '../experience/DeleteConfirmationModal'
 import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null)
   const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false)
+  const [selectedExperience, setSelectedExperience] = useState<Experience | null>(null)
+  const [editingExperience, setEditingExperience] = useState<Experience | null>(null)
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
+  const [deletingExperience, setDeletingExperience] = useState<Experience | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   
   const queryClient = useQueryClient()
 
@@ -21,9 +27,39 @@ const ExperienceSkillsView: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['experiences'] })
       setIsExperienceModalOpen(false)
+      setEditingExperience(null)
     },
     onError: (error) => {
       console.error('Failed to create experience:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Update experience mutation
+  const updateExperienceMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CreateExperienceRequest }) => 
+      experienceService.updateExperience(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['experiences'] })
+      setIsExperienceModalOpen(false)
+      setEditingExperience(null)
+    },
+    onError: (error) => {
+      console.error('Failed to update experience:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Delete experience mutation
+  const deleteExperienceMutation = useMutation({
+    mutationFn: (id: number) => experienceService.deleteExperience(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['experiences'] })
+      setIsDeleteModalOpen(false)
+      setDeletingExperience(null)
+    },
+    onError: (error) => {
+      console.error('Failed to delete experience:', error)
       // You could add toast notification here
     }
   })
@@ -78,6 +114,8 @@ const ExperienceSkillsView: React.FC = () => {
 
   const handleAddClick = (sectionId: string) => {
     if (sectionId === 'experience') {
+      setModalMode('create')
+      setEditingExperience(null)
       setIsExperienceModalOpen(true)
     } else {
       // Handle other sections later
@@ -85,8 +123,32 @@ const ExperienceSkillsView: React.FC = () => {
     }
   }
 
+  const handleEditClick = (experience: Experience) => {
+    setModalMode('edit')
+    setEditingExperience(experience)
+    setIsExperienceModalOpen(true)
+  }
+
+  const handleDeleteClick = (experience: Experience) => {
+    setDeletingExperience(experience)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDelete = () => {
+    if (deletingExperience) {
+      deleteExperienceMutation.mutate(deletingExperience.id!)
+    }
+  }
+
   const handleExperienceSubmit = async (data: CreateExperienceRequest) => {
-    await createExperienceMutation.mutateAsync(data)
+    if (modalMode === 'edit' && editingExperience) {
+      await updateExperienceMutation.mutateAsync({ 
+        id: editingExperience.id!, 
+        data 
+      })
+    } else {
+      await createExperienceMutation.mutateAsync(data)
+    }
   }
 
   const formatDate = (dateString: string) => {
@@ -96,37 +158,112 @@ const ExperienceSkillsView: React.FC = () => {
     })
   }
 
-  const ExperienceCard = ({ experience }: { experience: Experience }) => (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 mb-3">
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
-          <h4 className="font-semibold text-gray-900">{experience.company}</h4>
-          {experience.titles.length > 0 && (
-            <p className="text-gray-700">
-              {experience.titles.find(t => t.is_primary)?.title || experience.titles[0].title}
-              {experience.titles.length > 1 && ` (+${experience.titles.length - 1} more)`}
-            </p>
-          )}
-          <p className="text-sm text-gray-500">
-            {formatDate(experience.start_date)} - {experience.is_current ? 'Present' : (experience.end_date ? formatDate(experience.end_date) : 'Present')}
-            {experience.location && ` • ${experience.location}`}
-          </p>
-          {experience.description && (
-            <p className="text-sm text-gray-600 mt-2">{experience.description}</p>
-          )}
-          {experience.achievements.length > 0 && (
-            <div className="mt-2">
-              <p className="text-xs text-gray-500 mb-1">{experience.achievements.length} achievement{experience.achievements.length !== 1 ? 's' : ''}</p>
+  const ExperienceCard = ({ experience }: { experience: Experience }) => {
+    const isSelected = selectedExperience?.id === experience.id
+    
+    return (
+      <div 
+        className={`w-full bg-white border rounded-lg p-3 mb-2 hover:shadow-md transition-all cursor-pointer ${
+          isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'
+        }`}
+        onClick={() => setSelectedExperience(isSelected ? null : experience)}
+      >
+        <div className="flex justify-between items-center">
+          <div className="flex-1">
+            <div className="flex items-center space-x-2">
+              <h4 className="font-semibold text-gray-900">{experience.company}</h4>
+              {experience.is_current && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  Current
+                </span>
+              )}
             </div>
-          )}
+            {experience.titles.length > 0 && (
+              <p className="text-sm text-gray-700 mt-1">
+                {experience.titles.find(t => t.is_primary)?.title || experience.titles[0].title}
+                {experience.titles.length > 1 && ` (+${experience.titles.length - 1} more)`}
+              </p>
+            )}
+            <p className="text-xs text-gray-500 mt-1">
+              {formatDate(experience.start_date)} - {experience.is_current ? 'Present' : (experience.end_date ? formatDate(experience.end_date) : 'Present')}
+              {experience.location && ` • ${experience.location}`}
+            </p>
+            {experience.achievements.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                {experience.achievements.length} achievement{experience.achievements.length !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+          <div className="flex space-x-1 ml-4">
+            <button 
+              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleEditClick(experience)
+              }}
+            >
+              Edit
+            </button>
+            <button 
+              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDeleteClick(experience)
+              }}
+            >
+              Delete
+            </button>
+          </div>
         </div>
-        <div className="flex space-x-2 ml-4">
-          <button className="text-xs text-blue-600 hover:text-blue-800">Edit</button>
-          <button className="text-xs text-red-600 hover:text-red-800">Delete</button>
-        </div>
+        
+        {/* Expanded details */}
+        {isSelected && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            {experience.description && (
+              <div className="mb-3">
+                <h5 className="text-sm font-medium text-gray-900 mb-1">Description</h5>
+                <p className="text-sm text-gray-600">{experience.description}</p>
+              </div>
+            )}
+            
+            {experience.titles.length > 1 && (
+              <div className="mb-3">
+                <h5 className="text-sm font-medium text-gray-900 mb-1">All Job Titles</h5>
+                <div className="flex flex-wrap gap-1">
+                  {experience.titles.map((title, index) => (
+                    <span 
+                      key={index}
+                      className={`inline-flex items-center px-2 py-1 rounded text-xs ${
+                        title.is_primary 
+                          ? 'bg-blue-100 text-blue-800 font-medium' 
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {title.title}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {experience.achievements.length > 0 && (
+              <div>
+                <h5 className="text-sm font-medium text-gray-900 mb-2">Key Achievements</h5>
+                <ul className="space-y-1">
+                  {experience.achievements.map((achievement, index) => (
+                    <li key={index} className="text-sm text-gray-600 flex items-start">
+                      <span className="text-blue-500 mr-2">•</span>
+                      {achievement.description}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-    </div>
-  )
+    )
+  }
 
   const SectionCard = ({ section }: { section: typeof sections[0] }) => {
     const isExpanded = activeSection === section.id
@@ -135,18 +272,18 @@ const ExperienceSkillsView: React.FC = () => {
 
     return (
       <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color} ${isExpanded ? 'ring-2 ring-offset-2 ring-gray-300' : ''}`}>
-        <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-4">
+        <div className="flex items-start justify-between w-full">
+          <div className="flex items-start space-x-4 w-full">
             <div className="p-2 rounded-lg bg-white border text-2xl">
               {section.icon}
             </div>
-            <div className="flex-1">
+            <div className="flex-1 w-full">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{section.title}</h3>
               <p className="text-gray-600 text-sm mb-4">{section.description}</p>
               
               {/* Show existing experiences */}
               {isExperienceSection && hasData && (
-                <div className="mb-4">
+                <div className="mb-4 w-full">
                   {experiences.map((experience) => (
                     <ExperienceCard key={experience.id} experience={experience} />
                   ))}
@@ -232,9 +369,40 @@ const ExperienceSkillsView: React.FC = () => {
       {/* Experience Modal */}
       <ExperienceModal
         isOpen={isExperienceModalOpen}
-        onClose={() => setIsExperienceModalOpen(false)}
+        onClose={() => {
+          setIsExperienceModalOpen(false)
+          setEditingExperience(null)
+        }}
         onSubmit={handleExperienceSubmit}
-        isLoading={createExperienceMutation.isPending}
+        isLoading={createExperienceMutation.isPending || updateExperienceMutation.isPending}
+        initialData={editingExperience ? {
+          company: editingExperience.company,
+          location: editingExperience.location || '',
+          start_date: editingExperience.start_date,
+          end_date: editingExperience.end_date || '',
+          description: editingExperience.description || '',
+          is_current: editingExperience.is_current,
+          titles: editingExperience.titles.map(t => ({
+            title: t.title,
+            is_primary: t.is_primary
+          })),
+          achievements: editingExperience.achievements.map(a => ({
+            description: a.description
+          }))
+        } : undefined}
+        mode={modalMode}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false)
+          setDeletingExperience(null)
+        }}
+        onConfirm={handleConfirmDelete}
+        experienceName={deletingExperience?.company || ''}
+        isLoading={deleteExperienceMutation.isPending}
       />
     </div>
   )
