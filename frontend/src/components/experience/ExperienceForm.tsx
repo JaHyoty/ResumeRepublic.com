@@ -207,9 +207,10 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
             Start Date *
           </label>
           <input
-            type="date"
+            type="text"
             value={formData.start_date}
             onChange={(e) => handleInputChange('start_date', e.target.value)}
+            placeholder="YYYY-MM-DD"
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.start_date ? 'border-red-500' : 'border-gray-300'
             }`}
@@ -222,9 +223,10 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
             End Date
           </label>
           <input
-            type="date"
+            type="text"
             value={formData.end_date}
             onChange={(e) => handleInputChange('end_date', e.target.value)}
+            placeholder="YYYY-MM-DD"
             disabled={formData.is_current}
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               formData.is_current ? 'bg-gray-100 cursor-not-allowed' : 'border-gray-300'

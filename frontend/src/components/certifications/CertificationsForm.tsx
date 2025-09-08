@@ -159,10 +159,11 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             Issue Date *
           </label>
           <input
-            type="date"
+            type="text"
             id="issue_date"
             value={formData.issue_date}
             onChange={(e) => handleInputChange('issue_date', e.target.value)}
+            placeholder="YYYY-MM-DD"
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.issue_date ? 'border-red-500' : 'border-gray-300'
             }`}
@@ -179,10 +180,11 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             Expiry Date
           </label>
           <input
-            type="date"
+            type="text"
             id="expiry_date"
             value={formData.expiry_date}
             onChange={(e) => handleInputChange('expiry_date', e.target.value)}
+            placeholder="YYYY-MM-DD"
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.expiry_date ? 'border-red-500' : 'border-gray-300'
             }`}

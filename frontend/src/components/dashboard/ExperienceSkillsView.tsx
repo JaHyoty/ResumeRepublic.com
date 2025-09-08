@@ -5,12 +5,14 @@ import DeleteConfirmationModal from '../experience/DeleteConfirmationModal'
 import SkillsModal from '../skills/SkillsModal'
 import CertificationsModal from '../certifications/CertificationsModal'
 import CertificationDeleteConfirmationModal from '../certifications/CertificationDeleteConfirmationModal'
+import PublicationsModal from '../publications/PublicationsModal'
+import PublicationsDeleteConfirmationModal from '../publications/PublicationsDeleteConfirmationModal'
 import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
 import { skillService, type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
 import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certifications/certificationService'
+import { publicationService, type Publication, type CreatePublicationRequest } from '../../services/publications/publicationService'
 
 const ExperienceSkillsView: React.FC = () => {
-  const [activeSection, setActiveSection] = useState<string | null>(null)
   const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false)
   const [selectedExperience, setSelectedExperience] = useState<Experience | null>(null)
   const [editingExperience, setEditingExperience] = useState<Experience | null>(null)
@@ -26,6 +28,11 @@ const ExperienceSkillsView: React.FC = () => {
   const [certificationsModalMode, setCertificationsModalMode] = useState<'create' | 'edit'>('create')
   const [deletingCertification, setDeletingCertification] = useState<Certification | null>(null)
   const [isCertificationDeleteModalOpen, setIsCertificationDeleteModalOpen] = useState(false)
+  const [isPublicationsModalOpen, setIsPublicationsModalOpen] = useState(false)
+  const [editingPublication, setEditingPublication] = useState<Publication | null>(null)
+  const [publicationsModalMode, setPublicationsModalMode] = useState<'create' | 'edit'>('create')
+  const [deletingPublication, setDeletingPublication] = useState<Publication | null>(null)
+  const [isPublicationDeleteModalOpen, setIsPublicationDeleteModalOpen] = useState(false)
   
   const queryClient = useQueryClient()
 
@@ -170,6 +177,55 @@ const ExperienceSkillsView: React.FC = () => {
     },
     onError: (error) => {
       console.error('Failed to delete certification:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Fetch publications
+  const { data: publications = [], isLoading: publicationsLoading, error: publicationsError } = useQuery({
+    queryKey: ['publications'],
+    queryFn: publicationService.getPublications,
+  })
+
+  // Create publication mutation
+  const createPublicationMutation = useMutation({
+    mutationFn: publicationService.createPublication,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] })
+      setIsPublicationsModalOpen(false)
+      setEditingPublication(null)
+    },
+    onError: (error) => {
+      console.error('Failed to create publication:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Update publication mutation
+  const updatePublicationMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CreatePublicationRequest }) => 
+      publicationService.updatePublication(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] })
+      setIsPublicationsModalOpen(false)
+      setEditingPublication(null)
+    },
+    onError: (error) => {
+      console.error('Failed to update publication:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Delete publication mutation
+  const deletePublicationMutation = useMutation({
+    mutationFn: (id: number) => publicationService.deletePublication(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications'] })
+      setIsPublicationDeleteModalOpen(false)
+      setDeletingPublication(null)
+    },
+    onError: (error) => {
+      console.error('Failed to delete publication:', error)
       // You could add toast notification here
     }
   })
@@ -326,6 +382,41 @@ const ExperienceSkillsView: React.FC = () => {
       })
     } else {
       await createCertificationMutation.mutateAsync(data)
+    }
+  }
+
+  // Publications handlers
+  const handleAddPublicationClick = () => {
+    setPublicationsModalMode('create')
+    setEditingPublication(null)
+    setIsPublicationsModalOpen(true)
+  }
+
+  const handleEditPublicationClick = (publication: Publication) => {
+    setPublicationsModalMode('edit')
+    setEditingPublication(publication)
+    setIsPublicationsModalOpen(true)
+  }
+
+  const handleDeletePublicationClick = (publication: Publication) => {
+    setDeletingPublication(publication)
+    setIsPublicationDeleteModalOpen(true)
+  }
+
+  const handleConfirmPublicationDelete = () => {
+    if (deletingPublication) {
+      deletePublicationMutation.mutate(deletingPublication.id!)
+    }
+  }
+
+  const handlePublicationSubmit = async (data: CreatePublicationRequest) => {
+    if (publicationsModalMode === 'edit' && editingPublication) {
+      await updatePublicationMutation.mutateAsync({ 
+        id: editingPublication.id!, 
+        data 
+      })
+    } else {
+      await createPublicationMutation.mutateAsync(data)
     }
   }
 
@@ -506,15 +597,69 @@ const ExperienceSkillsView: React.FC = () => {
     )
   }
 
+  const PublicationCard = ({ publication }: { publication: Publication }) => {
+    return (
+      <div className="w-full bg-white border rounded-lg p-3 mb-2 hover:shadow-md transition-all">
+        <div className="flex justify-between items-center">
+          <div className="flex-1">
+            <h4 className="font-semibold text-gray-900">{publication.title}</h4>
+            {publication.co_authors && (
+              <p className="text-sm text-gray-600 mt-1">Co-authors: {publication.co_authors}</p>
+            )}
+            {publication.publisher && (
+              <p className="text-sm text-gray-600 mt-1">Publisher: {publication.publisher}</p>
+            )}
+            <div className="flex flex-wrap gap-2 mt-1">
+              {publication.publication_type && (
+                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                  {publication.publication_type}
+                </span>
+              )}
+              {publication.publication_date && (
+                <span className="text-xs text-gray-500">
+                  {formatDate(publication.publication_date)}
+                </span>
+              )}
+            </div>
+            {publication.url && (
+              <a 
+                href={publication.url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:text-blue-800 mt-1 block"
+              >
+                View Publication →
+              </a>
+            )}
+          </div>
+          <div className="flex space-x-1 ml-4">
+            <button 
+              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+              onClick={() => handleEditPublicationClick(publication)}
+            >
+              Edit
+            </button>
+            <button 
+              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+              onClick={() => handleDeletePublicationClick(publication)}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const SectionCard = ({ section }: { section: typeof sections[0] }) => {
-    const isExpanded = activeSection === section.id
     const isExperienceSection = section.id === 'experience'
     const isSkillsSection = section.id === 'skills'
     const isCertificationsSection = section.id === 'certifications'
-    const hasData = (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0)
+    const isPublicationsSection = section.id === 'publications'
+    const hasData = (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0) || (isPublicationsSection && publications.length > 0)
 
     return (
-      <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color} ${isExpanded ? 'ring-2 ring-offset-2 ring-gray-300' : ''}`}>
+      <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color}`}>
         <div className="flex items-start justify-between w-full">
           <div className="flex items-start space-x-4 w-full">
             <div className="p-2 rounded-lg bg-white border text-2xl">
@@ -552,19 +697,16 @@ const ExperienceSkillsView: React.FC = () => {
                   ))}
                 </div>
               )}
-              
-              {isExpanded && (
-                <div className="mt-4">
-                  <h4 className="text-sm font-medium text-gray-800 mb-2">Information to collect:</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {section.fields.map((field, index) => (
-                      <div key={index} className="text-xs text-gray-600 bg-white px-2 py-1 rounded border">
-                        {field}
-                      </div>
-                    ))}
-                  </div>
+
+              {/* Show existing publications */}
+              {isPublicationsSection && hasData && (
+                <div className="mb-4 w-full">
+                  {publications.map((publication) => (
+                    <PublicationCard key={publication.id} publication={publication} />
+                  ))}
                 </div>
               )}
+              
               
               <div className="mt-4 flex items-center justify-between">
                 {isExperienceSection ? (
@@ -585,17 +727,15 @@ const ExperienceSkillsView: React.FC = () => {
                      certificationsError ? 'Error loading certifications' :
                      hasData ? `${certifications.length} certification${certifications.length !== 1 ? 's' : ''} added` : 'No certifications added yet'}
                   </span>
+                ) : isPublicationsSection ? (
+                  <span className="text-sm text-gray-500">
+                    {publicationsLoading ? 'Loading...' : 
+                     publicationsError ? 'Error loading publications' :
+                     hasData ? `${publications.length} publication${publications.length !== 1 ? 's' : ''} added` : 'No publications added yet'}
+                  </span>
                 ) : (
                   <span className="text-sm text-gray-500">No entries added yet</span>
                 )}
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setActiveSection(isExpanded ? null : section.id)}
-                    className="text-xs text-gray-600 hover:text-gray-800 underline"
-                  >
-                    {isExpanded ? 'Hide details' : 'View details'}
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -603,6 +743,7 @@ const ExperienceSkillsView: React.FC = () => {
             onClick={() => 
               isSkillsSection ? handleAddSkillClick() : 
               isCertificationsSection ? handleAddCertificationClick() : 
+              isPublicationsSection ? handleAddPublicationClick() :
               handleAddClick(section.id)
             }
             className="flex items-center space-x-1 bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -630,20 +771,6 @@ const ExperienceSkillsView: React.FC = () => {
         ))}
       </div>
 
-      <div className="mt-12 bg-gray-50 border border-gray-200 rounded-lg p-6">
-        <div className="flex items-start space-x-4">
-          <div className="text-2xl text-gray-400 mt-1">📋</div>
-          <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">How it works</h3>
-            <div className="text-sm text-gray-600 space-y-2">
-              <p>• <strong>Centralized Data:</strong> Store all your professional information in one place</p>
-              <p>• <strong>Smart Organization:</strong> Link experiences with skills and tools for better context</p>
-              <p>• <strong>Resume Generation:</strong> Use this data to automatically generate tailored resumes</p>
-              <p>• <strong>Application Matching:</strong> Match your profile against job requirements</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Experience Modal */}
       <ExperienceModal
@@ -720,6 +847,31 @@ const ExperienceSkillsView: React.FC = () => {
         onConfirm={handleConfirmCertificationDelete}
         certification={deletingCertification}
         isLoading={deleteCertificationMutation.isPending}
+      />
+
+      {/* Publications Modal */}
+      <PublicationsModal
+        isOpen={isPublicationsModalOpen}
+        onClose={() => {
+          setIsPublicationsModalOpen(false)
+          setEditingPublication(null)
+        }}
+        onSubmit={handlePublicationSubmit}
+        isLoading={createPublicationMutation.isPending || updatePublicationMutation.isPending}
+        initialData={editingPublication || undefined}
+        mode={publicationsModalMode}
+      />
+
+      {/* Publication Delete Confirmation Modal */}
+      <PublicationsDeleteConfirmationModal
+        isOpen={isPublicationDeleteModalOpen}
+        onClose={() => {
+          setIsPublicationDeleteModalOpen(false)
+          setDeletingPublication(null)
+        }}
+        onConfirm={handleConfirmPublicationDelete}
+        publication={deletingPublication}
+        isLoading={deletePublicationMutation.isPending}
       />
 
     </div>

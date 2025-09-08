@@ -13,9 +13,11 @@ from app.models.user import User
 from app.models.experience import Experience as ExperienceModel, ExperienceTitle as ExperienceTitleModel, Achievement as AchievementModel
 from app.models.skill import Skill as SkillModel
 from app.models.certification import Certification as CertificationModel
+from app.models.publication import Publication as PublicationModel
 from app.schemas.experience import Experience, ExperienceCreate, ExperienceUpdate
 from app.schemas.skill import Skill, SkillCreate, SkillUpdate
 from app.schemas.certification import Certification, CertificationCreate, CertificationUpdate
+from app.schemas.publication import Publication, PublicationCreate, PublicationUpdate
 
 router = APIRouter()
 
@@ -371,6 +373,112 @@ def delete_certification(
     db.commit()
     
     return {"message": "Certification deleted successfully"}
+
+
+# Publications endpoints
+@router.get("/publications", response_model=List[Publication])
+def get_user_publications(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all publications for the current user, sorted by publication date descending"""
+    publications = db.query(PublicationModel).filter(
+        PublicationModel.user_id == current_user.id
+    ).order_by(
+        desc(PublicationModel.publication_date)
+    ).all()
+    return publications
+
+
+@router.post("/publications", response_model=Publication)
+def create_publication(
+    publication: PublicationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new publication for the current user"""
+    db_publication = PublicationModel(
+        **publication.dict(),
+        user_id=current_user.id
+    )
+    db.add(db_publication)
+    db.commit()
+    db.refresh(db_publication)
+    return db_publication
+
+
+@router.get("/publications/{publication_id}", response_model=Publication)
+def get_publication(
+    publication_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific publication by ID"""
+    publication = db.query(PublicationModel).filter(
+        PublicationModel.id == publication_id,
+        PublicationModel.user_id == current_user.id
+    ).first()
+    
+    if not publication:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Publication not found"
+        )
+    
+    return publication
+
+
+@router.put("/publications/{publication_id}", response_model=Publication)
+def update_publication(
+    publication_id: int,
+    publication_update: PublicationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a publication"""
+    publication = db.query(PublicationModel).filter(
+        PublicationModel.id == publication_id,
+        PublicationModel.user_id == current_user.id
+    ).first()
+    
+    if not publication:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Publication not found"
+        )
+    
+    # Update only provided fields
+    update_data = publication_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(publication, field, value)
+    
+    db.commit()
+    db.refresh(publication)
+    return publication
+
+
+@router.delete("/publications/{publication_id}")
+def delete_publication(
+    publication_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a publication"""
+    publication = db.query(PublicationModel).filter(
+        PublicationModel.id == publication_id,
+        PublicationModel.user_id == current_user.id
+    ).first()
+    
+    if not publication:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Publication not found"
+        )
+    
+    db.delete(publication)
+    db.commit()
+    
+    return {"message": "Publication deleted successfully"}
 
 
 # TODO: Implement other ESC routes

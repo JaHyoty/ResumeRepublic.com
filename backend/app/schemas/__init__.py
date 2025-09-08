@@ -8,3 +8,4 @@ from .experience import (
 )
 from .skill import SkillBase, SkillCreate, SkillUpdate, Skill
 from .certification import CertificationBase, CertificationCreate, CertificationUpdate, Certification
+from .publication import PublicationBase, PublicationCreate, PublicationUpdate, Publication
