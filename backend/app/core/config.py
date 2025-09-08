@@ -3,6 +3,7 @@ Configuration settings for CareerPathPro Backend
 """
 
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import List, Optional
 import secrets
 import os
@@ -33,8 +34,8 @@ class Settings(BaseSettings):
     APPLE_CLIENT_SECRET: Optional[str] = None
     
     # CORS - Configurable via environment
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:5173,http://localhost:4173"
-    ALLOWED_HOSTS: str = "localhost,127.0.0.1"
+    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:4173"]
+    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
     
     # External Services
     PARSING_SERVICE_URL: str = "http://localhost:8001"
@@ -53,6 +54,22 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = None
     ANTHROPIC_API_KEY: Optional[str] = None
     DEFAULT_LLM_PROVIDER: str = "openai"
+    
+    @field_validator('ALLOWED_ORIGINS', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Convert comma-separated string to list"""
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(',') if origin.strip()]
+        return v
+    
+    @field_validator('ALLOWED_HOSTS', mode='before')
+    @classmethod
+    def parse_cors_hosts(cls, v):
+        """Convert comma-separated string to list"""
+        if isinstance(v, str):
+            return [host.strip() for host in v.split(',') if host.strip()]
+        return v
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -80,15 +97,6 @@ class Settings(BaseSettings):
                 f"Missing required environment variables for production: {', '.join(missing_settings)}"
             )
     
-    @property
-    def allowed_origins_list(self) -> List[str]:
-        """Convert comma-separated ALLOWED_ORIGINS to list"""
-        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",") if origin.strip()]
-    
-    @property
-    def allowed_hosts_list(self) -> List[str]:
-        """Convert comma-separated ALLOWED_HOSTS to list"""
-        return [host.strip() for host in self.ALLOWED_HOSTS.split(",") if host.strip()]
     
     class Config:
         env_file = ".env"
