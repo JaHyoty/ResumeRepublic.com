@@ -13,6 +13,9 @@ const ApplicationsView: React.FC = () => {
   const [stats, setStats] = useState<ApplicationStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // State for delete confirmation
+  const [deletingApplication, setDeletingApplication] = useState<Application | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
   // Load applications and stats on component mount
   useEffect(() => {
@@ -75,6 +78,38 @@ const ApplicationsView: React.FC = () => {
   const handleCloseNewApplicationModal = () => {
     setIsNewApplicationModalOpen(false)
     setNewJobDescription('')
+  }
+
+  // Delete application handlers
+  const handleDeleteClick = (application: Application) => {
+    setDeletingApplication(application)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingApplication) return
+
+    try {
+      await applicationService.deleteApplication(deletingApplication.id)
+      // Remove the deleted application from the local state
+      setRecentApplications(prev => 
+        prev.filter(app => app.id !== deletingApplication.id)
+      )
+      // Reload stats to update counts
+      const statsData = await applicationService.getApplicationStats()
+      setStats(statsData)
+    } catch (err) {
+      console.error('Error deleting application:', err)
+      setError('Failed to delete application')
+    } finally {
+      setIsDeleteModalOpen(false)
+      setDeletingApplication(null)
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setIsDeleteModalOpen(false)
+    setDeletingApplication(null)
   }
 
   const handleCreateOptimizedResume = () => {
@@ -269,13 +304,19 @@ const ApplicationsView: React.FC = () => {
                     </div>
                   </div>
                   
-                  {/* Action Button - Desktop */}
-                  <div className="flex items-center ml-6">
+                  {/* Action Buttons - Desktop */}
+                  <div className="flex items-center gap-2 ml-6">
                     <button 
                       onClick={() => handleToggleApplication(application.id)}
                       className="px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors duration-200"
                     >
                       {expandedApplication === application.id ? 'Hide Application' : 'Show Application'}
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteClick(application)}
+                      className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors duration-200"
+                    >
+                      Delete
                     </button>
                   </div>
                 </div>
@@ -326,13 +367,21 @@ const ApplicationsView: React.FC = () => {
                       Applied on {new Date(application.applied_date).toLocaleDateString()}
                     </div>
                     
-                    {/* Action Button - Mobile */}
-                    <button 
-                      onClick={() => handleToggleApplication(application.id)}
-                      className="px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors duration-200"
-                    >
-                      {expandedApplication === application.id ? 'Hide' : 'Show'}
-                    </button>
+                    {/* Action Buttons - Mobile */}
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => handleToggleApplication(application.id)}
+                        className="px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors duration-200"
+                      >
+                        {expandedApplication === application.id ? 'Hide' : 'Show'}
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteClick(application)}
+                        className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors duration-200"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -418,6 +467,58 @@ const ApplicationsView: React.FC = () => {
                   Create Optimized Resume
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && deletingApplication && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={handleCancelDelete}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Application</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="px-6 py-4">
+              <p className="text-gray-700">
+                Are you sure you want to delete the application for{' '}
+                <span className="font-medium">{deletingApplication.job_title}</span> at{' '}
+                <span className="font-medium">{deletingApplication.company}</span>?
+              </p>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                onClick={handleCancelDelete}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-lg hover:bg-red-700 transition-colors duration-200"
+              >
+                Delete Application
+              </button>
             </div>
           </div>
         </div>
