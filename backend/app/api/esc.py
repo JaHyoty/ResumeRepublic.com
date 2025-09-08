@@ -129,10 +129,41 @@ def update_experience(
             detail="Experience not found"
         )
     
-    # Update fields if provided
-    update_data = experience_data.model_dump(exclude_unset=True)
+    # Update main experience fields if provided
+    update_data = experience_data.model_dump(exclude_unset=True, exclude={'titles', 'achievements'})
     for field, value in update_data.items():
         setattr(experience, field, value)
+    
+    # Update titles if provided
+    if hasattr(experience_data, 'titles') and experience_data.titles is not None:
+        # Delete existing titles
+        db.query(ExperienceTitleModel).filter(
+            ExperienceTitleModel.experience_id == experience_id
+        ).delete()
+        
+        # Add new titles
+        for title_data in experience_data.titles:
+            db_title = ExperienceTitleModel(
+                experience_id=experience_id,
+                title=title_data.title,
+                is_primary=title_data.is_primary
+            )
+            db.add(db_title)
+    
+    # Update achievements if provided
+    if hasattr(experience_data, 'achievements') and experience_data.achievements is not None:
+        # Delete existing achievements
+        db.query(AchievementModel).filter(
+            AchievementModel.experience_id == experience_id
+        ).delete()
+        
+        # Add new achievements
+        for achievement_data in experience_data.achievements:
+            db_achievement = AchievementModel(
+                experience_id=experience_id,
+                description=achievement_data.description
+            )
+            db.add(db_achievement)
     
     db.commit()
     db.refresh(experience)

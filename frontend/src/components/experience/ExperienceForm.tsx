@@ -298,13 +298,24 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
             )}
           </div>
         ))}
-        <button
-          type="button"
-          onClick={addTitle}
-          className="text-blue-500 hover:text-blue-700 text-sm"
-        >
-          + Add another title
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={addTitle}
+            className="text-blue-500 hover:text-blue-700 text-sm"
+          >
+            + Add another title
+          </button>
+          <div className="relative group">
+            <div className="w-4 h-4 bg-gray-400 text-white rounded-full flex items-center justify-center text-xs cursor-help">
+              ?
+            </div>
+            <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-3 py-2 bg-gray-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none w-80 z-10">
+              Sometimes it might be beneficial to indicate your job title in a way that matches the job description better. However, be mindful and do not lie about your previous work experiences :)
+              <div className="absolute right-full top-1/2 transform -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-800"></div>
+            </div>
+          </div>
+        </div>
         {errors.titles && <p className="text-red-500 text-xs mt-1">{errors.titles}</p>}
       </div>
 

@@ -39,10 +39,10 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen w-screen left-0 right-0" style={{ marginLeft: 'calc(50% - 50vw)' }}>
+    <div className="bg-gray-50 min-h-screen w-screen" style={{ marginLeft: 'calc(50% - 50vw)', marginRight: 'calc(50% - 50vw)' }}>
       <DashboardHeader />
       <DashboardNavigation activeView={activeView} onViewChange={handleViewChange} />
-      <main className="max-w-6xl mx-auto">
+      <main className="max-w-6xl mx-auto px-4">
         {renderActiveView()}
       </main>
     </div>

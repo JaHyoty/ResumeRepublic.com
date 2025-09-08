@@ -759,7 +759,7 @@ const ExperienceSkillsView: React.FC = () => {
   return (
     <div className="p-6">
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-3">Experience & Skills Catalogue</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Experience & Skills Catalogue</h2>
         <p className="text-gray-600 text-lg">
           Build your comprehensive professional profile by organizing your experience, skills, and achievements.
         </p>

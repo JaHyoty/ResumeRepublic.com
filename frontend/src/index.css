@@ -1,1 +1,12 @@
 @import "tailwindcss";
+
+/* Prevent content shift when scrollbar appears/disappears */
+html {
+  overflow-y: scroll;
+  overflow-x: hidden;
+}
+
+/* Ensure body doesn't create horizontal scroll */
+body {
+  overflow-x: hidden;
+}

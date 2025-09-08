@@ -61,6 +61,8 @@ class ExperienceUpdate(BaseModel):
     end_date: Optional[date] = None
     description: Optional[str] = None
     is_current: Optional[bool] = None
+    titles: Optional[List[ExperienceTitleCreate]] = None
+    achievements: Optional[List[AchievementCreate]] = None
 
 
 class Experience(ExperienceBase):
