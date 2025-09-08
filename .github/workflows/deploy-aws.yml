@@ -1,10 +1,14 @@
 name: Deploy to AWS
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  # Temporarily disabled - uncomment to re-enable
+  # push:
+  #   branches: [ main ]
+  # pull_request:
+  #   branches: [ main ]
+  
+  # Manual trigger only
+  workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
