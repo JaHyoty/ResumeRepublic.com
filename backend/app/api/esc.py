@@ -12,8 +12,10 @@ from app.core.auth import get_current_user
 from app.models.user import User
 from app.models.experience import Experience as ExperienceModel, ExperienceTitle as ExperienceTitleModel, Achievement as AchievementModel
 from app.models.skill import Skill as SkillModel
+from app.models.certification import Certification as CertificationModel
 from app.schemas.experience import Experience, ExperienceCreate, ExperienceUpdate
 from app.schemas.skill import Skill, SkillCreate, SkillUpdate
+from app.schemas.certification import Certification, CertificationCreate, CertificationUpdate
 
 router = APIRouter()
 
@@ -263,6 +265,112 @@ def delete_skill(
     db.commit()
     
     return {"message": "Skill deleted successfully"}
+
+
+# Certifications endpoints
+@router.get("/certifications", response_model=List[Certification])
+def get_user_certifications(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all certifications for the current user, sorted by issue date descending"""
+    certifications = db.query(CertificationModel).filter(
+        CertificationModel.user_id == current_user.id
+    ).order_by(
+        desc(CertificationModel.issue_date)
+    ).all()
+    return certifications
+
+
+@router.post("/certifications", response_model=Certification)
+def create_certification(
+    certification: CertificationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new certification for the current user"""
+    db_certification = CertificationModel(
+        **certification.dict(),
+        user_id=current_user.id
+    )
+    db.add(db_certification)
+    db.commit()
+    db.refresh(db_certification)
+    return db_certification
+
+
+@router.get("/certifications/{certification_id}", response_model=Certification)
+def get_certification(
+    certification_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific certification by ID"""
+    certification = db.query(CertificationModel).filter(
+        CertificationModel.id == certification_id,
+        CertificationModel.user_id == current_user.id
+    ).first()
+    
+    if not certification:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certification not found"
+        )
+    
+    return certification
+
+
+@router.put("/certifications/{certification_id}", response_model=Certification)
+def update_certification(
+    certification_id: int,
+    certification_update: CertificationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a certification"""
+    certification = db.query(CertificationModel).filter(
+        CertificationModel.id == certification_id,
+        CertificationModel.user_id == current_user.id
+    ).first()
+    
+    if not certification:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certification not found"
+        )
+    
+    # Update only provided fields
+    update_data = certification_update.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(certification, field, value)
+    
+    db.commit()
+    db.refresh(certification)
+    return certification
+
+
+@router.delete("/certifications/{certification_id}")
+def delete_certification(
+    certification_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a certification"""
+    certification = db.query(CertificationModel).filter(
+        CertificationModel.id == certification_id,
+        CertificationModel.user_id == current_user.id
+    ).first()
+    
+    if not certification:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Certification not found"
+        )
+    
+    db.delete(certification)
+    db.commit()
+    
+    return {"message": "Certification deleted successfully"}
 
 
 # TODO: Implement other ESC routes

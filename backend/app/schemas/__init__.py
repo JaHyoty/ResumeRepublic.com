@@ -7,3 +7,4 @@ from .experience import (
     AchievementBase, AchievementCreate, Achievement
 )
 from .skill import SkillBase, SkillCreate, SkillUpdate, Skill
+from .certification import CertificationBase, CertificationCreate, CertificationUpdate, Certification

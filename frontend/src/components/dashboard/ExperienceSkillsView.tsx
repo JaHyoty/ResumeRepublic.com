@@ -3,8 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import ExperienceModal from '../experience/ExperienceModal'
 import DeleteConfirmationModal from '../experience/DeleteConfirmationModal'
 import SkillsModal from '../skills/SkillsModal'
+import CertificationsModal from '../certifications/CertificationsModal'
+import CertificationDeleteConfirmationModal from '../certifications/CertificationDeleteConfirmationModal'
 import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
 import { skillService, type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
+import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certifications/certificationService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [activeSection, setActiveSection] = useState<string | null>(null)
@@ -17,6 +20,12 @@ const ExperienceSkillsView: React.FC = () => {
   const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false)
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
   const [skillsModalMode, setSkillsModalMode] = useState<'create' | 'edit'>('create')
+  const [expandedSkills, setExpandedSkills] = useState<Set<number>>(new Set())
+  const [isCertificationsModalOpen, setIsCertificationsModalOpen] = useState(false)
+  const [editingCertification, setEditingCertification] = useState<Certification | null>(null)
+  const [certificationsModalMode, setCertificationsModalMode] = useState<'create' | 'edit'>('create')
+  const [deletingCertification, setDeletingCertification] = useState<Certification | null>(null)
+  const [isCertificationDeleteModalOpen, setIsCertificationDeleteModalOpen] = useState(false)
   
   const queryClient = useQueryClient()
 
@@ -116,6 +125,55 @@ const ExperienceSkillsView: React.FC = () => {
     }
   })
 
+  // Fetch certifications
+  const { data: certifications = [], isLoading: certificationsLoading, error: certificationsError } = useQuery({
+    queryKey: ['certifications'],
+    queryFn: certificationService.getCertifications,
+  })
+
+  // Create certification mutation
+  const createCertificationMutation = useMutation({
+    mutationFn: certificationService.createCertification,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certifications'] })
+      setIsCertificationsModalOpen(false)
+      setEditingCertification(null)
+    },
+    onError: (error) => {
+      console.error('Failed to create certification:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Update certification mutation
+  const updateCertificationMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CreateCertificationRequest }) => 
+      certificationService.updateCertification(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certifications'] })
+      setIsCertificationsModalOpen(false)
+      setEditingCertification(null)
+    },
+    onError: (error) => {
+      console.error('Failed to update certification:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Delete certification mutation
+  const deleteCertificationMutation = useMutation({
+    mutationFn: (id: number) => certificationService.deleteCertification(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['certifications'] })
+      setIsCertificationDeleteModalOpen(false)
+      setDeletingCertification(null)
+    },
+    onError: (error) => {
+      console.error('Failed to delete certification:', error)
+      // You could add toast notification here
+    }
+  })
+
   const sections = [
     {
       id: 'experience',
@@ -134,15 +192,6 @@ const ExperienceSkillsView: React.FC = () => {
       color: 'bg-green-50 border-green-200',
       iconColor: 'text-green-600',
       fields: ['Skill Name']
-    },
-    {
-      id: 'tools',
-      title: 'Tools & Technologies',
-      description: 'Software, frameworks, and technologies you\'ve worked with',
-      icon: '🔧',
-      color: 'bg-purple-50 border-purple-200',
-      iconColor: 'text-purple-600',
-      fields: ['Tool Name', 'Category', 'Associated Experiences']
     },
     {
       id: 'certifications',
@@ -211,8 +260,26 @@ const ExperienceSkillsView: React.FC = () => {
   }
 
 
+  const handleSkillClick = (skill: Skill) => {
+    setExpandedSkills(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(skill.id!)) {
+        newSet.delete(skill.id!)
+      } else {
+        newSet.add(skill.id!)
+      }
+      return newSet
+    })
+  }
+
   const handleDeleteSkillClick = (skill: Skill) => {
     deleteSkillMutation.mutate(skill.id!)
+    // Remove from expanded set after deletion
+    setExpandedSkills(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(skill.id!)
+      return newSet
+    })
   }
 
 
@@ -224,6 +291,41 @@ const ExperienceSkillsView: React.FC = () => {
       })
     } else {
       await createSkillMutation.mutateAsync(data)
+    }
+  }
+
+  // Certifications handlers
+  const handleAddCertificationClick = () => {
+    setCertificationsModalMode('create')
+    setEditingCertification(null)
+    setIsCertificationsModalOpen(true)
+  }
+
+  const handleEditCertificationClick = (certification: Certification) => {
+    setCertificationsModalMode('edit')
+    setEditingCertification(certification)
+    setIsCertificationsModalOpen(true)
+  }
+
+  const handleDeleteCertificationClick = (certification: Certification) => {
+    setDeletingCertification(certification)
+    setIsCertificationDeleteModalOpen(true)
+  }
+
+  const handleConfirmCertificationDelete = () => {
+    if (deletingCertification) {
+      deleteCertificationMutation.mutate(deletingCertification.id!)
+    }
+  }
+
+  const handleCertificationSubmit = async (data: CreateCertificationRequest) => {
+    if (certificationsModalMode === 'edit' && editingCertification) {
+      await updateCertificationMutation.mutateAsync({ 
+        id: editingCertification.id!, 
+        data 
+      })
+    } else {
+      await createCertificationMutation.mutateAsync(data)
     }
   }
 
@@ -342,14 +444,22 @@ const ExperienceSkillsView: React.FC = () => {
   }
 
   const SkillCard = ({ skill }: { skill: Skill }) => {
+    const isExpanded = expandedSkills.has(skill.id!)
+    
     return (
-      <div className="inline-block bg-white border border-gray-200 rounded-lg mr-2 mb-2 hover:shadow-md transition-all duration-200 group overflow-hidden">
+      <div 
+        className="inline-block bg-white border border-gray-200 rounded-lg mr-2 mb-2 hover:shadow-md transition-all duration-200 group overflow-hidden cursor-pointer"
+        onClick={() => handleSkillClick(skill)}
+      >
         <div className="flex items-center px-3 py-1.5">
           <span className="text-sm font-medium text-gray-900 whitespace-nowrap">{skill.name}</span>
-          <div className="w-0 group-hover:w-8 transition-all duration-200 overflow-hidden">
+          <div className={`${isExpanded ? 'w-8' : 'w-0'} group-hover:w-8 transition-all duration-200 overflow-hidden`}>
             <button 
               className="text-red-600 hover:text-red-800 hover:bg-red-50 ml-2 p-1 rounded-full"
-              onClick={() => handleDeleteSkillClick(skill)}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDeleteSkillClick(skill)
+              }}
               title="Delete skill"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,11 +472,46 @@ const ExperienceSkillsView: React.FC = () => {
     )
   }
 
+  const CertificationCard = ({ certification }: { certification: Certification }) => {
+    return (
+      <div className="w-full bg-white border rounded-lg p-3 mb-2 hover:shadow-md transition-all">
+        <div className="flex justify-between items-center">
+          <div className="flex-1">
+            <h4 className="font-semibold text-gray-900">{certification.name}</h4>
+            <p className="text-sm text-gray-600 mt-1">{certification.issuer}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              Issued: {formatDate(certification.issue_date)}
+              {certification.expiry_date && ` • Expires: ${formatDate(certification.expiry_date)}`}
+            </p>
+            {certification.credential_id && (
+              <p className="text-xs text-gray-500 mt-1">ID: {certification.credential_id}</p>
+            )}
+          </div>
+          <div className="flex space-x-1 ml-4">
+            <button 
+              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+              onClick={() => handleEditCertificationClick(certification)}
+            >
+              Edit
+            </button>
+            <button 
+              className="text-xs text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50"
+              onClick={() => handleDeleteCertificationClick(certification)}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const SectionCard = ({ section }: { section: typeof sections[0] }) => {
     const isExpanded = activeSection === section.id
     const isExperienceSection = section.id === 'experience'
     const isSkillsSection = section.id === 'skills'
-    const hasData = (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0)
+    const isCertificationsSection = section.id === 'certifications'
+    const hasData = (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0)
 
     return (
       <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color} ${isExpanded ? 'ring-2 ring-offset-2 ring-gray-300' : ''}`}>
@@ -398,6 +543,15 @@ const ExperienceSkillsView: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Show existing certifications */}
+              {isCertificationsSection && hasData && (
+                <div className="mb-4 w-full">
+                  {certifications.map((certification) => (
+                    <CertificationCard key={certification.id} certification={certification} />
+                  ))}
+                </div>
+              )}
               
               {isExpanded && (
                 <div className="mt-4">
@@ -425,6 +579,12 @@ const ExperienceSkillsView: React.FC = () => {
                      skillsError ? 'Error loading skills' :
                      hasData ? `${skills.length} skill${skills.length !== 1 ? 's' : ''} added` : 'No skills added yet'}
                   </span>
+                ) : isCertificationsSection ? (
+                  <span className="text-sm text-gray-500">
+                    {certificationsLoading ? 'Loading...' : 
+                     certificationsError ? 'Error loading certifications' :
+                     hasData ? `${certifications.length} certification${certifications.length !== 1 ? 's' : ''} added` : 'No certifications added yet'}
+                  </span>
                 ) : (
                   <span className="text-sm text-gray-500">No entries added yet</span>
                 )}
@@ -440,7 +600,11 @@ const ExperienceSkillsView: React.FC = () => {
             </div>
           </div>
           <button 
-            onClick={() => isSkillsSection ? handleAddSkillClick() : handleAddClick(section.id)}
+            onClick={() => 
+              isSkillsSection ? handleAddSkillClick() : 
+              isCertificationsSection ? handleAddCertificationClick() : 
+              handleAddClick(section.id)
+            }
             className="flex items-center space-x-1 bg-white border border-gray-300 rounded-md px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <span className="text-lg">+</span>
@@ -531,6 +695,31 @@ const ExperienceSkillsView: React.FC = () => {
         isLoading={createSkillMutation.isPending || updateSkillMutation.isPending}
         initialData={editingSkill || undefined}
         mode={skillsModalMode}
+      />
+
+      {/* Certifications Modal */}
+      <CertificationsModal
+        isOpen={isCertificationsModalOpen}
+        onClose={() => {
+          setIsCertificationsModalOpen(false)
+          setEditingCertification(null)
+        }}
+        onSubmit={handleCertificationSubmit}
+        isLoading={createCertificationMutation.isPending || updateCertificationMutation.isPending}
+        initialData={editingCertification || undefined}
+        mode={certificationsModalMode}
+      />
+
+      {/* Certification Delete Confirmation Modal */}
+      <CertificationDeleteConfirmationModal
+        isOpen={isCertificationDeleteModalOpen}
+        onClose={() => {
+          setIsCertificationDeleteModalOpen(false)
+          setDeletingCertification(null)
+        }}
+        onConfirm={handleConfirmCertificationDelete}
+        certification={deletingCertification}
+        isLoading={deleteCertificationMutation.isPending}
       />
 
     </div>

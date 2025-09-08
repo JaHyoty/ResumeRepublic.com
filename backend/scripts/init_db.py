@@ -5,7 +5,7 @@ Database initialization script
 import asyncio
 from sqlalchemy import create_engine
 from app.core.database import Base, engine
-from app.models import user, experience, skill, publication, resume
+from app.models import user, experience, skill, certification, publication, resume
 from app.core.config import settings
 
 
