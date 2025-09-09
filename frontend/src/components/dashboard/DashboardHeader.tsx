@@ -1,15 +1,21 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { APP_NAME } from '../../config/constants'
+import AccountSettingsModal from '../account/AccountSettingsModal'
 
 const DashboardHeader: React.FC = () => {
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
     navigate('/')
+  }
+
+  const handleAccountClick = () => {
+    setIsAccountModalOpen(true)
   }
 
   return (
@@ -24,6 +30,12 @@ const DashboardHeader: React.FC = () => {
               Welcome, {user?.preferred_first_name || user?.first_name}!
             </span>
             <button
+              onClick={handleAccountClick}
+              className="text-gray-600 hover:text-gray-800 font-medium text-sm transition-colors duration-200"
+            >
+              Account
+            </button>
+            <button
               onClick={handleLogout}
               className="text-gray-600 hover:text-gray-800 font-medium text-sm transition-colors duration-200"
             >
@@ -32,6 +44,12 @@ const DashboardHeader: React.FC = () => {
           </div>
         </div>
       </div>
+      
+      {/* Account Settings Modal */}
+      <AccountSettingsModal
+        isOpen={isAccountModalOpen}
+        onClose={() => setIsAccountModalOpen(false)}
+      />
     </header>
   )
 }

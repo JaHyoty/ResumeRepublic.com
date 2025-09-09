@@ -1,6 +1,6 @@
 import { api } from '../api'
 
-export interface UserProfile {
+export interface UserInfo {
   id: number
   email: string
   first_name: string
@@ -17,7 +17,7 @@ export interface UserProfile {
   updated_at?: string
 }
 
-export interface UpdateProfileRequest {
+export interface UpdateUserRequest {
   first_name?: string
   last_name?: string
   preferred_first_name?: string
@@ -28,14 +28,14 @@ export interface UpdateProfileRequest {
   professional_summary?: string
 }
 
-export const profileService = {
-  async getProfile(): Promise<UserProfile> {
-    const response = await api.get('/api/profile/profile')
+export const userService = {
+  async getUserInfo(): Promise<UserInfo> {
+    const response = await api.get('/api/user/')
     return response.data
   },
 
-  async updateProfile(profileData: UpdateProfileRequest): Promise<UserProfile> {
-    const response = await api.put('/api/profile/profile', profileData)
+  async updateUser(userData: UpdateUserRequest): Promise<UserInfo> {
+    const response = await api.put('/api/user/', userData)
     return response.data
   }
 }

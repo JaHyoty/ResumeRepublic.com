@@ -6,7 +6,7 @@ import { skillService } from '../../services/skills/skillService'
 import { certificationService } from '../../services/certifications/certificationService'
 import { publicationService } from '../../services/publications/publicationService'
 import { applicationService } from '../../services/applications/applicationService'
-import { profileService } from '../../services/profile/profileService'
+import { userService } from '../../services/user/userService'
 import { api } from '../../services/api'
 import PDFViewer from './PDFViewer'
 
@@ -47,9 +47,9 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(linkedApplicationId || null)
 
   // Fetch user data
-  const { data: userProfile } = useQuery({
-    queryKey: ['userProfile'],
-    queryFn: profileService.getProfile
+  const { data: userInfo } = useQuery({
+    queryKey: ['userInfo'],
+    queryFn: userService.getUserInfo
   })
 
   const { data: experiences } = useQuery({
@@ -104,22 +104,22 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
 
   // Prepopulate personal info from user profile
   useEffect(() => {
-    if (userProfile) {
-      const fullName = userProfile.preferred_first_name 
-        ? `${userProfile.preferred_first_name} ${userProfile.last_name}`
-        : `${userProfile.first_name} ${userProfile.last_name}`
+    if (userInfo) {
+      const fullName = userInfo.preferred_first_name 
+        ? `${userInfo.preferred_first_name} ${userInfo.last_name}`
+        : `${userInfo.first_name} ${userInfo.last_name}`
       
       setPersonalInfo({
         name: fullName,
-        email: userProfile.email,
-        phone: userProfile.phone || '',
-        location: userProfile.location || '',
-        linkedin: userProfile.linkedin_url || '',
-        website: userProfile.website_url || '',
-        summary: userProfile.professional_summary || ''
+        email: userInfo.email,
+        phone: userInfo.phone || '',
+        location: userInfo.location || '',
+        linkedin: userInfo.linkedin_url || '',
+        website: userInfo.website_url || '',
+        summary: userInfo.professional_summary || ''
       })
     }
-  }, [userProfile])
+  }, [userInfo])
 
   // Load job description from linked application
   useEffect(() => {

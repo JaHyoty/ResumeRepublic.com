@@ -365,7 +365,7 @@ const ExperienceSkillsView: React.FC = () => {
       id: 'skills',
       title: 'Skills',
       description: 'Technical and soft skills you possess',
-      icon: '🎓',
+      icon: '⚡',
       color: 'bg-green-50 border-green-200',
       iconColor: 'text-green-600',
       fields: ['Skill Name']
