@@ -249,7 +249,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Resume Designer</h1>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Resume Designer</h2>
         <p className="text-gray-600">Create an AI-optimized resume tailored to your target job</p>
       </div>
 
