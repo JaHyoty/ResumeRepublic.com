@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { experienceService } from '../../services/experienceService'
@@ -45,6 +45,8 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   const [selectedTemplate, setSelectedTemplate] = useState('professional')
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '')
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(linkedApplicationId || null)
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Fetch user data
   const { data: userInfo } = useQuery({
@@ -131,6 +133,20 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     }
   }, [selectedApplicationId, applications])
 
+  // Handle clicks outside dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   const handlePersonalInfoChange = (field: keyof PersonalInfo, value: string) => {
     setPersonalInfo(prev => ({
       ...prev,
@@ -148,7 +164,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
       alert('Please provide a job description or select an application')
       return
     }
-
+    
     setIsGenerating(true)
     
     try {
@@ -181,7 +197,17 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
       console.error('Error generating resume:', error)
       alert('Failed to generate resume. Please try again.')
     } finally {
-      setIsGenerating(false)
+      setIsGenerating(false)    
+      
+      // Scroll will be handled by the PDFViewer onReady callback
+    }
+  }
+
+  const handlePdfViewerReady = () => {
+    // Scroll to the PDF viewer when it's ready
+    const pdfViewer = document.getElementById('pdf-viewer');
+    if (pdfViewer) {
+      pdfViewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
 
@@ -202,6 +228,17 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     if (application && application.job_description) {
       setJobDescription(application.job_description)
     }
+    setIsDropdownOpen(false)
+  }
+
+  const handleDropdownToggle = () => {
+    setIsDropdownOpen(!isDropdownOpen)
+  }
+
+  const getSelectedApplicationText = () => {
+    if (!selectedApplicationId || !applications) return 'Select an application...'
+    const application = applications.find(app => app.id === selectedApplicationId)
+    return application ? `${application.job_title} at ${application.company}` : 'Select an application...'
   }
 
   return (
@@ -220,22 +257,79 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
             
             {/* Link to Application */}
             {applications && applications.length > 0 && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Link to Existing Application (Optional)
-                </label>
-                <select
-                  value={selectedApplicationId || ''}
-                  onChange={(e) => handleApplicationSelect(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select an application...</option>
-                  {applications.map(app => (
-                    <option key={app.id} value={app.id}>
-                      {app.job_title} at {app.company}
-                    </option>
-                  ))}
-                </select>
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center mb-3">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                  <label className="text-sm font-semibold text-blue-800">
+                    Link to Existing Application (Optional)
+                  </label>
+                </div>
+                
+                {/* Custom Dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={handleDropdownToggle}
+                    className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg text-left text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-400 flex items-center justify-between"
+                  >
+                    <span className={selectedApplicationId ? 'text-gray-700' : 'text-gray-500'}>
+                      {getSelectedApplicationText()}
+                    </span>
+                    <svg
+                      className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+                        isDropdownOpen ? 'rotate-180' : ''
+                      }`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Dropdown Options */}
+                  {isDropdownOpen && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      <div
+                        className="px-4 py-1.5 text-gray-500 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
+                        onClick={() => {
+                          setSelectedApplicationId(null)
+                          setIsDropdownOpen(false)
+                        }}
+                      >
+                        Select an application...
+                      </div>
+                      {applications.map((app) => (
+                        <div
+                          key={app.id}
+                          className="px-4 py-1.5 text-gray-700 cursor-pointer hover:bg-blue-50 hover:text-blue-700 transition-colors duration-150 flex items-center justify-between"
+                          onClick={() => handleApplicationSelect(app.id)}
+                        >
+                          <span className="font-medium">{app.job_title} at {app.company}</span>
+                          {selectedApplicationId === app.id && (
+                            <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-2 text-xs text-blue-600 flex items-center">
+                  {selectedApplicationId ? (
+                    <>
+                      <span className="mr-1">✓</span>
+                      <span>Application linked successfully</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="mr-1">✗</span>
+                      <span>Application not linked</span>
+                    </>
+                  )}
+                </div>
               </div>
             )}
 
@@ -377,7 +471,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
         </div>
 
         {/* Preview Panel */}
-        <div className="space-y-6">
+        <div className="space-y-6" id="pdf-viewer">
           {pdfUrl ? (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
@@ -389,7 +483,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                   Download PDF
                 </button>
               </div>
-              <PDFViewer pdfUrl={pdfUrl} />
+              <PDFViewer pdfUrl={pdfUrl} id="pdf-viewer" onReady={handlePdfViewerReady} />
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-md p-6">
