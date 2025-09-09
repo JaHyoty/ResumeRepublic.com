@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # Security - REQUIRED in production
     SECRET_KEY: str = secrets.token_urlsafe(32)  # Generate random key if not provided
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     
     # OAuth - Optional, will be None if not provided
     GOOGLE_CLIENT_ID: Optional[str] = None
