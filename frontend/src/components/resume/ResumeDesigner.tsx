@@ -43,6 +43,8 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState('professional')
+  const [jobTitle, setJobTitle] = useState('')
+  const [company, setCompany] = useState('')
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '')
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(linkedApplicationId || null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -123,12 +125,14 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     }
   }, [userInfo])
 
-  // Load job description from linked application
+  // Load job details from linked application
   useEffect(() => {
     if (selectedApplicationId && applications) {
       const application = applications.find(app => app.id === selectedApplicationId)
-      if (application && application.job_description) {
-        setJobDescription(application.job_description)
+      if (application) {
+        if (application.job_title) setJobTitle(application.job_title)
+        if (application.company) setCompany(application.company)
+        if (application.job_description) setJobDescription(application.job_description)
       }
     }
   }, [selectedApplicationId, applications])
@@ -160,8 +164,8 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
       return
     }
 
-    if (!jobDescription.trim()) {
-      alert('Please provide a job description or select an application')
+    if (!jobTitle.trim() || !company.trim() || !jobDescription.trim()) {
+      alert('Please provide job title, company, and job description')
       return
     }
     
@@ -179,9 +183,8 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
         job_description: jobDescription,
         template: selectedTemplate,
         linked_application_id: selectedApplicationId,
-        // Add job details for application creation if needed
-        job_title: 'Software Engineer', // Could be extracted from job description
-        company: 'Target Company' // Could be extracted from job description
+        job_title: jobTitle,
+        company: company
       }
 
       // Generate optimized resume using LLM
@@ -225,8 +228,10 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   const handleApplicationSelect = (applicationId: number) => {
     setSelectedApplicationId(applicationId)
     const application = applications?.find(app => app.id === applicationId)
-    if (application && application.job_description) {
-      setJobDescription(application.job_description)
+    if (application) {
+      if (application.job_title) setJobTitle(application.job_title)
+      if (application.company) setCompany(application.company)
+      if (application.job_description) setJobDescription(application.job_description)
     }
     setIsDropdownOpen(false)
   }
@@ -294,6 +299,9 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                         className="px-4 py-1.5 text-gray-500 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
                         onClick={() => {
                           setSelectedApplicationId(null)
+                          setJobTitle('')
+                          setCompany('')
+                          setJobDescription('')
                           setIsDropdownOpen(false)
                         }}
                       >
@@ -332,6 +340,33 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                 </div>
               </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Job Title *
+                </label>
+                <input
+                  type="text"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Software Engineer"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Company *
+                </label>
+                <input
+                  type="text"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Google"
+                />
+              </div>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -459,7 +494,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
           <div className="bg-white rounded-lg shadow-md p-6">
             <button
               onClick={generateResume}
-              disabled={isGenerating || !personalInfo.name || !personalInfo.email || !personalInfo.phone || !personalInfo.location || !jobDescription.trim()}
+              disabled={isGenerating || !personalInfo.name || !personalInfo.email || !personalInfo.phone || !personalInfo.location || !jobTitle.trim() || !company.trim() || !jobDescription.trim()}
               className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isGenerating ? 'Designing Resume...' : 'Design Resume with AI'}

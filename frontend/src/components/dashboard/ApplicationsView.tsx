@@ -10,6 +10,8 @@ const ApplicationsView: React.FC = () => {
   const [expandedApplication, setExpandedApplication] = useState<number | null>(null)
   // State for new application modal
   const [isNewApplicationModalOpen, setIsNewApplicationModalOpen] = useState(false)
+  const [newJobTitle, setNewJobTitle] = useState('')
+  const [newCompany, setNewCompany] = useState('')
   const [newJobDescription, setNewJobDescription] = useState('')
   // State for applications data
   const [recentApplications, setRecentApplications] = useState<Application[]>([])
@@ -86,6 +88,8 @@ const ApplicationsView: React.FC = () => {
 
   const handleCloseNewApplicationModal = () => {
     setIsNewApplicationModalOpen(false)
+    setNewJobTitle('')
+    setNewCompany('')
     setNewJobDescription('')
   }
 
@@ -183,8 +187,8 @@ const ApplicationsView: React.FC = () => {
     try {
       // First, create the application
       const newApplicationData = {
-        job_title: 'New Position', // We'll extract this from job description later
-        company: 'Target Company', // We'll extract this from job description later
+        job_title: newJobTitle || 'New Position',
+        company: newCompany || 'Target Company',
         job_description: newJobDescription,
         application_date: new Date().toISOString().split('T')[0],
         status: 'applied',
@@ -215,8 +219,8 @@ const ApplicationsView: React.FC = () => {
     try {
       // Create a new application with the job description
       const newApplicationData = {
-        job_title: 'New Job Application', // This could be extracted from the job description
-        company: 'Unknown Company', // This could be extracted from the job description
+        job_title: newJobTitle || 'New Job Application',
+        company: newCompany || 'Unknown Company',
         job_description: newJobDescription,
         online_assessment: false,
         interview: false,
@@ -528,9 +532,37 @@ const ApplicationsView: React.FC = () => {
             {/* Modal Body */}
             <div className="px-6 py-4 flex-1 overflow-y-auto">
               <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 mb-2">
+                      Job Title *
+                    </label>
+                    <input
+                      type="text"
+                      id="jobTitle"
+                      value={newJobTitle}
+                      onChange={(e) => setNewJobTitle(e.target.value)}
+                      placeholder="e.g., Software Engineer"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
+                      Company *
+                    </label>
+                    <input
+                      type="text"
+                      id="company"
+                      value={newCompany}
+                      onChange={(e) => setNewCompany(e.target.value)}
+                      placeholder="e.g., Google"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    />
+                  </div>
+                </div>
                 <div>
                   <label htmlFor="jobDescription" className="block text-sm font-medium text-gray-700 mb-2">
-                    Job Description
+                    Job Description *
                   </label>
                   <textarea
                     id="jobDescription"
@@ -554,14 +586,14 @@ const ApplicationsView: React.FC = () => {
               <div className="flex gap-3">
                 <button
                   onClick={handleAddToApplications}
-                  disabled={!newJobDescription.trim()}
+                  disabled={!newJobTitle.trim() || !newCompany.trim() || !newJobDescription.trim()}
                   className="px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed rounded-lg transition-colors duration-200"
                 >
                   Add to Applications
                 </button>
                 <button
                   onClick={handleCreateOptimizedResume}
-                  disabled={!newJobDescription.trim()}
+                  disabled={!newJobTitle.trim() || !newCompany.trim() || !newJobDescription.trim()}
                   className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg transition-colors duration-200"
                 >
                   Create Optimized Resume
