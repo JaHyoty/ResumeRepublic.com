@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { applicationService } from '../../services/applications/applicationService'
 import type { Application, ApplicationStats } from '../../services/applications/applicationService'
 
 const ApplicationsView: React.FC = () => {
+  const navigate = useNavigate()
   // State for tracking which application is expanded
   const [expandedApplication, setExpandedApplication] = useState<number | null>(null)
   // State for new application modal
@@ -16,6 +18,8 @@ const ApplicationsView: React.FC = () => {
   // State for delete confirmation
   const [deletingApplication, setDeletingApplication] = useState<Application | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  // State for resume design flow
+  const [, setCreatedApplicationId] = useState<number | null>(null)
 
   // Load applications and stats on component mount
   useEffect(() => {
@@ -112,11 +116,36 @@ const ApplicationsView: React.FC = () => {
     setDeletingApplication(null)
   }
 
-  const handleCreateOptimizedResume = () => {
-    // TODO: Implement resume optimization logic
-    console.log('Creating optimized resume for job description:', newJobDescription)
-    // For now, just close the modal
-    handleCloseNewApplicationModal()
+  const handleCreateOptimizedResume = async () => {
+    try {
+      // First, create the application
+      const newApplicationData = {
+        job_title: 'New Position', // We'll extract this from job description later
+        company: 'Target Company', // We'll extract this from job description later
+        job_description: newJobDescription,
+        application_date: new Date().toISOString().split('T')[0],
+        status: 'applied',
+        notes: 'Created for resume optimization'
+      }
+
+      const createdApplication = await applicationService.createApplication(newApplicationData)
+      setCreatedApplicationId(createdApplication.id)
+      
+      // Close the modal
+      handleCloseNewApplicationModal()
+      
+      // Navigate to Resume Designer with the job description and application ID
+      navigate('/dashboard?view=resume', { 
+        state: { 
+          jobDescription: newJobDescription,
+          applicationId: createdApplication.id 
+        } 
+      })
+      
+    } catch (error) {
+      console.error('Failed to create application for resume design:', error)
+      alert('Failed to create application. Please try again.')
+    }
   }
 
   const handleAddToApplications = async () => {

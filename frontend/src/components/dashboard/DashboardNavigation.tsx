@@ -8,7 +8,8 @@ interface DashboardNavigationProps {
 const DashboardNavigation: React.FC<DashboardNavigationProps> = ({ activeView, onViewChange }) => {
   const navigationItems = [
     { id: 'applications', label: 'Applications' },
-    { id: 'experience-skills', label: 'Experience and Skills Catalogue' }
+    { id: 'experience-skills', label: 'Experience and Skills Catalogue' },
+    { id: 'resume', label: 'Resume Designer' }
   ]
 
   return (

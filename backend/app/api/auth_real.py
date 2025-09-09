@@ -90,7 +90,8 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
     
     return {
         "access_token": access_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "expires_in": 30 * 60  # 30 minutes in seconds
     }
 
 
@@ -129,7 +130,8 @@ async def login_form(
     
     return {
         "access_token": access_token,
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "expires_in": 30 * 60  # 30 minutes in seconds
     }
 
 

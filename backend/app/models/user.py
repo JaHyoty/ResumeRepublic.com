@@ -18,6 +18,11 @@ class User(Base):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     preferred_first_name = Column(String(100), nullable=True)
+    phone = Column(String(20), nullable=True)
+    location = Column(String(255), nullable=True)
+    linkedin_url = Column(String(500), nullable=True)
+    website_url = Column(String(500), nullable=True)
+    professional_summary = Column(Text, nullable=True)
     password_hash = Column(String(255), nullable=True)  # Nullable for OAuth users
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)

@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useLocation } from 'react-router-dom'
 import {
   DashboardHeader,
   DashboardNavigation,
   ApplicationsView,
   ExperienceSkillsView
 } from '../components/dashboard'
+import ResumeDesigner from '../components/resume/ResumeDesigner'
 
 const Dashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
   const [activeView, setActiveView] = useState('applications')
 
   // Initialize active view from URL parameter
   useEffect(() => {
     const view = searchParams.get('view')
-    if (view && (view === 'applications' || view === 'experience-skills')) {
+    if (view && (view === 'applications' || view === 'experience-skills' || view === 'resume')) {
       setActiveView(view)
     } else {
       // Default to applications if no valid view parameter
@@ -33,6 +35,11 @@ const Dashboard: React.FC = () => {
         return <ApplicationsView />
       case 'experience-skills':
         return <ExperienceSkillsView />
+      case 'resume':
+        return <ResumeDesigner 
+          linkedApplicationId={location.state?.applicationId}
+          jobDescription={location.state?.jobDescription}
+        />
       default:
         return <ApplicationsView />
     }

@@ -9,7 +9,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import structlog
 
 from app.core.config import settings
-from app.api import auth_real as auth, esc, resume, users, applications
+from app.api import auth_real as auth, esc, resume, users, applications, profile
 
 # Configure structured logging
 structlog.configure(
@@ -58,6 +58,7 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(profile.router, prefix="/api/profile", tags=["profile"])
 app.include_router(esc.router, prefix="/api/esc", tags=["experience-skills-catalog"])
 app.include_router(resume.router, prefix="/api/resume", tags=["resume"])
 app.include_router(applications.router, prefix="/api/applications", tags=["applications"])
