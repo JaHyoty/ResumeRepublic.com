@@ -1,5 +1,6 @@
 import React from 'react'
 import { type Publication } from '../../services/publications/publicationService'
+import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface PublicationsDeleteConfirmationModalProps {
   isOpen: boolean
@@ -16,6 +17,9 @@ const PublicationsDeleteConfirmationModal: React.FC<PublicationsDeleteConfirmati
   publication,
   isLoading = false
 }) => {
+  // Use the scroll lock hook
+  useScrollPosition(isOpen)
+
   if (!isOpen || !publication) return null
 
   const handleBackdropClick = (e: React.MouseEvent) => {

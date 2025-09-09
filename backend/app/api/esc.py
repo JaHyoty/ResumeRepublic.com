@@ -15,11 +15,13 @@ from app.models.skill import Skill as SkillModel
 from app.models.certification import Certification as CertificationModel
 from app.models.publication import Publication as PublicationModel
 from app.models.education import Education as EducationModel
+from app.models.website import Website as WebsiteModel
 from app.schemas.experience import Experience, ExperienceCreate, ExperienceUpdate
 from app.schemas.skill import Skill, SkillCreate, SkillUpdate
 from app.schemas.certification import Certification, CertificationCreate, CertificationUpdate
 from app.schemas.publication import Publication, PublicationCreate, PublicationUpdate
 from app.schemas.education import Education, EducationCreate, EducationUpdate
+from app.schemas.website import Website, WebsiteCreate, WebsiteUpdate
 
 router = APIRouter()
 
@@ -601,14 +603,90 @@ def delete_education(
     return {"message": "Education entry deleted successfully"}
 
 
-# TODO: Implement other ESC routes
-# - GET /tools
-# - POST /tools
-# - GET /publications
-# - POST /publications
-# - PUT /publications/{id}
-# - DELETE /publications/{id}
-# - GET /certifications
-# - POST /certifications
-# - PUT /certifications/{id}
-# - DELETE /certifications/{id}
+# Website endpoints
+@router.get("/websites", response_model=List[Website])
+def get_user_websites(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all websites for the current user"""
+    websites = db.query(WebsiteModel).filter(
+        WebsiteModel.user_id == current_user.id
+    ).order_by(WebsiteModel.created_at.desc()).all()
+    
+    return websites
+
+
+@router.post("/websites", response_model=Website)
+def create_website(
+    website_data: WebsiteCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new website entry"""
+    website = WebsiteModel(
+        user_id=current_user.id,
+        site_name=website_data.site_name,
+        url=str(website_data.url)
+    )
+    
+    db.add(website)
+    db.commit()
+    db.refresh(website)
+    
+    return website
+
+
+@router.put("/websites/{website_id}", response_model=Website)
+def update_website(
+    website_id: int,
+    website_data: WebsiteUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update a website entry"""
+    website = db.query(WebsiteModel).filter(
+        WebsiteModel.id == website_id,
+        WebsiteModel.user_id == current_user.id
+    ).first()
+    
+    if not website:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Website not found"
+        )
+    
+    # Update fields if provided
+    if website_data.site_name is not None:
+        website.site_name = website_data.site_name
+    if website_data.url is not None:
+        website.url = str(website_data.url)
+    
+    db.commit()
+    db.refresh(website)
+    
+    return website
+
+
+@router.delete("/websites/{website_id}")
+def delete_website(
+    website_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a website entry"""
+    website = db.query(WebsiteModel).filter(
+        WebsiteModel.id == website_id,
+        WebsiteModel.user_id == current_user.id
+    ).first()
+    
+    if not website:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Website not found"
+        )
+    
+    db.delete(website)
+    db.commit()
+    
+    return {"message": "Website deleted successfully"}

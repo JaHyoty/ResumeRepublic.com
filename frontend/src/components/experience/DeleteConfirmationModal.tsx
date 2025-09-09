@@ -1,4 +1,5 @@
 import React from 'react'
+import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface DeleteConfirmationModalProps {
   isOpen: boolean
@@ -15,6 +16,9 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   experienceName,
   isLoading = false
 }) => {
+  // Use the scroll lock hook
+  useScrollPosition(isOpen)
+
   if (!isOpen) return null
 
   const handleBackdropClick = (e: React.MouseEvent) => {

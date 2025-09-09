@@ -1,4 +1,5 @@
 import React from 'react'
+import { useScrollPosition } from '../../hooks/useScrollPosition'
 import ExperienceForm from './ExperienceForm'
 
 interface ExperienceModalProps {
@@ -18,6 +19,9 @@ const ExperienceModal: React.FC<ExperienceModalProps> = ({
   initialData,
   mode = 'create'
 }) => {
+  // Use the scroll lock hook
+  useScrollPosition(isOpen)
+
   if (!isOpen) return null
 
   const handleBackdropClick = (e: React.MouseEvent) => {

@@ -1,4 +1,5 @@
 import React from 'react'
+import { useScrollPosition } from '../../hooks/useScrollPosition'
 import PublicationsForm from './PublicationsForm'
 import { type Publication, type CreatePublicationRequest } from '../../services/publications/publicationService'
 
@@ -19,7 +20,13 @@ const PublicationsModal: React.FC<PublicationsModalProps> = ({
   initialData,
   mode = 'create'
 }) => {
-  if (!isOpen) return null
+  // Use the scroll position hook
+  useScrollPosition(isOpen)
+
+
+  if (!isOpen) {
+    return null
+  }
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !isLoading) {

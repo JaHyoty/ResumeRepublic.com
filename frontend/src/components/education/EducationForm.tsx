@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { educationService, type Education, type EducationCreate, type EducationUpdate } from '../../services/education/educationService'
+import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface EducationFormProps {
   isOpen: boolean
@@ -68,6 +69,9 @@ const EducationForm: React.FC<EducationFormProps> = ({
     }
     setErrors({})
   }, [initialData, isOpen])
+
+  // Use the scroll lock hook
+  useScrollPosition(isOpen)
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof EducationFormData, string>> = {}

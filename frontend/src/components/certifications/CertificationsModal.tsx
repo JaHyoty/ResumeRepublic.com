@@ -1,4 +1,5 @@
 import React from 'react'
+import { useScrollPosition } from '../../hooks/useScrollPosition'
 import CertificationsForm from './CertificationsForm'
 import { type Certification, type CreateCertificationRequest } from '../../services/certifications/certificationService'
 
@@ -19,6 +20,9 @@ const CertificationsModal: React.FC<CertificationsModalProps> = ({
   initialData,
   mode = 'create'
 }) => {
+  // Use the scroll lock hook
+  useScrollPosition(isOpen)
+
   if (!isOpen) return null
 
   const handleBackdropClick = (e: React.MouseEvent) => {

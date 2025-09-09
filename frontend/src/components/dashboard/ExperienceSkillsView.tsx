@@ -9,11 +9,14 @@ import PublicationsModal from '../publications/PublicationsModal'
 import PublicationsDeleteConfirmationModal from '../publications/PublicationsDeleteConfirmationModal'
 import EducationForm from '../education/EducationForm'
 import EducationCard from '../education/EducationCard'
+import WebsiteForm from '../website/WebsiteForm'
+import WebsiteCard from '../website/WebsiteCard'
 import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
 import { skillService, type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
 import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certifications/certificationService'
 import { publicationService, type Publication, type CreatePublicationRequest } from '../../services/publications/publicationService'
 import { educationService, type Education } from '../../services/education/educationService'
+import { getWebsites, createWebsite, updateWebsite, deleteWebsite, type Website } from '../../services/website/websiteService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false)
@@ -41,6 +44,11 @@ const ExperienceSkillsView: React.FC = () => {
   const [educationModalMode, setEducationModalMode] = useState<'create' | 'edit'>('create')
   const [deletingEducation, setDeletingEducation] = useState<Education | null>(null)
   const [, setIsEducationDeleteModalOpen] = useState(false)
+  const [isWebsiteModalOpen, setIsWebsiteModalOpen] = useState(false)
+  const [editingWebsite, setEditingWebsite] = useState<Website | null>(null)
+  const [websiteModalMode, setWebsiteModalMode] = useState<'create' | 'edit'>('create')
+  const [deletingWebsite, setDeletingWebsite] = useState<Website | null>(null)
+  const [, setIsWebsiteDeleteModalOpen] = useState(false)
   
   const queryClient = useQueryClient()
 
@@ -286,6 +294,54 @@ const ExperienceSkillsView: React.FC = () => {
     }
   })
 
+  // Fetch websites
+  const { data: websites = [] } = useQuery<Website[]>({
+    queryKey: ['websites'],
+    queryFn: getWebsites,
+  })
+
+  // Create website mutation
+  const createWebsiteMutation = useMutation({
+    mutationFn: createWebsite,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['websites'] })
+      setIsWebsiteModalOpen(false)
+      setEditingWebsite(null)
+    },
+    onError: (error) => {
+      console.error('Failed to create website:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Update website mutation
+  const updateWebsiteMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => updateWebsite(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['websites'] })
+      setIsWebsiteModalOpen(false)
+      setEditingWebsite(null)
+    },
+    onError: (error) => {
+      console.error('Failed to update website:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Delete website mutation
+  const deleteWebsiteMutation = useMutation({
+    mutationFn: deleteWebsite,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['websites'] })
+      setIsWebsiteDeleteModalOpen(false)
+      setDeletingWebsite(null)
+    },
+    onError: (error) => {
+      console.error('Failed to delete website:', error)
+      // You could add toast notification here
+    }
+  })
+
   const sections = [
     {
       id: 'education',
@@ -331,10 +387,23 @@ const ExperienceSkillsView: React.FC = () => {
       color: 'bg-indigo-50 border-indigo-200',
       iconColor: 'text-indigo-600',
       fields: ['Title', 'Co-authors', 'Publication Date', 'URL', 'Description', 'Publication Type']
+    },
+    {
+      id: 'websites',
+      title: 'Websites',
+      description: 'Your personal websites, portfolios, and online profiles',
+      icon: '🌐',
+      color: 'bg-cyan-50 border-cyan-200',
+      iconColor: 'text-cyan-600',
+      fields: ['Site Name', 'URL']
     }
   ]
 
   const handleAddClick = (sectionId: string) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     if (sectionId === 'education') {
       setEducationModalMode('create')
       setEditingEducation(null)
@@ -343,6 +412,10 @@ const ExperienceSkillsView: React.FC = () => {
       setModalMode('create')
       setEditingExperience(null)
       setIsExperienceModalOpen(true)
+    } else if (sectionId === 'websites') {
+      setWebsiteModalMode('create')
+      setEditingWebsite(null)
+      setIsWebsiteModalOpen(true)
     } else {
       // Handle other sections later
       console.log(`Add clicked for ${sectionId}`)
@@ -350,12 +423,20 @@ const ExperienceSkillsView: React.FC = () => {
   }
 
   const handleEditClick = (experience: Experience) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setModalMode('edit')
     setEditingExperience(experience)
     setIsExperienceModalOpen(true)
   }
 
   const handleDeleteClick = (experience: Experience) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setDeletingExperience(experience)
     setIsDeleteModalOpen(true)
   }
@@ -379,6 +460,10 @@ const ExperienceSkillsView: React.FC = () => {
 
   // Skills handlers
   const handleAddSkillClick = () => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setSkillsModalMode('create')
     setEditingSkill(null)
     setIsSkillsModalOpen(true)
@@ -421,18 +506,30 @@ const ExperienceSkillsView: React.FC = () => {
 
   // Certifications handlers
   const handleAddCertificationClick = () => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setCertificationsModalMode('create')
     setEditingCertification(null)
     setIsCertificationsModalOpen(true)
   }
 
   const handleEditCertificationClick = (certification: Certification) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setCertificationsModalMode('edit')
     setEditingCertification(certification)
     setIsCertificationsModalOpen(true)
   }
 
   const handleDeleteCertificationClick = (certification: Certification) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setDeletingCertification(certification)
     setIsCertificationDeleteModalOpen(true)
   }
@@ -456,18 +553,30 @@ const ExperienceSkillsView: React.FC = () => {
 
   // Publications handlers
   const handleAddPublicationClick = () => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setPublicationsModalMode('create')
     setEditingPublication(null)
     setIsPublicationsModalOpen(true)
   }
 
   const handleEditPublicationClick = (publication: Publication) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setPublicationsModalMode('edit')
     setEditingPublication(publication)
     setIsPublicationsModalOpen(true)
   }
 
   const handleDeletePublicationClick = (publication: Publication) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setDeletingPublication(publication)
     setIsPublicationDeleteModalOpen(true)
   }
@@ -491,12 +600,20 @@ const ExperienceSkillsView: React.FC = () => {
 
   // Education handlers
   const handleEducationEdit = (education: Education) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setEditingEducation(education)
     setEducationModalMode('edit')
     setIsEducationModalOpen(true)
   }
 
   const handleEducationDelete = (education: Education) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
     setDeletingEducation(education)
     setIsEducationDeleteModalOpen(true)
   }
@@ -515,6 +632,43 @@ const ExperienceSkillsView: React.FC = () => {
       })
     } else {
       await createEducationMutation.mutateAsync(data)
+    }
+  }
+
+  // Website handlers
+  const handleWebsiteEdit = (website: Website) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
+    setEditingWebsite(website)
+    setWebsiteModalMode('edit')
+    setIsWebsiteModalOpen(true)
+  }
+
+  const handleWebsiteDelete = (website: Website) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
+    setDeletingWebsite(website)
+    setIsWebsiteDeleteModalOpen(true)
+  }
+
+  const handleConfirmWebsiteDelete = () => {
+    if (deletingWebsite) {
+      deleteWebsiteMutation.mutate(deletingWebsite.id!)
+    }
+  }
+
+  const handleWebsiteSubmit = async (data: any) => {
+    if (websiteModalMode === 'edit' && editingWebsite) {
+      await updateWebsiteMutation.mutateAsync({ 
+        id: editingWebsite.id!, 
+        data 
+      })
+    } else {
+      await createWebsiteMutation.mutateAsync(data)
     }
   }
 
@@ -755,7 +909,8 @@ const ExperienceSkillsView: React.FC = () => {
     const isSkillsSection = section.id === 'skills'
     const isCertificationsSection = section.id === 'certifications'
     const isPublicationsSection = section.id === 'publications'
-    const hasData = (isEducationSection && education.length > 0) || (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0) || (isPublicationsSection && publications.length > 0)
+    const isWebsiteSection = section.id === 'websites'
+    const hasData = (isEducationSection && education.length > 0) || (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0) || (isPublicationsSection && publications.length > 0) || (isWebsiteSection && websites.length > 0)
 
     return (
       <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color}`}>
@@ -777,6 +932,20 @@ const ExperienceSkillsView: React.FC = () => {
                       education={edu}
                       onEdit={handleEducationEdit}
                       onDelete={handleEducationDelete}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Show existing websites */}
+              {isWebsiteSection && hasData && (
+                <div className="mb-4 w-full">
+                  {websites.map((website) => (
+                    <WebsiteCard 
+                      key={website.id} 
+                      website={website}
+                      onEdit={handleWebsiteEdit}
+                      onDelete={handleWebsiteDelete}
                     />
                   ))}
                 </div>
@@ -850,6 +1019,10 @@ const ExperienceSkillsView: React.FC = () => {
                      publicationsError ? 'Error loading publications' :
                      hasData ? `${publications.length} publication${publications.length !== 1 ? 's' : ''} added` : 'No publications added yet'}
                   </span>
+                ) : isWebsiteSection ? (
+                  <span className="text-sm text-gray-500">
+                    {hasData ? `${websites.length} website${websites.length !== 1 ? 's' : ''} added` : 'No websites added yet'}
+                  </span>
                 ) : (
                   <span className="text-sm text-gray-500">No entries added yet</span>
                 )}
@@ -859,6 +1032,7 @@ const ExperienceSkillsView: React.FC = () => {
           <button 
             onClick={() => 
               isEducationSection ? handleAddClick(section.id) :
+              isWebsiteSection ? handleAddClick(section.id) :
               isSkillsSection ? handleAddSkillClick() : 
               isCertificationsSection ? handleAddCertificationClick() : 
               isPublicationsSection ? handleAddPublicationClick() :
@@ -1046,6 +1220,65 @@ const ExperienceSkillsView: React.FC = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
               >
                 {deleteEducationMutation.isPending ? 'Deleting...' : 'Delete Education'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Website Form Modal */}
+      <WebsiteForm
+        isOpen={isWebsiteModalOpen}
+        onClose={() => {
+          setIsWebsiteModalOpen(false)
+          setEditingWebsite(null)
+        }}
+        onSuccess={handleWebsiteSubmit}
+        initialData={editingWebsite}
+      />
+
+      {/* Website Delete Confirmation Modal */}
+      {deletingWebsite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => {
+              setIsWebsiteDeleteModalOpen(false)
+              setDeletingWebsite(null)
+            }}
+          />
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Website</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-gray-700">
+                Are you sure you want to delete <strong>{deletingWebsite.site_name}</strong>?
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsWebsiteDeleteModalOpen(false)
+                  setDeletingWebsite(null)
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmWebsiteDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-lg hover:bg-red-700 transition-colors duration-200"
+              >
+                Delete
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React from 'react'
 import SkillsForm from './SkillsForm'
 import { type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
+import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface SkillsModalProps {
   isOpen: boolean
@@ -19,6 +20,9 @@ const SkillsModal: React.FC<SkillsModalProps> = ({
   initialData,
   mode = 'create'
 }) => {
+  // Use the scroll lock hook
+  useScrollPosition(isOpen)
+
   if (!isOpen) return null
 
   const handleBackdropClick = (e: React.MouseEvent) => {

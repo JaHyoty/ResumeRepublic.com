@@ -1,5 +1,6 @@
 import React from 'react'
 import { type Certification } from '../../services/certifications/certificationService'
+import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface CertificationDeleteConfirmationModalProps {
   isOpen: boolean
@@ -16,6 +17,9 @@ const CertificationDeleteConfirmationModal: React.FC<CertificationDeleteConfirma
   certification,
   isLoading = false
 }) => {
+  // Use the scroll lock hook
+  useScrollPosition(isOpen)
+
   if (!isOpen || !certification) return null
 
   const handleBackdropClick = (e: React.MouseEvent) => {
