@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { applicationService } from '../../services/applications/applicationService'
+import { api } from '../../services/api'
 import type { Application, ApplicationStats } from '../../services/applications/applicationService'
 
 const ApplicationsView: React.FC = () => {
@@ -20,6 +21,10 @@ const ApplicationsView: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   // State for resume design flow
   const [, setCreatedApplicationId] = useState<number | null>(null)
+  // State for resume versions
+  const [resumeVersions, setResumeVersions] = useState<{[key: number]: any[]}>({})
+  const [isResumeModalOpen, setIsResumeModalOpen] = useState(false)
+  const [selectedApplicationForResume, setSelectedApplicationForResume] = useState<number | null>(null)
 
   // Load applications and stats on component mount
   useEffect(() => {
@@ -114,6 +119,64 @@ const ApplicationsView: React.FC = () => {
   const handleCancelDelete = () => {
     setIsDeleteModalOpen(false)
     setDeletingApplication(null)
+  }
+
+  const handleViewResume = async (applicationId: number) => {
+    try {
+      // Check if we already have resume versions for this application
+      if (!resumeVersions[applicationId]) {
+        const response = await api.get(`/api/resume/versions/${applicationId}`)
+        setResumeVersions(prev => ({
+          ...prev,
+          [applicationId]: response.data.resume_versions
+        }))
+      }
+      setSelectedApplicationForResume(applicationId)
+      setIsResumeModalOpen(true)
+    } catch (error) {
+      console.error('Failed to fetch resume versions:', error)
+      alert('Failed to load resume versions')
+    }
+  }
+
+  const handleCloseResumeModal = () => {
+    setIsResumeModalOpen(false)
+    setSelectedApplicationForResume(null)
+  }
+
+  const handleCreateResume = (applicationId: number) => {
+    // Navigate to Resume Designer with the application data
+    const application = recentApplications.find(app => app.id === applicationId)
+    if (application) {
+      navigate('/dashboard?view=resume', {
+        state: {
+          applicationId: applicationId,
+          jobDescription: application.job_description
+        }
+      })
+    }
+  }
+
+  const handleDownloadResume = async (resumeId: number, title: string) => {
+    try {
+      const response = await api.get(`/api/resume/pdf/${resumeId}`, {
+        responseType: 'blob'
+      })
+      
+      // Create blob URL and trigger download
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Failed to download resume:', error)
+      alert('Failed to download resume. Please try again.')
+    }
   }
 
   const handleCreateOptimizedResume = async () => {
@@ -418,7 +481,15 @@ const ApplicationsView: React.FC = () => {
               {/* Expandable Job Description Section */}
               {expandedApplication === application.id && (
                 <div className="bg-gray-50 border-t border-gray-200 px-6 py-4">
-                  <h5 className="text-sm font-semibold text-gray-700 mb-3">Job Description</h5>
+                  <div className="flex justify-between items-center mb-3">
+                    <h5 className="text-sm font-semibold text-gray-700">Job Description</h5>
+                    <button
+                      onClick={() => handleViewResume(application.id)}
+                      className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors duration-200"
+                    >
+                      View Resume
+                    </button>
+                  </div>
                   <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
                     {application.job_description}
                   </p>
@@ -547,6 +618,93 @@ const ApplicationsView: React.FC = () => {
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-lg hover:bg-red-700 transition-colors duration-200"
               >
                 Delete Application
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resume Versions Modal */}
+      {isResumeModalOpen && selectedApplicationForResume && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={handleCloseResumeModal}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Resume Versions</h3>
+                <p className="text-sm text-gray-500">
+                  {recentApplications.find(app => app.id === selectedApplicationForResume)?.job_title} at{' '}
+                  {recentApplications.find(app => app.id === selectedApplicationForResume)?.company}
+                </p>
+              </div>
+              <button
+                onClick={handleCloseResumeModal}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="px-6 py-4 max-h-96 overflow-y-auto">
+              {resumeVersions[selectedApplicationForResume]?.length > 0 ? (
+                <div className="space-y-3">
+                  {resumeVersions[selectedApplicationForResume].map((resume) => (
+                    <div key={resume.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <h4 className="font-medium text-gray-900">{resume.title}</h4>
+                        <p className="text-sm text-gray-500">
+                          Template: {resume.template_used} • Created: {new Date(resume.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {resume.has_pdf ? (
+                          <button
+                            onClick={() => handleDownloadResume(resume.id, resume.title)}
+                            className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors duration-200"
+                          >
+                            Download
+                          </button>
+                        ) : (
+                          <span className="px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-200 rounded-lg">
+                            No PDF Available
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 text-4xl mb-4">📄</div>
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">No Resume Versions</h4>
+                  <p className="text-gray-500 mb-4">No resumes have been generated for this application yet.</p>
+                  <button
+                    onClick={() => handleCreateResume(selectedApplicationForResume)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 transition-colors duration-200"
+                  >
+                    Create Resume
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+              <button
+                onClick={handleCloseResumeModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+              >
+                Close
               </button>
             </div>
           </div>

@@ -39,6 +39,7 @@ class Application(Base):
 
     # Relationships
     user = relationship("User", back_populates="applications")
+    resume_versions = relationship("ResumeVersion", back_populates="application", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Application(id={self.id}, job_title='{self.job_title}', company='{self.company}')>"

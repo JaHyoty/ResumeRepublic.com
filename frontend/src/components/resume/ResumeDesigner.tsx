@@ -162,7 +162,10 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
         publications: publications,
         job_description: jobDescription,
         template: selectedTemplate,
-        linked_application_id: selectedApplicationId
+        linked_application_id: selectedApplicationId,
+        // Add job details for application creation if needed
+        job_title: 'Software Engineer', // Could be extracted from job description
+        company: 'Target Company' // Could be extracted from job description
       }
 
       // Generate optimized resume using LLM
