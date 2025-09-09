@@ -51,15 +51,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
       newErrors.issue_date = 'Issue date is required'
     }
 
-    // Validate date format (YYYY-MM-DD)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-    if (formData.issue_date && !dateRegex.test(formData.issue_date)) {
-      newErrors.issue_date = 'Issue date must be in YYYY-MM-DD format'
-    }
-
-    if (formData.expiry_date && !dateRegex.test(formData.expiry_date)) {
-      newErrors.expiry_date = 'Expiry date must be in YYYY-MM-DD format'
-    }
+    // Date validation is handled by the native date input
 
     // Validate URL format if provided
     if (formData.credential_url && formData.credential_url.trim()) {
@@ -159,11 +151,10 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             Issue Date *
           </label>
           <input
-            type="text"
+            type="date"
             id="issue_date"
             value={formData.issue_date}
             onChange={(e) => handleInputChange('issue_date', e.target.value)}
-            placeholder="YYYY-MM-DD"
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.issue_date ? 'border-red-500' : 'border-gray-300'
             }`}
@@ -180,11 +171,10 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             Expiry Date
           </label>
           <input
-            type="text"
+            type="date"
             id="expiry_date"
             value={formData.expiry_date}
             onChange={(e) => handleInputChange('expiry_date', e.target.value)}
-            placeholder="YYYY-MM-DD"
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.expiry_date ? 'border-red-500' : 'border-gray-300'
             }`}

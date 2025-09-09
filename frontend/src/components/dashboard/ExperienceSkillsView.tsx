@@ -7,10 +7,13 @@ import CertificationsModal from '../certifications/CertificationsModal'
 import CertificationDeleteConfirmationModal from '../certifications/CertificationDeleteConfirmationModal'
 import PublicationsModal from '../publications/PublicationsModal'
 import PublicationsDeleteConfirmationModal from '../publications/PublicationsDeleteConfirmationModal'
+import EducationForm from '../education/EducationForm'
+import EducationCard from '../education/EducationCard'
 import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
 import { skillService, type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
 import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certifications/certificationService'
 import { publicationService, type Publication, type CreatePublicationRequest } from '../../services/publications/publicationService'
+import { educationService, type Education } from '../../services/education/educationService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false)
@@ -33,6 +36,11 @@ const ExperienceSkillsView: React.FC = () => {
   const [publicationsModalMode, setPublicationsModalMode] = useState<'create' | 'edit'>('create')
   const [deletingPublication, setDeletingPublication] = useState<Publication | null>(null)
   const [isPublicationDeleteModalOpen, setIsPublicationDeleteModalOpen] = useState(false)
+  const [isEducationModalOpen, setIsEducationModalOpen] = useState(false)
+  const [editingEducation, setEditingEducation] = useState<Education | null>(null)
+  const [educationModalMode, setEducationModalMode] = useState<'create' | 'edit'>('create')
+  const [deletingEducation, setDeletingEducation] = useState<Education | null>(null)
+  const [, setIsEducationDeleteModalOpen] = useState(false)
   
   const queryClient = useQueryClient()
 
@@ -230,7 +238,64 @@ const ExperienceSkillsView: React.FC = () => {
     }
   })
 
+  // Fetch education
+  const { data: education = [] } = useQuery({
+    queryKey: ['education'],
+    queryFn: educationService.getEducation,
+  })
+
+  // Create education mutation
+  const createEducationMutation = useMutation({
+    mutationFn: educationService.createEducation,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['education'] })
+      setIsEducationModalOpen(false)
+      setEditingEducation(null)
+    },
+    onError: (error) => {
+      console.error('Failed to create education:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Update education mutation
+  const updateEducationMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => educationService.updateEducation(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['education'] })
+      setIsEducationModalOpen(false)
+      setEditingEducation(null)
+    },
+    onError: (error) => {
+      console.error('Failed to update education:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Delete education mutation
+  const deleteEducationMutation = useMutation({
+    mutationFn: (id: number) => educationService.deleteEducation(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['education'] })
+      setIsEducationDeleteModalOpen(false)
+      setDeletingEducation(null)
+    },
+    onError: (error) => {
+      console.error('Failed to delete education:', error)
+      // You could add toast notification here
+    }
+  })
+
   const sections = [
+    {
+      id: 'education',
+      title: 'Education',
+      description: 'Your academic background, degrees, and educational achievements',
+      icon: '🎓',
+      color: 'bg-purple-50 border-purple-200',
+      iconColor: 'text-purple-600',
+      fields: ['Institution', 'Degree', 'Field of Study', 'Dates', 'GPA', 'Location', 'Description']
+    },
     {
       id: 'experience',
       title: 'Work Experience',
@@ -270,7 +335,11 @@ const ExperienceSkillsView: React.FC = () => {
   ]
 
   const handleAddClick = (sectionId: string) => {
-    if (sectionId === 'experience') {
+    if (sectionId === 'education') {
+      setEducationModalMode('create')
+      setEditingEducation(null)
+      setIsEducationModalOpen(true)
+    } else if (sectionId === 'experience') {
       setModalMode('create')
       setEditingExperience(null)
       setIsExperienceModalOpen(true)
@@ -417,6 +486,35 @@ const ExperienceSkillsView: React.FC = () => {
       })
     } else {
       await createPublicationMutation.mutateAsync(data)
+    }
+  }
+
+  // Education handlers
+  const handleEducationEdit = (education: Education) => {
+    setEditingEducation(education)
+    setEducationModalMode('edit')
+    setIsEducationModalOpen(true)
+  }
+
+  const handleEducationDelete = (education: Education) => {
+    setDeletingEducation(education)
+    setIsEducationDeleteModalOpen(true)
+  }
+
+  const handleConfirmEducationDelete = () => {
+    if (deletingEducation) {
+      deleteEducationMutation.mutate(deletingEducation.id!)
+    }
+  }
+
+  const handleEducationSubmit = async (data: any) => {
+    if (educationModalMode === 'edit' && editingEducation) {
+      await updateEducationMutation.mutateAsync({ 
+        id: editingEducation.id!, 
+        data 
+      })
+    } else {
+      await createEducationMutation.mutateAsync(data)
     }
   }
 
@@ -652,11 +750,12 @@ const ExperienceSkillsView: React.FC = () => {
   }
 
   const SectionCard = ({ section }: { section: typeof sections[0] }) => {
+    const isEducationSection = section.id === 'education'
     const isExperienceSection = section.id === 'experience'
     const isSkillsSection = section.id === 'skills'
     const isCertificationsSection = section.id === 'certifications'
     const isPublicationsSection = section.id === 'publications'
-    const hasData = (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0) || (isPublicationsSection && publications.length > 0)
+    const hasData = (isEducationSection && education.length > 0) || (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0) || (isPublicationsSection && publications.length > 0)
 
     return (
       <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color}`}>
@@ -669,6 +768,20 @@ const ExperienceSkillsView: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{section.title}</h3>
               <p className="text-gray-600 text-sm mb-4">{section.description}</p>
               
+              {/* Show existing education */}
+              {isEducationSection && hasData && (
+                <div className="mb-4 w-full">
+                  {education.map((edu) => (
+                    <EducationCard 
+                      key={edu.id} 
+                      education={edu}
+                      onEdit={handleEducationEdit}
+                      onDelete={handleEducationDelete}
+                    />
+                  ))}
+                </div>
+              )}
+
               {/* Show existing experiences */}
               {isExperienceSection && hasData && (
                 <div className="mb-4 w-full">
@@ -709,7 +822,11 @@ const ExperienceSkillsView: React.FC = () => {
               
               
               <div className="mt-4 flex items-center justify-between">
-                {isExperienceSection ? (
+                {isEducationSection ? (
+                  <span className="text-sm text-gray-500">
+                    {hasData ? `${education.length} education entr${education.length !== 1 ? 'ies' : 'y'} added` : 'No education entries added yet'}
+                  </span>
+                ) : isExperienceSection ? (
                   <span className="text-sm text-gray-500">
                     {experiencesLoading ? 'Loading...' : 
                      experiencesError ? 'Error loading experiences' :
@@ -741,6 +858,7 @@ const ExperienceSkillsView: React.FC = () => {
           </div>
           <button 
             onClick={() => 
+              isEducationSection ? handleAddClick(section.id) :
               isSkillsSection ? handleAddSkillClick() : 
               isCertificationsSection ? handleAddCertificationClick() : 
               isPublicationsSection ? handleAddPublicationClick() :
@@ -873,6 +991,66 @@ const ExperienceSkillsView: React.FC = () => {
         publication={deletingPublication}
         isLoading={deletePublicationMutation.isPending}
       />
+
+      {/* Education Form Modal */}
+      <EducationForm
+        isOpen={isEducationModalOpen}
+        onClose={() => {
+          setIsEducationModalOpen(false)
+          setEditingEducation(null)
+        }}
+        onSuccess={handleEducationSubmit}
+        initialData={editingEducation}
+      />
+
+      {/* Education Delete Confirmation Modal */}
+      {deletingEducation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => {
+              setIsEducationDeleteModalOpen(false)
+              setDeletingEducation(null)
+            }}
+          />
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Education</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-gray-700">
+                Are you sure you want to delete <strong>{deletingEducation.degree}</strong> from <strong>{deletingEducation.institution}</strong>?
+              </p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setIsEducationDeleteModalOpen(false)
+                  setDeletingEducation(null)
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmEducationDelete}
+                disabled={deleteEducationMutation.isPending}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+              >
+                {deleteEducationMutation.isPending ? 'Deleting...' : 'Delete Education'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

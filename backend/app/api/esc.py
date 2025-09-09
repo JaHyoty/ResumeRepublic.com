@@ -14,10 +14,12 @@ from app.models.experience import Experience as ExperienceModel, ExperienceTitle
 from app.models.skill import Skill as SkillModel
 from app.models.certification import Certification as CertificationModel
 from app.models.publication import Publication as PublicationModel
+from app.models.education import Education as EducationModel
 from app.schemas.experience import Experience, ExperienceCreate, ExperienceUpdate
 from app.schemas.skill import Skill, SkillCreate, SkillUpdate
 from app.schemas.certification import Certification, CertificationCreate, CertificationUpdate
 from app.schemas.publication import Publication, PublicationCreate, PublicationUpdate
+from app.schemas.education import Education, EducationCreate, EducationUpdate
 
 router = APIRouter()
 
@@ -510,6 +512,93 @@ def delete_publication(
     db.commit()
     
     return {"message": "Publication deleted successfully"}
+
+
+# Education endpoints
+@router.get("/education", response_model=List[Education])
+def get_education(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all education entries for the current user"""
+    education = db.query(EducationModel).filter(
+        EducationModel.user_id == current_user.id
+    ).order_by(EducationModel.start_date.desc()).all()
+    
+    return education
+
+
+@router.post("/education", response_model=Education)
+def create_education(
+    education_data: EducationCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new education entry"""
+    education = EducationModel(
+        user_id=current_user.id,
+        **education_data.model_dump()
+    )
+    
+    db.add(education)
+    db.commit()
+    db.refresh(education)
+    
+    return education
+
+
+@router.put("/education/{education_id}", response_model=Education)
+def update_education(
+    education_id: int,
+    education_data: EducationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an education entry"""
+    education = db.query(EducationModel).filter(
+        EducationModel.id == education_id,
+        EducationModel.user_id == current_user.id
+    ).first()
+    
+    if not education:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Education entry not found"
+        )
+    
+    # Update only provided fields
+    update_data = education_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(education, field, value)
+    
+    db.commit()
+    db.refresh(education)
+    
+    return education
+
+
+@router.delete("/education/{education_id}")
+def delete_education(
+    education_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete an education entry"""
+    education = db.query(EducationModel).filter(
+        EducationModel.id == education_id,
+        EducationModel.user_id == current_user.id
+    ).first()
+    
+    if not education:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Education entry not found"
+        )
+    
+    db.delete(education)
+    db.commit()
+    
+    return {"message": "Education entry deleted successfully"}
 
 
 # TODO: Implement other ESC routes

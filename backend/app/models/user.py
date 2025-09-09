@@ -34,6 +34,7 @@ class User(Base):
     skills = relationship("Skill", back_populates="user", cascade="all, delete-orphan")
     publications = relationship("Publication", back_populates="user", cascade="all, delete-orphan")
     certifications = relationship("Certification", back_populates="user", cascade="all, delete-orphan")
+    education = relationship("Education", back_populates="user", cascade="all, delete-orphan")
     resume_versions = relationship("ResumeVersion", back_populates="user", cascade="all, delete-orphan")
     applications = relationship("Application", back_populates="user", cascade="all, delete-orphan")
 

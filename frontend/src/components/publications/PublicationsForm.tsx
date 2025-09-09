@@ -45,11 +45,7 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
       newErrors.title = 'Publication title is required'
     }
 
-    // Validate date format (YYYY-MM-DD) if provided
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-    if (formData.publication_date && !dateRegex.test(formData.publication_date)) {
-      newErrors.publication_date = 'Publication date must be in YYYY-MM-DD format'
-    }
+    // Date validation is handled by the native date input
 
     // Validate URL format if provided
     if (formData.url && formData.url.trim()) {
@@ -193,11 +189,10 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
             Publication Date
           </label>
           <input
-            type="text"
+            type="date"
             id="publication_date"
             value={formData.publication_date}
             onChange={(e) => handleInputChange('publication_date', e.target.value)}
-            placeholder="YYYY-MM-DD"
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.publication_date ? 'border-red-500' : 'border-gray-300'
             }`}
