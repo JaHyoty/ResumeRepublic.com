@@ -1,7 +1,7 @@
 import React from 'react'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 import CertificationsForm from './CertificationsForm'
-import { type Certification, type CreateCertificationRequest } from '../../services/certifications/certificationService'
+import { type Certification, type CreateCertificationRequest } from '../../services/certificationService'
 
 interface CertificationsModalProps {
   isOpen: boolean

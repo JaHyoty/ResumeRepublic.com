@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { type Publication, type CreatePublicationRequest } from '../../services/publications/publicationService'
+import { type Publication, type CreatePublicationRequest } from '../../services/publicationService'
 
 interface PublicationsFormData {
   title: string

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { type Certification, type CreateCertificationRequest } from '../../services/certifications/certificationService'
+import { type Certification, type CreateCertificationRequest } from '../../services/certificationService'
 
 interface CertificationsFormData {
   name: string

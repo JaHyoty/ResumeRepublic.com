@@ -1,4 +1,4 @@
-import { api } from '../api'
+import { api } from './api'
 
 export interface Website {
   id: number
@@ -17,17 +17,17 @@ export interface WebsiteUpdate {
 }
 
 export const getWebsites = async (): Promise<Website[]> => {
-  const response = await api.get('/api/esc/websites')
+  const response = await api.get<Website[]>('/api/esc/websites')
   return response.data
 }
 
 export const createWebsite = async (websiteData: WebsiteCreate): Promise<Website> => {
-  const response = await api.post('/api/esc/websites', websiteData)
+  const response = await api.post<Website>('/api/esc/websites', websiteData)
   return response.data
 }
 
 export const updateWebsite = async (id: number, websiteData: WebsiteUpdate): Promise<Website> => {
-  const response = await api.put(`/api/esc/websites/${id}`, websiteData)
+  const response = await api.put<Website>(`/api/esc/websites/${id}`, websiteData)
   return response.data
 }
 

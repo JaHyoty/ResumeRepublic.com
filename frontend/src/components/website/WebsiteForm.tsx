@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { createWebsite, updateWebsite, type Website, type WebsiteCreate, type WebsiteUpdate } from '../../services/website/websiteService'
+import { createWebsite, updateWebsite, type Website, type WebsiteCreate, type WebsiteUpdate } from '../../services/websiteService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface WebsiteFormProps {

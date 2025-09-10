@@ -1,5 +1,5 @@
 import React from 'react'
-import { type Publication } from '../../services/publications/publicationService'
+import { type Publication } from '../../services/publicationService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface PublicationsDeleteConfirmationModalProps {

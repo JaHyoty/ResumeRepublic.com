@@ -1,5 +1,5 @@
 import React from 'react'
-import { type Website } from '../../services/website/websiteService'
+import { type Website } from '../../services/websiteService'
 
 interface WebsiteCardProps {
   website: Website

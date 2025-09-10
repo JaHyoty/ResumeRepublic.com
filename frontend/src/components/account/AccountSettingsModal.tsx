@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { userService, type UserInfo } from '../../services/user/userService'
+import { userService, type UserInfo } from '../../services/userService'
 
 interface AccountSettingsModalProps {
   isOpen: boolean

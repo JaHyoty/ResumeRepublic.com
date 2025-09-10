@@ -37,7 +37,7 @@ export interface CreateExperienceRequest {
 export const experienceService = {
   async getExperiences(): Promise<Experience[]> {
     try {
-      const response = await api.get('/api/esc/experiences')
+      const response = await api.get<Experience[]>('/api/esc/experiences')
       return response.data
     } catch (error) {
       console.error('Failed to fetch experiences:', error)
@@ -47,7 +47,7 @@ export const experienceService = {
 
   async createExperience(experienceData: CreateExperienceRequest): Promise<Experience> {
     try {
-      const response = await api.post('/api/esc/experiences', experienceData)
+      const response = await api.post<Experience>('/api/esc/experiences', experienceData)
       return response.data
     } catch (error) {
       console.error('Failed to create experience:', error)
@@ -57,7 +57,7 @@ export const experienceService = {
 
   async updateExperience(id: number, experienceData: Partial<CreateExperienceRequest>): Promise<Experience> {
     try {
-      const response = await api.put(`/api/esc/experiences/${id}`, experienceData)
+      const response = await api.put<Experience>(`/api/esc/experiences/${id}`, experienceData)
       return response.data
     } catch (error) {
       console.error('Failed to update experience:', error)
@@ -76,7 +76,7 @@ export const experienceService = {
 
   async getExperience(id: number): Promise<Experience> {
     try {
-      const response = await api.get(`/api/esc/experiences/${id}`)
+      const response = await api.get<Experience>(`/api/esc/experiences/${id}`)
       return response.data
     } catch (error) {
       console.error('Failed to fetch experience:', error)

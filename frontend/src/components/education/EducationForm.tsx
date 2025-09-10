@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { educationService, type Education, type EducationCreate, type EducationUpdate } from '../../services/education/educationService'
+import { educationService, type Education, type EducationCreate, type EducationUpdate } from '../../services/educationService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface EducationFormProps {

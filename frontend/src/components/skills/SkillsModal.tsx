@@ -1,6 +1,6 @@
 import React from 'react'
 import SkillsForm from './SkillsForm'
-import { type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
+import { type Skill, type CreateSkillRequest } from '../../services/skillService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface SkillsModalProps {

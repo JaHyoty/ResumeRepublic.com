@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
+import { type Skill, type CreateSkillRequest } from '../../services/skillService'
 
 interface SkillsFormData {
   name: string

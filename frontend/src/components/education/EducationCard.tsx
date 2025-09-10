@@ -1,5 +1,5 @@
 import React from 'react'
-import { type Education } from '../../services/education/educationService'
+import { type Education } from '../../services/educationService'
 
 interface EducationCardProps {
   education: Education

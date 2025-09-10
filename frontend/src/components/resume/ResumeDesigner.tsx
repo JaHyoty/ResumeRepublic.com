@@ -2,11 +2,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { experienceService } from '../../services/experienceService'
-import { skillService } from '../../services/skills/skillService'
-import { certificationService } from '../../services/certifications/certificationService'
-import { publicationService } from '../../services/publications/publicationService'
-import { applicationService } from '../../services/applications/applicationService'
-import { userService } from '../../services/user/userService'
+import { skillService } from '../../services/skillService'
+import { certificationService } from '../../services/certificationService'
+import { publicationService } from '../../services/publicationService'
+import { applicationService } from '../../services/applicationService'
+import { userService } from '../../services/userService'
 import { api } from '../../services/api'
 import PDFViewer from './PDFViewer'
 
@@ -188,7 +188,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
       }
 
       // Generate optimized resume using LLM
-      const response = await api.post('/api/resume/design', data, {
+      const response = await api.post<Blob>('/api/resume/design', data, {
         responseType: 'blob'
       })
 

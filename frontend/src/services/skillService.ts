@@ -1,4 +1,4 @@
-import { api } from '../api'
+import { api } from './api'
 
 export interface Skill {
   id: number
@@ -17,25 +17,25 @@ export interface UpdateSkillRequest {
 export const skillService = {
   // Get all skills for the current user
   async getSkills(): Promise<Skill[]> {
-    const response = await api.get('/api/esc/skills')
+    const response = await api.get<Skill[]>('/api/esc/skills')
     return response.data
   },
 
   // Create a new skill
   async createSkill(data: CreateSkillRequest): Promise<Skill> {
-    const response = await api.post('/api/esc/skills', data)
+    const response = await api.post<Skill>('/api/esc/skills', data)
     return response.data
   },
 
   // Get a specific skill by ID
   async getSkill(id: number): Promise<Skill> {
-    const response = await api.get(`/api/esc/skills/${id}`)
+    const response = await api.get<Skill>(`/api/esc/skills/${id}`)
     return response.data
   },
 
   // Update a skill
   async updateSkill(id: number, data: UpdateSkillRequest): Promise<Skill> {
-    const response = await api.put(`/api/esc/skills/${id}`, data)
+    const response = await api.put<Skill>(`/api/esc/skills/${id}`, data)
     return response.data
   },
 

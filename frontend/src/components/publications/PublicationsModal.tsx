@@ -1,7 +1,7 @@
 import React from 'react'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 import PublicationsForm from './PublicationsForm'
-import { type Publication, type CreatePublicationRequest } from '../../services/publications/publicationService'
+import { type Publication, type CreatePublicationRequest } from '../../services/publicationService'
 
 interface PublicationsModalProps {
   isOpen: boolean

@@ -1,5 +1,5 @@
 import React from 'react'
-import { type Certification } from '../../services/certifications/certificationService'
+import { type Certification } from '../../services/certificationService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 
 interface CertificationDeleteConfirmationModalProps {

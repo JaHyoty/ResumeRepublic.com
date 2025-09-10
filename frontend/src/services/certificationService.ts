@@ -1,4 +1,4 @@
-import { api } from '../api'
+import { api } from './api'
 
 export interface Certification {
   id: number
@@ -32,25 +32,25 @@ export interface UpdateCertificationRequest {
 export const certificationService = {
   // Get all certifications for the current user
   async getCertifications(): Promise<Certification[]> {
-    const response = await api.get('/api/esc/certifications')
+    const response = await api.get<Certification[]>('/api/esc/certifications')
     return response.data
   },
 
   // Create a new certification
   async createCertification(data: CreateCertificationRequest): Promise<Certification> {
-    const response = await api.post('/api/esc/certifications', data)
+    const response = await api.post<Certification>('/api/esc/certifications', data)
     return response.data
   },
 
   // Get a specific certification by ID
   async getCertification(id: number): Promise<Certification> {
-    const response = await api.get(`/api/esc/certifications/${id}`)
+    const response = await api.get<Certification>(`/api/esc/certifications/${id}`)
     return response.data
   },
 
   // Update a certification
   async updateCertification(id: number, data: UpdateCertificationRequest): Promise<Certification> {
-    const response = await api.put(`/api/esc/certifications/${id}`, data)
+    const response = await api.put<Certification>(`/api/esc/certifications/${id}`, data)
     return response.data
   },
 

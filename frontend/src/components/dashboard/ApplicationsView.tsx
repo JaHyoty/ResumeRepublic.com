@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { applicationService } from '../../services/applications/applicationService'
+import { applicationService } from '../../services/applicationService'
 import { api } from '../../services/api'
-import type { Application, ApplicationStats } from '../../services/applications/applicationService'
+import type { Application, ApplicationStats } from '../../services/applicationService'
 
 const ApplicationsView: React.FC = () => {
   const navigate = useNavigate()
@@ -129,7 +129,7 @@ const ApplicationsView: React.FC = () => {
     try {
       // Check if we already have resume versions for this application
       if (!resumeVersions[applicationId]) {
-        const response = await api.get(`/api/resume/versions/${applicationId}`)
+        const response = await api.get<{ resume_versions: any[] }>(`/api/resume/versions/${applicationId}`)
         setResumeVersions(prev => ({
           ...prev,
           [applicationId]: response.data.resume_versions
@@ -163,7 +163,7 @@ const ApplicationsView: React.FC = () => {
 
   const handleDownloadResume = async (resumeId: number, title: string) => {
     try {
-      const response = await api.get(`/api/resume/pdf/${resumeId}`, {
+      const response = await api.get<Blob>(`/api/resume/pdf/${resumeId}`, {
         responseType: 'blob'
       })
       

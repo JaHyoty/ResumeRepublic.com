@@ -12,11 +12,11 @@ import EducationCard from '../education/EducationCard'
 import WebsiteForm from '../website/WebsiteForm'
 import WebsiteCard from '../website/WebsiteCard'
 import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
-import { skillService, type Skill, type CreateSkillRequest } from '../../services/skills/skillService'
-import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certifications/certificationService'
-import { publicationService, type Publication, type CreatePublicationRequest } from '../../services/publications/publicationService'
-import { educationService, type Education } from '../../services/education/educationService'
-import { getWebsites, createWebsite, updateWebsite, deleteWebsite, type Website } from '../../services/website/websiteService'
+import { skillService, type Skill, type CreateSkillRequest } from '../../services/skillService'
+import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certificationService'
+import { publicationService, type Publication, type CreatePublicationRequest } from '../../services/publicationService'
+import { educationService, type Education } from '../../services/educationService'
+import { getWebsites, createWebsite, updateWebsite, deleteWebsite, type Website } from '../../services/websiteService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false)
