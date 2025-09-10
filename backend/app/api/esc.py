@@ -16,12 +16,14 @@ from app.models.certification import Certification as CertificationModel
 from app.models.publication import Publication as PublicationModel
 from app.models.education import Education as EducationModel
 from app.models.website import Website as WebsiteModel
+from app.models.project import Project as ProjectModel, ProjectTechnology as ProjectTechnologyModel, ProjectAchievement as ProjectAchievementModel
 from app.schemas.experience import Experience, ExperienceCreate, ExperienceUpdate
 from app.schemas.skill import Skill, SkillCreate, SkillUpdate
 from app.schemas.certification import Certification, CertificationCreate, CertificationUpdate
 from app.schemas.publication import Publication, PublicationCreate, PublicationUpdate
 from app.schemas.education import Education, EducationCreate, EducationUpdate
 from app.schemas.website import Website, WebsiteCreate, WebsiteUpdate
+from app.schemas.project import Project, ProjectCreate, ProjectUpdate
 
 router = APIRouter()
 
@@ -690,3 +692,172 @@ def delete_website(
     db.commit()
     
     return {"message": "Website deleted successfully"}
+
+
+# Project endpoints
+@router.get("/projects", response_model=List[Project])
+def get_user_projects(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all projects for the current user, sorted by end date descending (most recent first)"""
+    projects = db.query(ProjectModel).filter(
+        ProjectModel.user_id == current_user.id
+    ).order_by(
+        # Sort by end_date descending, but put current projects (is_current=True) at the top
+        case(
+            (ProjectModel.is_current == True, 0),
+            else_=1
+        ),
+        # Then sort by end_date descending (most recent first)
+        # Use nullslast to put projects without end_date (current projects) at the top
+        nullslast(desc(ProjectModel.end_date)),
+        # Finally sort by start_date descending as a tiebreaker
+        desc(ProjectModel.start_date)
+    ).all()
+    return projects
+
+
+@router.post("/projects", response_model=Project, status_code=status.HTTP_201_CREATED)
+def create_project(
+    project_data: ProjectCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new project"""
+    # Create the main project record
+    db_project = ProjectModel(
+        user_id=current_user.id,
+        name=project_data.name,
+        description=project_data.description,
+        start_date=project_data.start_date,
+        end_date=project_data.end_date,
+        url=project_data.url,
+        is_current=project_data.is_current
+    )
+    
+    db.add(db_project)
+    db.flush()  # Flush to get the ID
+    
+    # Add technologies
+    for tech_data in project_data.technologies:
+        db_tech = ProjectTechnologyModel(
+            project_id=db_project.id,
+            technology=tech_data.technology
+        )
+        db.add(db_tech)
+    
+    # Add achievements
+    for achievement_data in project_data.achievements:
+        db_achievement = ProjectAchievementModel(
+            project_id=db_project.id,
+            description=achievement_data.description
+        )
+        db.add(db_achievement)
+    
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+
+@router.get("/projects/{project_id}", response_model=Project)
+def get_project(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get a specific project by ID"""
+    project = db.query(ProjectModel).filter(
+        ProjectModel.id == project_id,
+        ProjectModel.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+    
+    return project
+
+
+@router.put("/projects/{project_id}", response_model=Project)
+def update_project(
+    project_id: int,
+    project_data: ProjectUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an existing project"""
+    project = db.query(ProjectModel).filter(
+        ProjectModel.id == project_id,
+        ProjectModel.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+    
+    # Update main project fields if provided
+    update_data = project_data.model_dump(exclude_unset=True, exclude={'technologies', 'achievements'})
+    for field, value in update_data.items():
+        setattr(project, field, value)
+    
+    # Update technologies if provided
+    if hasattr(project_data, 'technologies') and project_data.technologies is not None:
+        # Delete existing technologies
+        db.query(ProjectTechnologyModel).filter(
+            ProjectTechnologyModel.project_id == project_id
+        ).delete()
+        
+        # Add new technologies
+        for tech_data in project_data.technologies:
+            db_tech = ProjectTechnologyModel(
+                project_id=project_id,
+                technology=tech_data.technology
+            )
+            db.add(db_tech)
+    
+    # Update achievements if provided
+    if hasattr(project_data, 'achievements') and project_data.achievements is not None:
+        # Delete existing achievements
+        db.query(ProjectAchievementModel).filter(
+            ProjectAchievementModel.project_id == project_id
+        ).delete()
+        
+        # Add new achievements
+        for achievement_data in project_data.achievements:
+            db_achievement = ProjectAchievementModel(
+                project_id=project_id,
+                description=achievement_data.description
+            )
+            db.add(db_achievement)
+    
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a project"""
+    project = db.query(ProjectModel).filter(
+        ProjectModel.id == project_id,
+        ProjectModel.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found"
+        )
+    
+    db.delete(project)
+    db.commit()
+    return None

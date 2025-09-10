@@ -11,12 +11,16 @@ import EducationForm from '../education/EducationForm'
 import EducationCard from '../education/EducationCard'
 import WebsiteForm from '../website/WebsiteForm'
 import WebsiteCard from '../website/WebsiteCard'
+import ProjectModal from '../project/ProjectModal'
+import ProjectDeleteConfirmationModal from '../project/DeleteConfirmationModal'
+import ProjectCard from '../project/ProjectCard'
 import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
 import { skillService, type Skill, type CreateSkillRequest } from '../../services/skillService'
 import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certificationService'
 import { publicationService, type Publication, type CreatePublicationRequest } from '../../services/publicationService'
 import { educationService, type Education } from '../../services/educationService'
 import { getWebsites, createWebsite, updateWebsite, deleteWebsite, type Website } from '../../services/websiteService'
+import { projectService, type Project, type CreateProjectRequest } from '../../services/projectService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false)
@@ -49,6 +53,11 @@ const ExperienceSkillsView: React.FC = () => {
   const [websiteModalMode, setWebsiteModalMode] = useState<'create' | 'edit'>('create')
   const [deletingWebsite, setDeletingWebsite] = useState<Website | null>(null)
   const [, setIsWebsiteDeleteModalOpen] = useState(false)
+  const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
+  const [editingProject, setEditingProject] = useState<Project | null>(null)
+  const [projectModalMode, setProjectModalMode] = useState<'create' | 'edit'>('create')
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null)
+  const [isProjectDeleteModalOpen, setIsProjectDeleteModalOpen] = useState(false)
   
   const queryClient = useQueryClient()
 
@@ -300,6 +309,12 @@ const ExperienceSkillsView: React.FC = () => {
     queryFn: getWebsites,
   })
 
+  // Fetch projects
+  const { data: projects = [], isLoading: projectsLoading, error: projectsError } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectService.getProjects,
+  })
+
   // Create website mutation
   const createWebsiteMutation = useMutation({
     mutationFn: createWebsite,
@@ -338,6 +353,49 @@ const ExperienceSkillsView: React.FC = () => {
     },
     onError: (error) => {
       console.error('Failed to delete website:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Create project mutation
+  const createProjectMutation = useMutation({
+    mutationFn: projectService.createProject,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      setIsProjectModalOpen(false)
+      setEditingProject(null)
+    },
+    onError: (error) => {
+      console.error('Failed to create project:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Update project mutation
+  const updateProjectMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CreateProjectRequest }) => 
+      projectService.updateProject(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      setIsProjectModalOpen(false)
+      setEditingProject(null)
+    },
+    onError: (error) => {
+      console.error('Failed to update project:', error)
+      // You could add toast notification here
+    }
+  })
+
+  // Delete project mutation
+  const deleteProjectMutation = useMutation({
+    mutationFn: (id: number) => projectService.deleteProject(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      setIsProjectDeleteModalOpen(false)
+      setDeletingProject(null)
+    },
+    onError: (error) => {
+      console.error('Failed to delete project:', error)
       // You could add toast notification here
     }
   })
@@ -396,6 +454,15 @@ const ExperienceSkillsView: React.FC = () => {
       color: 'bg-cyan-50 border-cyan-200',
       iconColor: 'text-cyan-600',
       fields: ['Site Name', 'URL']
+    },
+    {
+      id: 'projects',
+      title: 'Projects',
+      description: 'Personal and professional projects showcasing your skills',
+      icon: '🚀',
+      color: 'bg-orange-50 border-orange-200',
+      iconColor: 'text-orange-600',
+      fields: ['Project Name', 'Description', 'Technologies', 'URL', 'Dates']
     }
   ]
 
@@ -416,6 +483,10 @@ const ExperienceSkillsView: React.FC = () => {
       setWebsiteModalMode('create')
       setEditingWebsite(null)
       setIsWebsiteModalOpen(true)
+    } else if (sectionId === 'projects') {
+      setProjectModalMode('create')
+      setEditingProject(null)
+      setIsProjectModalOpen(true)
     } else {
       // Handle other sections later
       console.log(`Add clicked for ${sectionId}`)
@@ -672,6 +743,43 @@ const ExperienceSkillsView: React.FC = () => {
     }
   }
 
+  // Project handlers
+  const handleProjectEdit = (project: Project) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
+    setEditingProject(project)
+    setProjectModalMode('edit')
+    setIsProjectModalOpen(true)
+  }
+
+  const handleProjectDelete = (project: Project) => {
+    // Capture scroll position immediately before any state changes
+    const scrollY = window.scrollY
+    ;(window as any).__savedScrollPosition = scrollY
+    
+    setDeletingProject(project)
+    setIsProjectDeleteModalOpen(true)
+  }
+
+  const handleConfirmProjectDelete = () => {
+    if (deletingProject) {
+      deleteProjectMutation.mutate(deletingProject.id!)
+    }
+  }
+
+  const handleProjectSubmit = async (data: CreateProjectRequest) => {
+    if (projectModalMode === 'edit' && editingProject) {
+      await updateProjectMutation.mutateAsync({ 
+        id: editingProject.id!, 
+        data 
+      })
+    } else {
+      await createProjectMutation.mutateAsync(data)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -910,7 +1018,8 @@ const ExperienceSkillsView: React.FC = () => {
     const isCertificationsSection = section.id === 'certifications'
     const isPublicationsSection = section.id === 'publications'
     const isWebsiteSection = section.id === 'websites'
-    const hasData = (isEducationSection && education.length > 0) || (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0) || (isPublicationsSection && publications.length > 0) || (isWebsiteSection && websites.length > 0)
+    const isProjectSection = section.id === 'projects'
+    const hasData = (isEducationSection && education.length > 0) || (isExperienceSection && experiences.length > 0) || (isSkillsSection && skills.length > 0) || (isCertificationsSection && certifications.length > 0) || (isPublicationsSection && publications.length > 0) || (isWebsiteSection && websites.length > 0) || (isProjectSection && projects.length > 0)
 
     return (
       <div className={`border-2 rounded-lg p-6 transition-all duration-200 ${section.color}`}>
@@ -988,6 +1097,20 @@ const ExperienceSkillsView: React.FC = () => {
                   ))}
                 </div>
               )}
+
+              {/* Show existing projects */}
+              {isProjectSection && hasData && (
+                <div className="mb-4 w-full">
+                  {projects.map((project) => (
+                    <ProjectCard 
+                      key={project.id} 
+                      project={project}
+                      onEdit={handleProjectEdit}
+                      onDelete={handleProjectDelete}
+                    />
+                  ))}
+                </div>
+              )}
               
               
               <div className="mt-4 flex items-center justify-between">
@@ -1023,6 +1146,12 @@ const ExperienceSkillsView: React.FC = () => {
                   <span className="text-sm text-gray-500">
                     {hasData ? `${websites.length} website${websites.length !== 1 ? 's' : ''} added` : 'No websites added yet'}
                   </span>
+                ) : isProjectSection ? (
+                  <span className="text-sm text-gray-500">
+                    {projectsLoading ? 'Loading...' : 
+                     projectsError ? 'Error loading projects' :
+                     hasData ? `${projects.length} project${projects.length !== 1 ? 's' : ''} added` : 'No projects added yet'}
+                  </span>
                 ) : (
                   <span className="text-sm text-gray-500">No entries added yet</span>
                 )}
@@ -1033,6 +1162,7 @@ const ExperienceSkillsView: React.FC = () => {
             onClick={() => 
               isEducationSection ? handleAddClick(section.id) :
               isWebsiteSection ? handleAddClick(section.id) :
+              isProjectSection ? handleAddClick(section.id) :
               isSkillsSection ? handleAddSkillClick() : 
               isCertificationsSection ? handleAddCertificationClick() : 
               isPublicationsSection ? handleAddPublicationClick() :
@@ -1284,6 +1414,44 @@ const ExperienceSkillsView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Project Modal */}
+      <ProjectModal
+        isOpen={isProjectModalOpen}
+        onClose={() => {
+          setIsProjectModalOpen(false)
+          setEditingProject(null)
+        }}
+        onSubmit={handleProjectSubmit}
+        isLoading={createProjectMutation.isPending || updateProjectMutation.isPending}
+        initialData={editingProject ? {
+          name: editingProject.name,
+          description: editingProject.description || '',
+          start_date: editingProject.start_date,
+          end_date: editingProject.end_date || '',
+          url: editingProject.url || '',
+          is_current: editingProject.is_current,
+          technologies: editingProject.technologies.map(t => ({
+            technology: t.technology
+          })),
+          achievements: editingProject.achievements.map(a => ({
+            description: a.description
+          }))
+        } : undefined}
+        mode={projectModalMode}
+      />
+
+      {/* Project Delete Confirmation Modal */}
+      <ProjectDeleteConfirmationModal
+        isOpen={isProjectDeleteModalOpen}
+        onClose={() => {
+          setIsProjectDeleteModalOpen(false)
+          setDeletingProject(null)
+        }}
+        onConfirm={handleConfirmProjectDelete}
+        projectName={deletingProject?.name || ''}
+        isLoading={deleteProjectMutation.isPending}
+      />
 
     </div>
   )
