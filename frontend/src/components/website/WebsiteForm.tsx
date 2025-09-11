@@ -1,3 +1,4 @@
+import { useEnhancedClickOutside } from '../../hooks/useEnhancedClickOutside'
 import React, { useState, useEffect } from 'react'
 import { createWebsite, updateWebsite, type Website, type WebsiteCreate, type WebsiteUpdate } from '../../services/websiteService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
@@ -26,6 +27,12 @@ const WebsiteForm: React.FC<WebsiteFormProps> = ({
   })
   const [errors, setErrors] = useState<Partial<Record<keyof WebsiteFormData, string>> & { general?: string }>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  
+  // Use the scroll position hook
+  useScrollPosition(isOpen)
+  
+  // Use enhanced click outside functionality
+  const { handleBackdropMouseDown, handleBackdropMouseUp } = useEnhancedClickOutside(onClose)
 
   useEffect(() => {
     if (initialData) {
@@ -120,15 +127,10 @@ const WebsiteForm: React.FC<WebsiteFormProps> = ({
 
   if (!isOpen) return null
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isSubmitting) {
-      onClose()
-    }
-  }
-  
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50"
-      onClick={handleBackdropClick}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="p-6">

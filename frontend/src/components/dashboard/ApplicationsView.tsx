@@ -27,6 +27,27 @@ const ApplicationsView: React.FC = () => {
   const [resumeVersions, setResumeVersions] = useState<{[key: number]: any[]}>({})
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false)
   const [selectedApplicationForResume, setSelectedApplicationForResume] = useState<number | null>(null)
+  
+  // State for tracking mouse events for modal closing
+  const [mouseDownOutside, setMouseDownOutside] = useState(false)
+
+  // Helper function to handle enhanced click-outside functionality
+  const handleBackdropMouseDown = (e: React.MouseEvent) => {
+    // Check if the click is on the backdrop (not on modal content)
+    if (e.target === e.currentTarget) {
+      setMouseDownOutside(true)
+    } else {
+      setMouseDownOutside(false)
+    }
+  }
+
+  const handleBackdropMouseUp = (e: React.MouseEvent, closeFunction: () => void) => {
+    // Only close if both mousedown and mouseup were outside the modal
+    if (mouseDownOutside && e.target === e.currentTarget) {
+      closeFunction()
+    }
+    setMouseDownOutside(false)
+  }
 
   // Load applications and stats on component mount
   useEffect(() => {
@@ -511,7 +532,8 @@ const ApplicationsView: React.FC = () => {
           <div 
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
             style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
-            onClick={handleCloseNewApplicationModal}
+            onMouseDown={handleBackdropMouseDown}
+            onMouseUp={(e) => handleBackdropMouseUp(e, handleCloseNewApplicationModal)}
           />
           
           {/* Modal Content */}
@@ -610,7 +632,8 @@ const ApplicationsView: React.FC = () => {
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={handleCancelDelete}
+            onMouseDown={handleBackdropMouseDown}
+            onMouseUp={(e) => handleBackdropMouseUp(e, handleCancelDelete)}
           />
           
           {/* Modal Content */}
@@ -662,7 +685,8 @@ const ApplicationsView: React.FC = () => {
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={handleCloseResumeModal}
+            onMouseDown={handleBackdropMouseDown}
+            onMouseUp={(e) => handleBackdropMouseUp(e, handleCloseResumeModal)}
           />
           
           {/* Modal Content */}

@@ -1,3 +1,4 @@
+import { useEnhancedClickOutside } from '../../hooks/useEnhancedClickOutside'
 import React from 'react'
 
 interface DeleteConfirmationModalProps {
@@ -17,16 +18,14 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
 }) => {
   if (!isOpen) return null
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
-  }
+  // Use enhanced click outside functionality
+  const { handleBackdropMouseDown, handleBackdropMouseUp } = useEnhancedClickOutside(onClose)
 
   return (
     <div 
       className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-      onClick={handleBackdropClick}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-3">

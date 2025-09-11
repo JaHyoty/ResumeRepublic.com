@@ -1,3 +1,4 @@
+import { useEnhancedClickOutside } from '../../hooks/useEnhancedClickOutside'
 import React from 'react'
 import { type Publication } from '../../services/publicationService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
@@ -22,16 +23,14 @@ const PublicationsDeleteConfirmationModal: React.FC<PublicationsDeleteConfirmati
 
   if (!isOpen || !publication) return null
 
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isLoading) {
-      onClose()
-    }
-  }
+  // Use enhanced click outside functionality
+  const { handleBackdropMouseDown, handleBackdropMouseUp } = useEnhancedClickOutside(onClose)
 
   return (
     <div 
       className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-      onClick={handleBackdropClick}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
         <div className="p-6">

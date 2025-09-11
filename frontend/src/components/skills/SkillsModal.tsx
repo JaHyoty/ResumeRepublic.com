@@ -2,6 +2,7 @@ import React from 'react'
 import SkillsForm from './SkillsForm'
 import { type Skill, type CreateSkillRequest } from '../../services/skillService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
+import { useEnhancedClickOutside } from '../../hooks/useEnhancedClickOutside'
 
 interface SkillsModalProps {
   isOpen: boolean
@@ -22,19 +23,17 @@ const SkillsModal: React.FC<SkillsModalProps> = ({
 }) => {
   // Use the scroll lock hook
   useScrollPosition(isOpen)
+  
+  // Use enhanced click outside functionality
+  const { handleBackdropMouseDown, handleBackdropMouseUp } = useEnhancedClickOutside(onClose)
 
   if (!isOpen) return null
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && !isLoading) {
-      onClose()
-    }
-  }
 
   return (
     <div 
       className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50"
-      onClick={handleBackdropClick}
+      onMouseDown={handleBackdropMouseDown}
+      onMouseUp={handleBackdropMouseUp}
     >
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
