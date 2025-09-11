@@ -54,20 +54,49 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: Optional[str] = None
     OPENROUTER_LLM_MODEL: Optional[str] = None
     
+    # SSL/TLS Configuration for External API Calls
+    ENFORCE_TLS: bool = True
+    SSL_VERIFY_CERTIFICATES: bool = True
+    SSL_CIPHER_SUITES: str = "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
+    MIN_TLS_VERSION: str = "TLSv1.2"
+    
+    # Development SSL Configuration (WARNING: Only for development!)
+    SSL_VERIFY_CERTIFICATES_DEV: bool = False  # Set to False for development environments with cert issues
+    
     @field_validator('ALLOWED_ORIGINS', mode='before')
     @classmethod
     def parse_cors_origins(cls, v):
-        """Convert comma-separated string to list"""
+        """Parse CORS origins from string or list"""
         if isinstance(v, str):
+            # Handle JSON array format: ["item1", "item2"]
+            if v.strip().startswith('[') and v.strip().endswith(']'):
+                import json
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    pass
+            # Handle comma-separated format: item1,item2
             return [origin.strip() for origin in v.split(',') if origin.strip()]
+        elif isinstance(v, list):
+            return v
         return v
     
     @field_validator('ALLOWED_HOSTS', mode='before')
     @classmethod
     def parse_cors_hosts(cls, v):
-        """Convert comma-separated string to list"""
+        """Parse CORS hosts from string or list"""
         if isinstance(v, str):
+            # Handle JSON array format: ["item1", "item2"]
+            if v.strip().startswith('[') and v.strip().endswith(']'):
+                import json
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    pass
+            # Handle comma-separated format: item1,item2
             return [host.strip() for host in v.split(',') if host.strip()]
+        elif isinstance(v, list):
+            return v
         return v
     
     def __init__(self, **kwargs):
@@ -99,6 +128,7 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = True
 
 

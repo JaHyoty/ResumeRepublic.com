@@ -3,12 +3,16 @@ LLM Service for resume generation
 """
 
 import os
-import requests
+import httpx
 import logging
+import ssl
 from typing import Dict, Any
 from app.core.config import settings
+from app.utils.tls_utils import create_httpx_client, validate_tls_configuration
 
-logger = logging.getLogger(__name__)
+# Use structlog for consistent logging
+import structlog
+logger = structlog.get_logger(__name__)
 
 
 class LLMService:
@@ -16,13 +20,21 @@ class LLMService:
         self.api_key = os.getenv("OPENROUTER_API_KEY") or settings.OPENROUTER_API_KEY
         self.llm_model = os.getenv("OPENROUTER_LLM_MODEL") or settings.OPENROUTER_LLM_MODEL or "anthropic/claude-3.5-sonnet"
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
-        
+
+        # Validate TLS configuration
+        if not validate_tls_configuration():
+            logger.warning("TLS configuration validation failed, but continuing with current settings")
+
         # Debug logging
         if not self.api_key:
             print("WARNING: OPENROUTER_API_KEY is not set!")
         else:
             print(f"OpenRouter API key loaded: {self.api_key[:10]}...")
         print(f"Using LLM model: {self.llm_model}")
+        if settings.ENFORCE_TLS:
+            print(f"TLS enforcement enabled for LLM API calls (min version: {settings.MIN_TLS_VERSION})")
+        else:
+            print("WARNING: TLS enforcement is disabled for LLM API calls")
     
     async def generate_resume(
         self, 
@@ -107,7 +119,21 @@ Generate the optimized resume now."""
         }
         
         try:
-            response = requests.post(self.base_url, headers=headers, json=data, timeout=60)
+            # Debug: Log TLS usage before making request
+            logger.info("Making LLM API request", 
+                       url=self.base_url, 
+                       using_https=self.base_url.startswith('https://'),
+                       timeout=60.0)
+            
+            # Use httpx client with TLS enforcement
+            async with create_httpx_client() as client:
+                response = await client.post(self.base_url, headers=headers, json=data)
+                
+                # Debug: Log response details
+                logger.info("LLM API response received",
+                           status_code=response.status_code,
+                           using_https=str(response.url).startswith('https://'),
+                           content_length=len(response.content))
             
             # Handle specific HTTP status codes
             if response.status_code == 401:
@@ -139,11 +165,28 @@ Generate the optimized resume now."""
             else:
                 raise Exception("No response content received from OpenRouter API")
             
-        except requests.exceptions.RequestException as e:
-            if "401" in str(e):
+        except httpx.ConnectError as e:
+            if "SSL" in str(e) or "TLS" in str(e) or "certificate" in str(e).lower():
+                logger.error(f"TLS connection error to OpenRouter API: {str(e)}")
+                raise Exception(f"TLS connection failed to OpenRouter API. Please check your network configuration and SSL settings. Error: {str(e)}")
+            else:
+                logger.error(f"Connection error to OpenRouter API: {str(e)}")
+                raise Exception(f"Failed to connect to OpenRouter API. Please check your network connection. Error: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
                 raise Exception("OpenRouter API authentication failed. Please check your OPENROUTER_API_KEY.")
             else:
-                raise Exception(f"OpenRouter API request failed: {str(e)}")
+                logger.error(f"HTTP error to OpenRouter API: {e.response.status_code} - {str(e)}")
+                raise Exception(f"OpenRouter API request failed: {e.response.status_code} - {str(e)}")
+        except httpx.RequestError as e:
+            logger.error(f"Request error to OpenRouter API: {str(e)}")
+            raise Exception(f"OpenRouter API request failed: {str(e)}")
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout error to OpenRouter API: {str(e)}")
+            raise Exception(f"OpenRouter API request timed out. Please try again later. Error: {str(e)}")
+        except ssl.SSLError as e:
+            logger.error(f"SSL error when connecting to OpenRouter API: {str(e)}")
+            raise Exception(f"SSL certificate verification failed for OpenRouter API. Error: {str(e)}")
         except KeyError as e:
             raise Exception(f"Unexpected response format from OpenRouter API: {str(e)}")
     
