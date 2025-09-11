@@ -56,23 +56,28 @@ ACCURACY REQUIREMENTS:
 1. Use ONLY knowledge found from the applicant's history:
    - Skills section must contain ONLY skills present in the applicant's skills list
    - Experience section must NOT claim achievements the applicant has not claimed
-   - Experience section must use ONLY skills found in the applicant's skills
-   - Experience section must display the location of the every experience, even if Remote
+   - Experience section must use ONLY skills found in the applicant's skills   - 
    - Certifications section must use EXACT naming from the applicant's certifications
 
 2. Education:
-   - Use the end date as provided by the applicant
-   - Include the word "Expected" if provided by the applicant
-   - Include the month and year for the end date
-   - Do not leave the end date empty
-   - Do not display "Current", "In Progress", or "N/A" for the end date of any education
+   - MANDATORY: Use the Graduation Date field EXACTLY as provided in the applicant data
+   - FORBIDDEN: Do NOT use "N/A", "Current", "Present", "In Progress", or any placeholder text
+   - FORBIDDEN: Do NOT modify, abbreviate, or change the Graduation Date format in any way
+   - EXAMPLE: If Graduation Date shows "Expected May 2025", you MUST display "Expected May 2025" exactly
+   - EXAMPLE: If Graduation Date shows "June 2023", you MUST display "June 2023" exactly
+   - If Graduation Date is null/empty, leave the date field empty - do NOT add placeholder text
    - Do not display the location for education
 
-3. Project dates:
+3. Experience:
+   - MANDATORY:	display the location of the every experience, even if Remote
+   - MANDATORY: Select only one job title for an experience. Choose the most relevant title.
+   - FORBIDDEN: Do NOT repeat job titles for an experience. One experience can have only one job title.
+
+4. Project dates:
    - Do NOT show any dates for projects
    - Use a blank space ' ' for the date parameter
    
-4. Avoid vague adjectives - use only hard truths and specific facts
+5. Avoid vague adjectives - use only hard truths and specific facts
 
 
 JOB DESCRIPTION:
@@ -225,7 +230,7 @@ Generate the optimized resume now."""
                 formatted_data.append(f"- {edu.get('degree', 'N/A')} in {edu.get('field_of_study', 'N/A')}")
                 formatted_data.append(f"  Institution: {edu.get('institution', 'N/A')}")
                 formatted_data.append(f"  Location: {edu.get('location', 'N/A')}")
-                formatted_data.append(f"  Graduation Date: {edu.get('graduation_date', 'N/A')}")
+                formatted_data.append(f"  Graduation Date: {edu.get('end_date', 'N/A')}")
                 if edu.get('gpa'):
                     formatted_data.append(f"  GPA: {edu['gpa']}")
                 formatted_data.append("")

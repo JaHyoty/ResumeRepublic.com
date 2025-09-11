@@ -72,7 +72,6 @@ def fetch_user_data_for_resume(user_id: int, db: Session) -> Dict[str, Any]:
             else:
                 # Past date - format normally
                 end_date_formatted = edu.end_date.strftime('%B %Y')
-            print(f"End date formatted: {end_date_formatted}")
         
         education_data.append({
             "institution": edu.institution,
