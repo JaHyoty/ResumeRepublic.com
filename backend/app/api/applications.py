@@ -30,10 +30,10 @@ async def get_applications(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all applications for the current user"""
+    """Get all applications for the current user, ordered by ID (newest first)"""
     applications = db.query(Application).filter(
         Application.user_id == current_user.id
-    ).offset(skip).limit(limit).all()
+    ).order_by(Application.id.desc()).offset(skip).limit(limit).all()
     
     return applications
 
