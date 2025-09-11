@@ -6,6 +6,7 @@ Main FastAPI application entry point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.staticfiles import StaticFiles
 import structlog
 
 from app.core.config import settings
@@ -61,6 +62,9 @@ app.include_router(user.router, prefix="/api/user", tags=["user"])
 app.include_router(esc.router, prefix="/api/esc", tags=["experience-skills-catalog"])
 app.include_router(resume.router, prefix="/api/resume", tags=["resume"])
 app.include_router(applications.router, prefix="/api/applications", tags=["applications"])
+
+# Mount static files for templates
+app.mount("/api/templates", StaticFiles(directory="app/templates"), name="templates")
 
 
 @app.get("/")

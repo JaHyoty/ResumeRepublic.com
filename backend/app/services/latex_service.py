@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class LaTeXService:
     def __init__(self):
         self.template_dir = Path(__file__).parent.parent / "templates"
-        self.template_path = self.template_dir / "resume_template_fixed.tex"
+        self.template_path = self.template_dir / "ResumeTemplate1.tex"
         
     def generate_optimized_resume_pdf(self, resume_data: Dict[str, Any]) -> bytes:
         """
@@ -134,20 +134,22 @@ class LaTeXService:
             ], capture_output=True, text=True, timeout=30)
             
             # Log the full output for debugging
-            logger.info(f"LaTeX stdout: {result.stdout}")
-            logger.info(f"LaTeX stderr: {result.stderr}")
-            logger.info(f"LaTeX return code: {result.returncode}")
+            logger.debug(f"LaTeX stdout: {result.stdout}")
+            logger.debug(f"LaTeX stderr: {result.stderr}")
+            logger.debug(f"LaTeX return code: {result.returncode}")
             
             if result.returncode != 0:
                 error_msg = f"LaTeX compilation failed (return code {result.returncode}): {result.stderr or result.stdout}"
                 logger.error(error_msg)
                 raise LaTeXCompilationError(error_msg)
             
-            # Return PDF file path
-            pdf_file = output_dir / "resume.pdf"
+            # Return PDF file path (PDF has same name as input file)
+            pdf_file = output_dir / f"{tex_file.stem}.pdf"
             if not pdf_file.exists():
+                logger.error(f"PDF file was not generated at {pdf_file}")
                 raise LaTeXCompilationError("PDF file was not generated")
-                
+            
+            logger.debug(f"PDF file found at {pdf_file}, size: {pdf_file.stat().st_size} bytes")
             return pdf_file
             
         except subprocess.TimeoutExpired:

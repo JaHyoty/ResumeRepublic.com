@@ -51,9 +51,8 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     
     # LLM Configuration - Optional
-    OPENAI_API_KEY: Optional[str] = None
-    ANTHROPIC_API_KEY: Optional[str] = None
-    DEFAULT_LLM_PROVIDER: str = "openai"
+    OPENROUTER_API_KEY: Optional[str] = None
+    OPENROUTER_LLM_MODEL: Optional[str] = None
     
     @field_validator('ALLOWED_ORIGINS', mode='before')
     @classmethod

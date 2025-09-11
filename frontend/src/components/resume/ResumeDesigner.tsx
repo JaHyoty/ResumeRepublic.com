@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
-import { experienceService } from '../../services/experienceService'
-import { skillService } from '../../services/skillService'
-import { certificationService } from '../../services/certificationService'
-import { publicationService } from '../../services/publicationService'
 import { applicationService } from '../../services/applicationService'
 import { userService } from '../../services/userService'
 import { api } from '../../services/api'
@@ -42,7 +38,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [selectedTemplate, setSelectedTemplate] = useState('professional')
+  // Template is now fixed to resume-template-1
   const [jobTitle, setJobTitle] = useState('')
   const [company, setCompany] = useState('')
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '')
@@ -50,48 +46,16 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Fetch user data
+  // Fetch user data (only for personal info and applications)
   const { data: userInfo } = useQuery({
     queryKey: ['userInfo'],
     queryFn: userService.getUserInfo
-  })
-
-  const { data: experiences } = useQuery({
-    queryKey: ['experiences'],
-    queryFn: experienceService.getExperiences
-  })
-
-  const { data: skills } = useQuery({
-    queryKey: ['skills'],
-    queryFn: skillService.getSkills
-  })
-
-  const { data: certifications } = useQuery({
-    queryKey: ['certifications'],
-    queryFn: certificationService.getCertifications
-  })
-
-  const { data: publications } = useQuery({
-    queryKey: ['publications'],
-    queryFn: publicationService.getPublications
   })
 
   const { data: applications } = useQuery({
     queryKey: ['applications'],
     queryFn: applicationService.getApplications
   })
-
-  // Mock education data - you might want to add this to your backend
-  const education = [
-    {
-      institution: "University of Technology",
-      degree: "Bachelor of Science",
-      field_of_study: "Computer Science",
-      graduation_date: "2020",
-      location: "New York, NY",
-      gpa: "3.8"
-    }
-  ]
 
   // Handle navigation state from ApplicationsView
   useEffect(() => {
@@ -159,11 +123,6 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   }
 
   const generateResume = async () => {
-    if (!experiences || !skills || !certifications || !publications) {
-      alert('Please wait for data to load')
-      return
-    }
-
     if (!jobTitle.trim() || !company.trim() || !jobDescription.trim()) {
       alert('Please provide job title, company, and job description')
       return
@@ -172,24 +131,19 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     setIsGenerating(true)
     
     try {
-      // Prepare resume data
+      // Prepare resume data (only personal info and job details - backend fetches the rest)
       const data = {
         personal_info: personalInfo,
-        work_experience: experiences,
-        education: education,
-        skills: skills.map(skill => skill.name),
-        certifications: certifications,
-        publications: publications,
-        job_description: jobDescription,
-        template: selectedTemplate,
-        linked_application_id: selectedApplicationId,
         job_title: jobTitle,
-        company: company
+        company: company,
+        job_description: jobDescription,
+        linked_application_id: selectedApplicationId
       }
 
       // Generate optimized resume using LLM
       const response = await api.post<Blob>('/api/resume/design', data, {
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 60000 // 60 seconds timeout for resume generation
       })
 
       const blob = new Blob([response.data], { type: 'application/pdf' })
@@ -198,7 +152,22 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
 
     } catch (error) {
       console.error('Error generating resume:', error)
-      alert('Failed to generate resume. Please try again.')
+      
+      let errorMessage = 'Failed to generate resume. Please try again.'
+      
+      if (error instanceof Error) {
+        if (error.message.includes('timeout')) {
+          errorMessage = 'Resume generation timed out. Please try again with a shorter job description.'
+        } else if (error.message.includes('Network Error')) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else if (error.message.includes('403')) {
+          errorMessage = 'Authentication error. Please log in again.'
+        } else if (error.message.includes('500')) {
+          errorMessage = 'Server error. Please try again later.'
+        }
+      }
+      
+      alert(errorMessage)
     } finally {
       setIsGenerating(false)    
       
@@ -468,25 +437,18 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
           {/* Template Selection */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Resume Template</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[
-                { id: 'professional', name: 'Professional', description: 'Clean, traditional layout' },
-                { id: 'modern', name: 'Modern', description: 'Contemporary design' },
-                { id: 'academic', name: 'Academic', description: 'Research-focused format' }
-              ].map(template => (
-                <div
-                  key={template.id}
-                  className={`p-4 border-2 rounded-lg cursor-pointer transition-colors ${
-                    selectedTemplate === template.id
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setSelectedTemplate(template.id)}
-                >
-                  <h3 className="font-medium text-gray-900">{template.name}</h3>
-                  <p className="text-sm text-gray-600">{template.description}</p>
+            <div className="flex justify-center">
+              <div className="p-4 border-2 border-blue-500 bg-blue-50 rounded-lg">
+                <div className="text-center">
+                  <img 
+                    src="/api/templates/ResumeTemplate1.jpg" 
+                    alt="Resume Template 1" 
+                    className="w-48 h-64 object-cover rounded-lg shadow-md mx-auto mb-3"
+                  />
+                  <h3 className="font-medium text-gray-900">Professional Template</h3>
+                  <p className="text-sm text-gray-600">Clean, modern layout optimized for ATS</p>
                 </div>
-              ))}
+              </div>
             </div>
           </div>
 
