@@ -137,6 +137,18 @@ archive/
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+terraform.tfvars
+*tfplan
+*.tfplan.*
+.terraformrc
+terraform.rc
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
 
 # Kubernetes
 *.kubeconfig

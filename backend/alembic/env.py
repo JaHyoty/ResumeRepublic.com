@@ -37,6 +37,9 @@ target_metadata = Base.metadata
 
 def get_url():
     """Get database URL from environment or config"""
+    if settings.USE_IAM_DATABASE_AUTH and settings.DATABASE_HOST:
+        # For IAM auth, construct URL without password
+        return f"postgresql://{settings.DATABASE_USER}@{settings.DATABASE_HOST}:{settings.DATABASE_PORT}/{settings.DATABASE_NAME}"
     return settings.DATABASE_URL
 
 

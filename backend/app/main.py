@@ -80,10 +80,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=settings.ALLOWED_HOSTS
-)
+# Only add TrustedHostMiddleware if we have specific hosts configured and no wildcards
+# Skip in containerized environments where ALB health checks come from internal IPs
+if (settings.ALLOWED_HOSTS and 
+    len(settings.ALLOWED_HOSTS) > 0 and 
+    not any("*" in host for host in settings.ALLOWED_HOSTS) and
+    not any("elb.amazonaws.com" in host for host in settings.ALLOWED_HOSTS)):
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=settings.ALLOWED_HOSTS
+    )
 
 # Include routers
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
@@ -104,11 +110,41 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Detailed health check"""
+    """Detailed health check with database migration status"""
+    logger = structlog.get_logger()
+    
+    # Check database connection and migration status
+    db_status = "unknown"
+    try:
+        from sqlalchemy import create_engine, text
+        engine = create_engine(settings.DATABASE_URL)
+        with engine.connect() as conn:
+            # Check if alembic_version table exists
+            result = conn.execute(text("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'alembic_version'
+                )
+            """))
+            has_alembic_table = result.fetchone()[0]
+            
+            if has_alembic_table:
+                # Get current migration version
+                result = conn.execute(text("SELECT version_num FROM alembic_version"))
+                current_version = result.fetchone()[0] if result.rowcount > 0 else "unknown"
+                db_status = f"migrated (version: {current_version})"
+            else:
+                db_status = "no_migrations"
+                
+    except Exception as e:
+        logger.warning("Database health check failed", error=str(e))
+        db_status = "error"
+    
     return {
         "status": "healthy",
         "environment": settings.ENVIRONMENT,
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "database": db_status
     }
 
 

@@ -4,7 +4,8 @@ Configuration settings for CareerPathPro Backend
 
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
-from typing import List, Optional
+from typing import List, Optional, Union
+import structlog
 import secrets
 import os
 
@@ -20,6 +21,16 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/careerpathpro"
     DATABASE_URL_ASYNC: str = "postgresql+asyncpg://user:password@localhost:5432/careerpathpro"
     
+    # Database components (for ECS deployment)
+    DATABASE_HOST: Optional[str] = None
+    DATABASE_NAME: Optional[str] = None
+    DATABASE_USER: Optional[str] = None
+    DATABASE_PASSWORD: Optional[str] = None
+    
+    # IAM Database Authentication
+    USE_IAM_DATABASE_AUTH: bool = False
+    DATABASE_PORT: int = 5432
+    
     # Security - REQUIRED in production
     SECRET_KEY: str = secrets.token_urlsafe(32)  # Generate random key if not provided
     ALGORITHM: str = "HS256"
@@ -34,8 +45,8 @@ class Settings(BaseSettings):
     APPLE_CLIENT_SECRET: Optional[str] = None
     
     # CORS - Configurable via environment
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:4173"]
-    ALLOWED_HOSTS: List[str] = ["localhost", "127.0.0.1"]
+    ALLOWED_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:4173"]
+    ALLOWED_HOSTS: Union[List[str], str] = ["localhost", "127.0.0.1"]
     
     # External Services
     PARSING_SERVICE_URL: str = "http://localhost:8001"
@@ -65,42 +76,66 @@ class Settings(BaseSettings):
     
     @field_validator('ALLOWED_ORIGINS', mode='before')
     @classmethod
-    def parse_cors_origins(cls, v):
-        """Parse CORS origins from string or list"""
+    def parse_cors_origins(cls, v) -> List[str]:
+        """Parse CORS origins from comma-separated string or list"""
+        logger = structlog.get_logger()
+        
+        logger.debug("Parsing ALLOWED_ORIGINS", input_value=v, input_type=type(v).__name__)
+        
         if isinstance(v, str):
-            # Handle JSON array format: ["item1", "item2"]
-            if v.strip().startswith('[') and v.strip().endswith(']'):
-                import json
-                try:
-                    return json.loads(v)
-                except json.JSONDecodeError:
-                    pass
             # Handle comma-separated format: item1,item2
-            return [origin.strip() for origin in v.split(',') if origin.strip()]
+            result = [origin.strip() for origin in v.split(',') if origin.strip()]
+            logger.debug("Parsed as comma-separated", result=result)
+            return result
         elif isinstance(v, list):
+            logger.debug("Already a list", result=v)
             return v
-        return v
+        else:
+            # Fallback for other types
+            result = [str(v)]
+            logger.debug("Fallback parsing", result=result)
+            return result
     
     @field_validator('ALLOWED_HOSTS', mode='before')
     @classmethod
-    def parse_cors_hosts(cls, v):
+    def parse_cors_hosts(cls, v) -> List[str]:
         """Parse CORS hosts from string or list"""
+        logger = structlog.get_logger()
+        
+        logger.debug("Parsing ALLOWED_HOSTS", input_value=v, input_type=type(v).__name__)
+        
         if isinstance(v, str):
-            # Handle JSON array format: ["item1", "item2"]
-            if v.strip().startswith('[') and v.strip().endswith(']'):
-                import json
-                try:
-                    return json.loads(v)
-                except json.JSONDecodeError:
-                    pass
             # Handle comma-separated format: item1,item2
-            return [host.strip() for host in v.split(',') if host.strip()]
+            result = [host.strip() for host in v.split(',') if host.strip()]
+            logger.debug("Parsed as comma-separated", result=result)
+            return result
         elif isinstance(v, list):
+            logger.debug("Already a list", result=v)
             return v
-        return v
+        else:
+            # Fallback for other types
+            result = [str(v)]
+            logger.debug("Fallback parsing", result=result)
+            return result
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        
+        # Construct DATABASE_URL from individual components if provided
+        if (self.DATABASE_HOST and self.DATABASE_NAME and 
+            self.DATABASE_USER and self.DATABASE_PASSWORD):
+            self.DATABASE_URL = f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+            self.DATABASE_URL_ASYNC = f"postgresql+asyncpg://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+        
+        # Log configuration values for debugging
+        logger = structlog.get_logger()
+        
+        logger.info("Configuration loaded", 
+                   allowed_origins=self.ALLOWED_ORIGINS,
+                   allowed_hosts=self.ALLOWED_HOSTS,
+                   environment=self.ENVIRONMENT,
+                   database_url_configured=bool(self.DATABASE_URL and self.DATABASE_URL != "postgresql://user:password@localhost:5432/careerpathpro"))
+        
         # Validate required settings for production
         if self.ENVIRONMENT == "production":
             self._validate_production_settings()
