@@ -65,7 +65,8 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
           "secretsmanager:DescribeSecret"
         ]
         Resource = [
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-*"
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-*",
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rds!db-*"
         ]
       }
     ]
@@ -106,7 +107,7 @@ resource "aws_iam_role_policy" "ecs_task_rds_iam_policy" {
         Action = [
           "rds-db:connect"
         ]
-        Resource = "arn:aws:rds-db:${var.aws_region}:${data.aws_caller_identity.current.account_id}:dbuser:${var.project_name}-${var.environment}-db/${var.database_user}"
+        Resource = var.iam_database_authentication_enabled ? "arn:aws:rds-db:${var.aws_region}:${data.aws_caller_identity.current.account_id}:dbuser:${var.project_name}-${var.environment}-db/resumerepublic_iam_user" : "arn:aws:rds-db:${var.aws_region}:${data.aws_caller_identity.current.account_id}:dbuser:${var.project_name}-${var.environment}-db/${var.database_user}"
       },
       {
         Effect = "Allow"
@@ -114,6 +115,25 @@ resource "aws_iam_role_policy" "ecs_task_rds_iam_policy" {
           "rds:DescribeDBInstances"
         ]
         Resource = "*"
+      }
+    ]
+  })
+}
+
+# ECS Task Role Policy for Secrets Manager access
+resource "aws_iam_role_policy" "ecs_task_secrets_policy" {
+  name = "${var.project_name}-${var.environment}-ecs-task-secrets-policy"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = var.database_credentials_secret_arn != null ? [var.database_credentials_secret_arn] : []
       }
     ]
   })

@@ -90,7 +90,7 @@ case $choice in
         ;;
     4)
         echo -e "${BLUE}⚙️  Deploying backend...${NC}"
-        ./scripts/deploy-backend.sh --environment $ENVIRONMENT
+        ./scripts/deploy-backend.sh --environment $ENVIRONMENT --no-build
         echo ""
         echo -e "${BLUE}🎨 Deploying frontend...${NC}"
         ./scripts/deploy-frontend.sh --environment $ENVIRONMENT
@@ -124,7 +124,7 @@ case $choice in
         ./scripts/deploy-infrastructure.sh $ENVIRONMENT apply
         echo ""
         echo -e "${BLUE}⚙️  Step 2: Deploying backend...${NC}"
-        ./scripts/deploy-backend.sh --environment $ENVIRONMENT
+        ./scripts/deploy-backend.sh --environment $ENVIRONMENT --no-build
         echo ""
         echo -e "${BLUE}🗄️  Step 3: Running database migration...${NC}"
         ./scripts/run-database-migration.sh --environment $ENVIRONMENT

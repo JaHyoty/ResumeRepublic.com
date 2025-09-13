@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     DATABASE_NAME: Optional[str] = None
     DATABASE_USER: Optional[str] = None
     DATABASE_PASSWORD: Optional[str] = None
+    DATABASE_CREDENTIALS_SECRET_ARN: Optional[str] = None
     
     # IAM Database Authentication
     USE_IAM_DATABASE_AUTH: bool = False

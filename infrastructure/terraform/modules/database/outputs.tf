@@ -11,6 +11,12 @@ output "db_endpoint" {
   sensitive   = true
 }
 
+output "db_hostname" {
+  description = "RDS hostname (without port)"
+  value       = aws_db_instance.main.address
+  sensitive   = true
+}
+
 output "db_name" {
   description = "Database name"
   value       = aws_db_instance.main.db_name
@@ -60,3 +66,4 @@ output "db_iam_auth_role_name" {
   description = "Name of the IAM role for RDS IAM database authentication"
   value       = var.iam_database_authentication_enabled ? aws_iam_role.rds_iam_auth_role[0].name : null
 }
+

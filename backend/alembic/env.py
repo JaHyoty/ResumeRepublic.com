@@ -40,7 +40,13 @@ def get_url():
     if settings.USE_IAM_DATABASE_AUTH and settings.DATABASE_HOST:
         # For IAM auth, construct URL without password
         return f"postgresql://{settings.DATABASE_USER}@{settings.DATABASE_HOST}:{settings.DATABASE_PORT}/{settings.DATABASE_NAME}"
-    return settings.DATABASE_URL
+    else:
+        # Try to get URL from Secrets Manager first
+        from app.core.secret_manager import get_database_url_from_secret
+        secret_url = get_database_url_from_secret()
+        if secret_url:
+            return secret_url
+        return settings.DATABASE_URL
 
 
 def run_migrations_offline():

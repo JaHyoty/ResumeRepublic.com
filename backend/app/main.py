@@ -7,10 +7,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import create_engine, text
 import structlog
 import logging
 
 from app.core.config import settings
+from app.core.database import _get_database_url, _get_connection_args
 from app.api import auth, esc, resume, user, applications
 
 # Configure structured logging
@@ -116,8 +118,7 @@ async def health_check():
     # Check database connection and migration status
     db_status = "unknown"
     try:
-        from sqlalchemy import create_engine, text
-        engine = create_engine(settings.DATABASE_URL)
+        engine = create_engine(_get_database_url(), connect_args=_get_connection_args())
         with engine.connect() as conn:
             # Check if alembic_version table exists
             result = conn.execute(text("""

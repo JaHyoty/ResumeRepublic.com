@@ -18,6 +18,12 @@ output "rds_endpoint" {
   sensitive   = true
 }
 
+output "db_hostname" {
+  description = "RDS hostname (without port)"
+  value       = module.database.db_hostname
+  sensitive   = true
+}
+
 output "db_name" {
   description = "Database name"
   value       = module.database.db_name

@@ -147,3 +147,7 @@ variable "monitoring_interval" {
   type        = number
   default     = 0
 }
+
+
+
+

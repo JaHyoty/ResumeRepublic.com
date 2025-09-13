@@ -82,6 +82,12 @@ variable "iam_database_authentication_enabled" {
   default     = false
 }
 
+variable "database_credentials_secret_arn" {
+  description = "ARN of the database credentials secret in Secrets Manager"
+  type        = string
+  default     = null
+}
+
 variable "secret_key" {
   description = "Application secret key"
   type        = string

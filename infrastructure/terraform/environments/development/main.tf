@@ -90,6 +90,7 @@ module "iam" {
   database_password   = var.db_password
   manage_master_user_password = var.db_manage_master_user_password
   iam_database_authentication_enabled = var.db_iam_database_authentication_enabled
+  database_credentials_secret_arn     = module.database.db_master_user_secret_arn
   secret_key          = var.secret_key
   openrouter_llm_model = var.openrouter_llm_model
   aws_access_key_id   = var.aws_access_key_id
@@ -97,7 +98,7 @@ module "iam" {
   aws_s3_bucket       = var.aws_s3_bucket
   ssl_cipher_suites   = var.ssl_cipher_suites
   min_tls_version     = var.min_tls_version
-  database_host       = module.database.db_endpoint
+  database_host       = module.database.db_hostname
   database_name       = module.database.db_name
   database_user       = module.database.db_username
 }
@@ -180,12 +181,16 @@ module "compute" {
       value = "${module.networking.alb_dns_name}${var.domain_name != "" ? ",${module.storage.cloudfront_domain_name}" : ""}"
     },
     {
+      name  = "DATABASE_PORT"
+      value = "5432"
+    },
+    {
       name  = "USE_IAM_DATABASE_AUTH"
       value = var.db_iam_database_authentication_enabled ? "true" : "false"
     },
     {
-      name  = "DATABASE_PORT"
-      value = "5432"
+      name  = "DATABASE_CREDENTIALS_SECRET_ARN"
+      value = module.database.db_master_user_secret_arn
     }
   ]
 
@@ -243,7 +248,7 @@ module "compute" {
   var.db_iam_database_authentication_enabled ? [] : [
     {
       name      = "DATABASE_CREDENTIALS"
-      valueFrom = module.database.db_credentials_secret_arn
+      valueFrom = module.database.db_master_user_secret_arn
     }
   ])
 }

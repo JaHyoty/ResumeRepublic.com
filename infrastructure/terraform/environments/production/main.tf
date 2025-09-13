@@ -1,5 +1,5 @@
-# Production Environment Configuration
-# This file orchestrates all modules for the production environment
+# Development Environment Configuration
+# This file orchestrates all modules for the development environment
 
 terraform {
   required_version = ">= 1.0"
@@ -13,7 +13,7 @@ terraform {
 
 # Local values
 locals {
-  environment = "production"
+  environment = "development"
   common_tags = {
     Project     = var.project_name
     Environment = local.environment
@@ -90,6 +90,7 @@ module "iam" {
   database_password   = var.db_password
   manage_master_user_password = var.db_manage_master_user_password
   iam_database_authentication_enabled = var.db_iam_database_authentication_enabled
+  database_credentials_secret_arn     = module.database.db_master_user_secret_arn
   secret_key          = var.secret_key
   openrouter_llm_model = var.openrouter_llm_model
   aws_access_key_id   = var.aws_access_key_id
@@ -97,9 +98,9 @@ module "iam" {
   aws_s3_bucket       = var.aws_s3_bucket
   ssl_cipher_suites   = var.ssl_cipher_suites
   min_tls_version     = var.min_tls_version
-  database_host       = module.database.db_endpoint
+  database_host       = module.database.db_hostname
   database_name       = module.database.db_name
-  database_user       = module.database.db_username
+  database_user       = var.db_iam_database_authentication_enabled ? module.database.db_iam_username : module.database.db_username
 }
 
 # Storage Module
@@ -110,13 +111,14 @@ module "storage" {
   environment  = local.environment
   common_tags  = local.common_tags
 
-  cloudfront_aliases    = [var.domain_name, "www.${var.domain_name}"]
-  acm_certificate_arn   = module.dns.acm_certificate_validation_arn
+  cloudfront_aliases    = var.domain_name != "" ? [var.domain_name] : []
+  acm_certificate_arn   = var.domain_name != "" ? module.dns[0].acm_certificate_validation_arn : null
   enable_spa_routing    = true
 }
 
-# DNS Module
+# DNS Module (only if domain is provided)
 module "dns" {
+  count  = var.domain_name != "" ? 1 : 0
   source = "../../modules/dns"
 
   project_name = var.project_name
@@ -127,9 +129,9 @@ module "dns" {
 
   create_route53_zone        = var.create_route53_zone
   create_dns_records         = true
-  create_www_record          = true
+  create_www_record          = var.create_www_record
   subject_alternative_names  = concat(
-    ["www.${var.domain_name}"],
+    var.create_www_record ? ["www.${var.domain_name}"] : [],
     var.api_domain_name != "" ? [var.api_domain_name] : []
   )
   cloudfront_domain_name     = module.storage.cloudfront_domain_name
@@ -159,7 +161,7 @@ module "compute" {
   task_memory             = var.task_memory
   desired_count           = var.backend_desired_count
   log_retention_days      = var.log_retention_days
-  db_credentials_secret_arn = module.database.db_credentials_secret_arn
+  db_credentials_secret_arn = module.database.db_master_user_secret_arn
 
   container_environment = [
     {
@@ -168,15 +170,15 @@ module "compute" {
     },
     {
       name  = "DEBUG"
-      value = "false"
+      value = "true"
     },
     {
       name  = "ALLOWED_ORIGINS"
-      value = "https://${module.storage.cloudfront_domain_name}"
+      value = var.domain_name != "" ? "https://${module.storage.cloudfront_domain_name}" : "*"
     },
     {
       name  = "ALLOWED_HOSTS"
-      value = "${module.networking.alb_dns_name},${module.storage.cloudfront_domain_name}"
+      value = "${module.networking.alb_dns_name}${var.domain_name != "" ? ",${module.storage.cloudfront_domain_name}" : ""}"
     },
     {
       name  = "USE_IAM_DATABASE_AUTH"
@@ -185,6 +187,10 @@ module "compute" {
     {
       name  = "DATABASE_PORT"
       value = "5432"
+    },
+    {
+      name  = "DATABASE_CREDENTIALS_SECRET_ARN"
+      value = module.database.db_master_user_secret_arn
     }
   ]
 
@@ -242,7 +248,7 @@ module "compute" {
   var.db_iam_database_authentication_enabled ? [] : [
     {
       name      = "DATABASE_CREDENTIALS"
-      valueFrom = module.database.db_credentials_secret_arn
+      valueFrom = module.database.db_master_user_secret_arn
     }
   ])
 }

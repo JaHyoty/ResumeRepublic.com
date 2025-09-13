@@ -35,6 +35,8 @@ usage() {
 
 # Function to check prerequisites
 check_prerequisites() {
+    local skip_docker_check=${1:-false}
+    
     echo -e "${YELLOW}🔍 Checking prerequisites...${NC}"
     
     # Check if AWS CLI is configured
@@ -43,11 +45,13 @@ check_prerequisites() {
         exit 1
     fi
     
-    # Check if Docker is running
-    if ! docker info > /dev/null 2>&1; then
-        echo -e "${RED}❌ Docker is not running. Please start Docker first.${NC}"
-        echo -e "${YELLOW}   Docker is required for building the backend container image.${NC}"
-        exit 1
+    # Check if Docker is running (skip if --no-build is specified)
+    if [ "$skip_docker_check" = "false" ]; then
+        if ! docker info > /dev/null 2>&1; then
+            echo -e "${RED}❌ Docker is not running. Please start Docker first.${NC}"
+            echo -e "${YELLOW}   Docker is required for building the backend container image.${NC}"
+            exit 1
+        fi
     fi
     
     # Check if jq is installed
@@ -197,7 +201,7 @@ check_deployment_needed() {
     # Get current running task definition
     CURRENT_TASK_DEF=$(aws ecs describe-services \
         --cluster $ECS_CLUSTER_NAME \
-        --services $PROJECT_NAME-backend-service \
+        --services $PROJECT_NAME-$ENV_NAME-backend-service \
         --query "services[0].taskDefinition" \
         --output text 2>/dev/null || echo "")
     
@@ -230,7 +234,7 @@ deploy_to_ecs() {
     echo -e "${YELLOW}📊 Checking current service status...${NC}"
     CURRENT_TASK_COUNT=$(aws ecs describe-services \
         --cluster $ecs_cluster_name \
-        --services $PROJECT_NAME-backend-service \
+        --services $PROJECT_NAME-$ENV_NAME-backend-service \
         --query "services[0].runningCount" \
         --output text 2>/dev/null || echo "0")
     
@@ -239,7 +243,7 @@ deploy_to_ecs() {
     # Get current task definition
     CURRENT_TASK_DEF=$(aws ecs describe-services \
         --cluster $ecs_cluster_name \
-        --services $PROJECT_NAME-backend-service \
+        --services $PROJECT_NAME-$ENV_NAME-backend-service \
         --query "services[0].taskDefinition" \
         --output text 2>/dev/null || echo "")
     
@@ -251,7 +255,7 @@ deploy_to_ecs() {
     echo -e "${YELLOW}🔄 Updating ECS service...${NC}"
     if ! aws ecs update-service \
         --cluster $ecs_cluster_name \
-        --service $PROJECT_NAME-backend-service \
+        --service $PROJECT_NAME-$ENV_NAME-backend-service \
         --force-new-deployment; then
         echo -e "${RED}❌ Failed to update ECS service${NC}"
         exit 1
@@ -266,11 +270,11 @@ deploy_to_ecs() {
     # Wait for deployment to complete with progress monitoring
     if ! aws ecs wait services-stable \
         --cluster $ecs_cluster_name \
-        --services $PROJECT_NAME-backend-service; then
+        --services $PROJECT_NAME-$ENV_NAME-backend-service; then
         echo -e "${RED}❌ Service did not stabilize within timeout${NC}"
         echo -e "${YELLOW}📋 Check service status and logs:${NC}"
-        echo "  aws ecs describe-services --cluster $ecs_cluster_name --services $PROJECT_NAME-backend-service"
-        echo "  aws logs tail /ecs/$PROJECT_NAME-backend --follow"
+        echo "  aws ecs describe-services --cluster $ecs_cluster_name --services $PROJECT_NAME-$ENV_NAME-backend-service"
+        echo "  aws logs tail /ecs/$PROJECT_NAME-$ENV_NAME-backend --follow"
         exit 1
     fi
     
@@ -278,13 +282,13 @@ deploy_to_ecs() {
     echo -e "${YELLOW}🔍 Verifying deployment...${NC}"
     NEW_TASK_COUNT=$(aws ecs describe-services \
         --cluster $ecs_cluster_name \
-        --services $PROJECT_NAME-backend-service \
+        --services $PROJECT_NAME-$ENV_NAME-backend-service \
         --query "services[0].runningCount" \
         --output text)
     
     NEW_TASK_DEF=$(aws ecs describe-services \
         --cluster $ecs_cluster_name \
-        --services $PROJECT_NAME-backend-service \
+        --services $PROJECT_NAME-$ENV_NAME-backend-service \
         --query "services[0].taskDefinition" \
         --output text)
     
@@ -297,7 +301,7 @@ deploy_to_ecs() {
     else
         echo -e "${RED}❌ Deployment failed. No running tasks found.${NC}"
         echo -e "${YELLOW}📋 Check ECS service logs for details:${NC}"
-        echo "   aws logs tail /ecs/$PROJECT_NAME-backend --follow"
+        echo "   aws logs tail /ecs/$PROJECT_NAME-$ENV_NAME-backend --follow"
         exit 1
     fi
 }
@@ -358,13 +362,13 @@ display_summary() {
     echo -e "${BLUE}📊 Deployment Summary:${NC}"
     echo "  Image Version: $timestamp"
     echo "  ECS Cluster: $ECS_CLUSTER_NAME"
-    echo "  Service: $PROJECT_NAME-backend-service"
+    echo "  Service: $PROJECT_NAME-$ENV_NAME-backend-service"
     echo ""
     echo -e "${BLUE}📋 Next steps:${NC}"
     echo "  1. Run database migrations: ./scripts/run-database-migration.sh"
     echo "  2. Deploy frontend: ./scripts/deploy-frontend.sh"
     echo "  3. Test your backend API endpoints"
-    echo "  4. Monitor logs: aws logs tail /ecs/$PROJECT_NAME-backend --follow"
+    echo "  4. Monitor logs: aws logs tail /ecs/$PROJECT_NAME-$ENV_NAME-backend --follow"
 }
 
 # Main script logic
@@ -428,14 +432,18 @@ main() {
     echo ""
     
     # Check prerequisites
-    check_prerequisites
+    check_prerequisites $NO_BUILD
     
     # Get infrastructure details
     get_infrastructure_details "$ENV_DIR"
     
-    # Check if deployment is needed
-    if ! check_deployment_needed "$ECR_REPO_URL" "$FORCE"; then
-        exit 0
+    # Check if deployment is needed (only when not building)
+    if [ "$NO_BUILD" = "true" ]; then
+        if ! check_deployment_needed "$ECR_REPO_URL" "$FORCE"; then
+            exit 0
+        fi
+    else
+        echo -e "${YELLOW}🔄 Building and deploying backend...${NC}"
     fi
     
     # Build and push image
