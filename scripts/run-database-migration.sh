@@ -99,10 +99,17 @@ get_infrastructure_details() {
         exit 1
     fi
     
-    # Get migration task definition
-    MIGRATION_TASK_DEFINITION=$(terraform output -raw migration_task_definition_arn 2>/dev/null || echo "")
-    if [ -z "$MIGRATION_TASK_DEFINITION" ]; then
-        echo -e "${RED}❌ Could not get migration task definition. Make sure database migration module is deployed.${NC}"
+    # Get ECS task role for migration
+    ECS_TASK_ROLE_ARN=$(terraform output -raw ecs_task_role_arn 2>/dev/null || echo "")
+    if [ -z "$ECS_TASK_ROLE_ARN" ]; then
+        echo -e "${RED}❌ Could not get ECS task role ARN. Make sure infrastructure is deployed.${NC}"
+        exit 1
+    fi
+    
+    # Get ECS execution role for migration
+    ECS_EXECUTION_ROLE_ARN=$(terraform output -raw ecs_execution_role_arn 2>/dev/null || echo "")
+    if [ -z "$ECS_EXECUTION_ROLE_ARN" ]; then
+        echo -e "${RED}❌ Could not get ECS execution role ARN. Make sure infrastructure is deployed.${NC}"
         exit 1
     fi
     
@@ -130,7 +137,8 @@ get_infrastructure_details() {
     cd - > /dev/null
     
     echo -e "${GREEN}✅ ECS Cluster: $ECS_CLUSTER_NAME${NC}"
-    echo -e "${GREEN}✅ Migration Task Definition: $MIGRATION_TASK_DEFINITION${NC}"
+    echo -e "${GREEN}✅ ECS Task Role: $ECS_TASK_ROLE_ARN${NC}"
+    echo -e "${GREEN}✅ ECS Execution Role: $ECS_EXECUTION_ROLE_ARN${NC}"
     echo -e "${GREEN}✅ ECR Repository: $ECR_REPOSITORY${NC}"
     echo -e "${GREEN}✅ Private Subnets: $PRIVATE_SUBNETS${NC}"
     echo -e "${GREEN}✅ Security Group: $MIGRATION_SG${NC}"
@@ -193,13 +201,14 @@ build_and_push_image() {
 # Function to run migration task
 run_migration_task() {
     local ecs_cluster_name=$1
-    local migration_task_definition=$2
-    local ecr_repository=$3
-    local private_subnets=$4
-    local migration_sg=$5
-    local target=$6
-    local dry_run=$7
-    local no_rollback=$8
+    local ecs_task_role_arn=$2
+    local ecs_execution_role_arn=$3
+    local ecr_repository=$4
+    local private_subnets=$5
+    local migration_sg=$6
+    local target=$7
+    local dry_run=$8
+    local no_rollback=$9
     
     echo -e "${YELLOW}🚀 Running database migration task...${NC}"
     
@@ -219,54 +228,77 @@ run_migration_task() {
         rollback_command="alembic downgrade -1"
     fi
     
-    # Create the command script
-    local command_script="
-set -e
-echo '🗄️  Starting database migration process...'
-cd /app
-
-# Test database connection
-echo '🔍 Testing database connection...'
-python -c \"
-import os
-from sqlalchemy import create_engine
-from sqlalchemy.exc import OperationalError
-try:
-    db_url = f'postgresql://{os.environ['DATABASE_USER']}:{os.environ['DATABASE_CREDENTIALS']}@{os.environ['DATABASE_HOST']}/{os.environ['DATABASE_NAME']}'
-    engine = create_engine(db_url)
-    conn = engine.connect()
-    conn.execute('SELECT 1')
-    print('✅ Database connection successful')
-    conn.close()
-except Exception as e:
-    print(f'❌ Database connection failed: {e}')
-    exit 1
-\"
-
-# Show current migration status
-echo '📊 Current migration status:'
-alembic current
-
-# Run migration
-echo '🔄 Running migration command: $migration_command'
-if $migration_command; then
-    echo '✅ Migration completed successfully!'
-    echo '📊 New migration status:'
-    alembic current
-    echo '🎉 Database migration completed successfully!'
-else
-    echo '❌ Migration failed!'
-    if [ -n '$rollback_command' ]; then
-        echo '🔄 Attempting automatic rollback...'
-        if $rollback_command; then
-            echo '✅ Rollback completed successfully!'
-        else
-            echo '❌ Rollback also failed! Manual intervention required.'
-        fi
+    # Prepare migration commands
+    local migration_cmd
+    if [ "$dry_run" = "true" ]; then
+        migration_cmd="alembic show $target"
+    else
+        migration_cmd="alembic upgrade $target"
     fi
-    exit 1
-fi
-"
+    
+    # Create task definition for migration
+    echo -e "${YELLOW}📋 Creating migration task definition...${NC}"
+    
+    # Get AWS account ID
+    local aws_account_id
+    aws_account_id=$(aws sts get-caller-identity --query Account --output text)
+    
+    # Create task definition JSON file
+    local task_definition_file="/tmp/migration-task-definition.json"
+    cat > "$task_definition_file" <<EOF
+{
+    "family": "${PROJECT_NAME}-migration-$(date +%s)",
+    "networkMode": "awsvpc",
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512",
+    "executionRoleArn": "${ecs_execution_role_arn}",
+    "taskRoleArn": "${ecs_task_role_arn}",
+    "containerDefinitions": [
+        {
+            "name": "migration",
+            "image": "${ecr_repository}:latest",
+            "essential": true,
+            "command": ["/bin/bash", "-c", "cd /app && python -c 'import sys; sys.path.append(\"/app\"); from app.core.database import _get_database_url, _get_connection_args; from sqlalchemy import create_engine, text; engine = create_engine(_get_database_url(), connect_args=_get_connection_args()); conn = engine.connect(); conn.execute(text(\"SELECT 1\")); print(\"Database connection successful\"); conn.close()' && alembic current && $migration_cmd && echo 'Migration completed successfully'"],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "/ecs/${PROJECT_NAME}-${ENV_NAME}-backend",
+                    "awslogs-region": "${AWS_REGION}",
+                    "awslogs-stream-prefix": "migration"
+                }
+            },
+            "environment": [
+                {"name": "ENVIRONMENT", "value": "${ENV_NAME}"},
+                {"name": "AWS_REGION", "value": "${AWS_REGION}"},
+                {"name": "DATABASE_PORT", "value": "5432"},
+                {"name": "USE_IAM_DATABASE_AUTH", "value": "false"},
+                {"name": "DATABASE_CREDENTIALS_CACHE_TTL", "value": "300"},
+                {"name": "DATABASE_CREDENTIALS_SECRET_ARN", "value": "arn:aws:secretsmanager:${AWS_REGION}:${aws_account_id}:secret:rds!db-d13de373-8f34-44fa-88fe-01086d8ed1bb-Sl2naV"}
+            ],
+            "secrets": [
+                {"name": "DATABASE_HOST", "valueFrom": "arn:aws:ssm:${AWS_REGION}:${aws_account_id}:parameter/${PROJECT_NAME}/${ENV_NAME}/database/host"},
+                {"name": "DATABASE_NAME", "valueFrom": "arn:aws:ssm:${AWS_REGION}:${aws_account_id}:parameter/${PROJECT_NAME}/${ENV_NAME}/database/name"},
+                {"name": "DATABASE_USER", "valueFrom": "arn:aws:ssm:${AWS_REGION}:${aws_account_id}:parameter/${PROJECT_NAME}/${ENV_NAME}/database/user"}
+            ]
+        }
+    ]
+}
+EOF
+    
+    # Register the task definition
+    local task_definition_arn
+    task_definition_arn=$(aws ecs register-task-definition --cli-input-json file://"$task_definition_file" --query 'taskDefinition.taskDefinitionArn' --output text)
+    
+    # Clean up temporary file
+    rm -f "$task_definition_file"
+    
+    if [ -z "$task_definition_arn" ] || [ "$task_definition_arn" = "None" ]; then
+        echo -e "${RED}❌ Failed to register migration task definition${NC}"
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✅ Migration task definition created: $task_definition_arn${NC}"
     
     # Run the ECS task
     echo -e "${YELLOW}🚀 Starting ECS migration task...${NC}"
@@ -274,9 +306,8 @@ fi
     local task_arn
     task_arn=$(aws ecs run-task \
         --cluster $ecs_cluster_name \
-        --task-definition $migration_task_definition \
+        --task-definition $task_definition_arn \
         --network-configuration "awsvpcConfiguration={subnets=[$private_subnets],securityGroups=[$migration_sg],assignPublicIp=DISABLED}" \
-        --overrides "{\"containerOverrides\":[{\"name\":\"migration\",\"image\":\"${ecr_repository}:latest\",\"command\":[\"/bin/bash\",\"-c\",\"$command_script\"]}]}" \
         --query 'tasks[0].taskArn' \
         --output text)
     
@@ -293,7 +324,7 @@ fi
         echo -e "${RED}❌ Task did not complete within timeout${NC}"
         echo -e "${YELLOW}📋 Check task status and logs:${NC}"
         echo "  aws ecs describe-tasks --cluster $ecs_cluster_name --tasks $task_arn"
-        echo "  aws logs tail /ecs/${PROJECT_NAME}-migration --follow"
+        echo "  aws logs tail /ecs/${PROJECT_NAME}-${ENV_NAME}-backend --follow"
         exit 1
     fi
     
@@ -311,8 +342,8 @@ fi
         # Show task logs
         echo -e "${YELLOW}📋 Migration logs:${NC}"
         aws logs get-log-events \
-            --log-group-name "/ecs/${PROJECT_NAME}-migration" \
-            --log-stream-name "ecs/migration/${task_arn##*/}" \
+            --log-group-name "/ecs/${PROJECT_NAME}-${ENV_NAME}-backend" \
+            --log-stream-name "migration/${task_arn##*/}" \
             --query 'events[*].message' \
             --output text
         
@@ -330,8 +361,8 @@ fi
         # Show task logs
         echo -e "${YELLOW}📋 Migration logs:${NC}"
         aws logs get-log-events \
-            --log-group-name "/ecs/${PROJECT_NAME}-migration" \
-            --log-stream-name "ecs/migration/${task_arn##*/}" \
+            --log-group-name "/ecs/${PROJECT_NAME}-${ENV_NAME}-backend" \
+            --log-stream-name "migration/${task_arn##*/}" \
             --query 'events[*].message' \
             --output text
         
@@ -365,7 +396,7 @@ display_summary() {
     echo "  Target: $target"
     echo "  Dry Run: $dry_run"
     echo "  ECS Cluster: $ECS_CLUSTER_NAME"
-    echo "  Task Definition: $MIGRATION_TASK_DEFINITION"
+    echo "  ECS Task Role: $ECS_TASK_ROLE_ARN"
     echo ""
     echo -e "${BLUE}📋 Next steps:${NC}"
     echo "  1. Deploy backend: ./scripts/deploy-backend.sh"
@@ -449,7 +480,7 @@ main() {
     build_and_push_image "$ECR_REPOSITORY"
     
     # Run migration task
-    run_migration_task "$ECS_CLUSTER_NAME" "$MIGRATION_TASK_DEFINITION" "$ECR_REPOSITORY" "$PRIVATE_SUBNETS" "$MIGRATION_SG" "$TARGET" "$DRY_RUN" "$NO_ROLLBACK"
+    run_migration_task "$ECS_CLUSTER_NAME" "$ECS_TASK_ROLE_ARN" "$ECS_EXECUTION_ROLE_ARN" "$ECR_REPOSITORY" "$PRIVATE_SUBNETS" "$MIGRATION_SG" "$TARGET" "$DRY_RUN" "$NO_ROLLBACK"
     
     # Display summary
     display_summary "$TARGET" "$DRY_RUN"

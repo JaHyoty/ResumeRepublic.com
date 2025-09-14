@@ -6,6 +6,11 @@ output "vpc_id" {
   value       = module.networking.vpc_id
 }
 
+output "private_subnets" {
+  description = "List of private subnet IDs for backend services"
+  value       = module.networking.private_subnets
+}
+
 output "alb_dns_name" {
   description = "Application Load Balancer DNS name"
   value       = module.networking.alb_dns_name
@@ -34,6 +39,12 @@ output "db_username" {
   value       = module.database.db_username
 }
 
+output "db_master_user_secret_arn" {
+  description = "ARN of the RDS master user secret"
+  value       = module.database.db_master_user_secret_arn
+}
+
+
 # Compute outputs
 output "ecs_cluster_name" {
   description = "ECS cluster name"
@@ -43,6 +54,11 @@ output "ecs_cluster_name" {
 output "ecs_cluster_arn" {
   description = "ECS cluster ARN"
   value       = module.compute.ecs_cluster_arn
+}
+
+output "ecs_security_group_id" {
+  description = "ECS security group ID"
+  value       = module.networking.ecs_security_group_id
 }
 
 # Storage outputs
