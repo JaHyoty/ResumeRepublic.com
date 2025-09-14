@@ -28,9 +28,18 @@ class Settings(BaseSettings):
     DATABASE_PASSWORD: Optional[str] = None
     DATABASE_CREDENTIALS_SECRET_ARN: Optional[str] = None
     
+    # Cache TTL for database credentials (in seconds)
+    DATABASE_CREDENTIALS_CACHE_TTL: int = 300  # 5 minutes
+    
     # IAM Database Authentication
     USE_IAM_DATABASE_AUTH: bool = False
     DATABASE_PORT: int = 5432
+    
+    # Database Connection Pool Settings
+    DATABASE_POOL_SIZE: int = 5
+    DATABASE_MAX_OVERFLOW: int = 10
+    DATABASE_POOL_TIMEOUT: int = 30
+    DATABASE_POOL_RECYCLE: int = 300
     
     # Security - REQUIRED in production
     SECRET_KEY: str = secrets.token_urlsafe(32)  # Generate random key if not provided

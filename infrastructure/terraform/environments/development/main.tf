@@ -191,6 +191,10 @@ module "compute" {
     {
       name  = "DATABASE_CREDENTIALS_SECRET_ARN"
       value = module.database.db_master_user_secret_arn
+    },
+    {
+      name  = "DATABASE_CREDENTIALS_CACHE_TTL"
+      value = "300"
     }
   ]
 

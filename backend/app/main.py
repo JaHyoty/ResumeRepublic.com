@@ -7,12 +7,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 import structlog
 import logging
 
 from app.core.config import settings
-from app.core.database import _get_database_url, _get_connection_args
+from app.core.secret_manager import clear_credentials_cache
+from app.core.database import engine
 from app.api import auth, esc, resume, user, applications
 
 # Configure structured logging
@@ -118,7 +119,7 @@ async def health_check():
     # Check database connection and migration status
     db_status = "unknown"
     try:
-        engine = create_engine(_get_database_url(), connect_args=_get_connection_args())
+        # Use the existing engine from database module instead of creating a new one
         with engine.connect() as conn:
             # Check if alembic_version table exists
             result = conn.execute(text("""
@@ -138,7 +139,12 @@ async def health_check():
                 db_status = "no_migrations"
                 
     except Exception as e:
-        logger.warning("Database health check failed", error=str(e))
+        error_str = str(e).lower()
+        if any(keyword in error_str for keyword in ['authentication', 'password', 'login', 'access denied', 'fatal: password authentication failed']):
+            logger.warning("Database authentication error detected, clearing credentials cache", error=str(e))
+            clear_credentials_cache()
+        else:
+            logger.warning("Database health check failed", error=str(e))
         db_status = "error"
     
     return {
