@@ -39,7 +39,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Additional policy for SSM parameter and Secrets Manager access
+# ECS Execution Role needs SSM and Secrets Manager permissions to inject secrets during container startup
 resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
   name = "${var.project_name}-${var.environment}-ecs-execution-secrets-policy"
   role = aws_iam_role.ecs_execution_role.id
@@ -51,8 +51,7 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
         Effect = "Allow"
         Action = [
           "ssm:GetParameters",
-          "ssm:GetParameter",
-          "ssm:GetParametersByPath"
+          "ssm:GetParameter"
         ]
         Resource = [
           "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/*"
@@ -120,9 +119,9 @@ resource "aws_iam_role_policy" "ecs_task_rds_iam_policy" {
   })
 }
 
-# ECS Task Role Policy for Secrets Manager access
-resource "aws_iam_role_policy" "ecs_task_secrets_policy" {
-  name = "${var.project_name}-${var.environment}-ecs-task-secrets-policy"
+# ECS Task Role Policy for application access to AWS services
+resource "aws_iam_role_policy" "ecs_task_application_policy" {
+  name = "${var.project_name}-${var.environment}-ecs-task-application-policy"
   role = aws_iam_role.ecs_task_role.id
 
   policy = jsonencode({
@@ -131,9 +130,24 @@ resource "aws_iam_role_policy" "ecs_task_secrets_policy" {
       {
         Effect = "Allow"
         Action = [
-          "secretsmanager:GetSecretValue"
+          "ssm:GetParameters",
+          "ssm:GetParameter",
+          "ssm:GetParametersByPath"
         ]
-        Resource = var.database_credentials_secret_arn != null ? [var.database_credentials_secret_arn] : []
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-*",
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rds!db-*"
+        ]
       }
     ]
   })
