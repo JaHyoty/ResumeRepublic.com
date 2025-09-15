@@ -7,7 +7,7 @@ import httpx
 import logging
 import ssl
 from typing import Dict, Any
-from app.core.config import settings
+from app.core.settings import settings
 from app.utils.tls_utils import create_httpx_client, validate_tls_configuration
 
 # Use structlog for consistent logging
@@ -17,8 +17,9 @@ logger = structlog.get_logger(__name__)
 
 class LLMService:
     def __init__(self):
-        self.api_key = os.getenv("OPENROUTER_API_KEY") or settings.OPENROUTER_API_KEY
-        self.llm_model = os.getenv("OPENROUTER_LLM_MODEL") or settings.OPENROUTER_LLM_MODEL or "anthropic/claude-3.5-sonnet"
+        # Use unified configuration (handles SSM, env vars, and defaults)
+        self.api_key = settings.OPENROUTER_API_KEY
+        self.llm_model = settings.OPENROUTER_LLM_MODEL or "anthropic/claude-3.5-sonnet"
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
 
         # Validate TLS configuration

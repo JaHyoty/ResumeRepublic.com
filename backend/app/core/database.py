@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine
-from app.core.config import settings
+from app.core.settings import settings
 from app.core.secret_manager import get_database_url_from_secret, get_database_url_async_from_secret, clear_credentials_cache
 from app.core.iam_auth import get_iam_db_connection_params
 import structlog
@@ -85,7 +85,7 @@ engine = create_engine(
 
 # Add event listener for connection errors
 @event.listens_for(engine, "handle_error")
-def handle_db_error(conn, branch):
+def handle_db_error(conn, branch, err, errno, statement, parameters, context, orig):
     _handle_db_error(conn, branch)
 
 # Create asynchronous engine
@@ -102,7 +102,7 @@ async_engine = create_async_engine(
 
 # Add event listener for async connection errors
 @event.listens_for(async_engine.sync_engine, "handle_error")
-def handle_async_db_error(conn, branch):
+def handle_async_db_error(conn, branch, err, errno, statement, parameters, context, orig):
     _handle_db_error(conn, branch)
 
 # Create session makers

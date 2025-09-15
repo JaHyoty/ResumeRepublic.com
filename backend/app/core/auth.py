@@ -11,7 +11,7 @@ from typing import Optional
 import structlog
 
 from app.core.database import get_db
-from app.core.config import settings
+from app.core.settings import settings
 from app.models.user import User
 
 logger = structlog.get_logger()

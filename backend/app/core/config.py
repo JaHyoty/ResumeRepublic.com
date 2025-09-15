@@ -1,181 +1,253 @@
 """
-Configuration settings for CareerPathPro Backend
+Configuration System
+Handles both local development (env files) and cloud deployment (infrastructure outputs)
 """
-
-from pydantic_settings import BaseSettings
-from pydantic import field_validator
-from typing import List, Optional, Union
-import structlog
-import secrets
 import os
+import logging
+from typing import Optional, Dict, Any
+from functools import lru_cache
 
+try:
+    import boto3
+    from botocore.exceptions import ClientError, NoCredentialsError
+    BOTO3_AVAILABLE = True
+except ImportError:
+    BOTO3_AVAILABLE = False
+    boto3 = None
+    ClientError = Exception
+    NoCredentialsError = Exception
 
-class Settings(BaseSettings):
-    """Application settings"""
+logger = logging.getLogger(__name__)
+
+class Config:
+    """
+    Configuration system that handles:
+    1. Local development: Environment variables from .env files
+    2. Cloud deployment: SSM parameters from infrastructure
+    3. Fallback: Default values
+    """
     
-    # Environment
-    ENVIRONMENT: str = "development"
-    DEBUG: bool = True
-    
-    # Database - REQUIRED in production
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/careerpathpro"
-    DATABASE_URL_ASYNC: str = "postgresql+asyncpg://user:password@localhost:5432/careerpathpro"
-    
-    # Database components (for ECS deployment)
-    DATABASE_HOST: Optional[str] = None
-    DATABASE_NAME: Optional[str] = None
-    DATABASE_USER: Optional[str] = None
-    DATABASE_PASSWORD: Optional[str] = None
-    DATABASE_CREDENTIALS_SECRET_ARN: Optional[str] = None
-    
-    # Cache TTL for database credentials (in seconds)
-    DATABASE_CREDENTIALS_CACHE_TTL: int = 300  # 5 minutes
-    
-    # IAM Database Authentication
-    USE_IAM_DATABASE_AUTH: bool = False
-    DATABASE_PORT: int = 5432
-    
-    # Database Connection Pool Settings
-    DATABASE_POOL_SIZE: int = 5
-    DATABASE_MAX_OVERFLOW: int = 10
-    DATABASE_POOL_TIMEOUT: int = 30
-    DATABASE_POOL_RECYCLE: int = 300
-    
-    # Security - REQUIRED in production
-    SECRET_KEY: str = secrets.token_urlsafe(32)  # Generate random key if not provided
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-    
-    # OAuth - Optional, will be None if not provided
-    GOOGLE_CLIENT_ID: Optional[str] = None
-    GOOGLE_CLIENT_SECRET: Optional[str] = None
-    GITHUB_CLIENT_ID: Optional[str] = None
-    GITHUB_CLIENT_SECRET: Optional[str] = None
-    APPLE_CLIENT_ID: Optional[str] = None
-    APPLE_CLIENT_SECRET: Optional[str] = None
-    
-    # CORS - Configurable via environment
-    ALLOWED_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:4173"]
-    ALLOWED_HOSTS: Union[List[str], str] = ["localhost", "127.0.0.1"]
-    
-    # External Services
-    PARSING_SERVICE_URL: str = "http://localhost:8001"
-    BACKEND_URL: str = "http://localhost:8000"
-    
-    # AWS - Optional, will be None if not provided
-    AWS_ACCESS_KEY_ID: Optional[str] = None
-    AWS_SECRET_ACCESS_KEY: Optional[str] = None
-    AWS_S3_BUCKET: Optional[str] = None
-    AWS_REGION: str = "us-east-1"
-    
-    # Redis (for caching)
-    REDIS_URL: str = "redis://localhost:6379"
-    
-    # LLM Configuration - Optional
-    OPENROUTER_API_KEY: Optional[str] = None
-    OPENROUTER_LLM_MODEL: Optional[str] = None
-    
-    # SSL/TLS Configuration for External API Calls
-    ENFORCE_TLS: bool = True
-    SSL_VERIFY_CERTIFICATES: bool = True
-    SSL_CIPHER_SUITES: str = "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS"
-    MIN_TLS_VERSION: str = "TLSv1.2"
-    
-    # Development SSL Configuration (WARNING: Only for development!)
-    SSL_VERIFY_CERTIFICATES_DEV: bool = False  # Set to False for development environments with cert issues
-    
-    @field_validator('ALLOWED_ORIGINS', mode='before')
-    @classmethod
-    def parse_cors_origins(cls, v) -> List[str]:
-        """Parse CORS origins from comma-separated string or list"""
-        logger = structlog.get_logger()
+    def __init__(self):
+        self.project_name = os.getenv("PROJECT_NAME", "resumerepublic")
+        self.environment = os.getenv("ENVIRONMENT", "development")
+        self.is_cloud_deployment = self._is_cloud_deployment()
         
-        logger.debug("Parsing ALLOWED_ORIGINS", input_value=v, input_type=type(v).__name__)
-        
-        if isinstance(v, str):
-            # Handle comma-separated format: item1,item2
-            result = [origin.strip() for origin in v.split(',') if origin.strip()]
-            logger.debug("Parsed as comma-separated", result=result)
-            return result
-        elif isinstance(v, list):
-            logger.debug("Already a list", result=v)
-            return v
-        else:
-            # Fallback for other types
-            result = [str(v)]
-            logger.debug("Fallback parsing", result=result)
-            return result
+        # Initialize SSM client only for cloud deployments
+        self.ssm_client = None
+        if self.is_cloud_deployment and BOTO3_AVAILABLE:
+            try:
+                self.ssm_client = boto3.client('ssm')
+                logger.info("SSM client initialized for cloud deployment")
+            except (NoCredentialsError, Exception) as e:
+                logger.warning(f"Failed to initialize SSM client: {e}")
+                self.ssm_client = None
     
-    @field_validator('ALLOWED_HOSTS', mode='before')
-    @classmethod
-    def parse_cors_hosts(cls, v) -> List[str]:
-        """Parse CORS hosts from string or list"""
-        logger = structlog.get_logger()
-        
-        logger.debug("Parsing ALLOWED_HOSTS", input_value=v, input_type=type(v).__name__)
-        
-        if isinstance(v, str):
-            # Handle comma-separated format: item1,item2
-            result = [host.strip() for host in v.split(',') if host.strip()]
-            logger.debug("Parsed as comma-separated", result=result)
-            return result
-        elif isinstance(v, list):
-            logger.debug("Already a list", result=v)
-            return v
-        else:
-            # Fallback for other types
-            result = [str(v)]
-            logger.debug("Fallback parsing", result=result)
-            return result
-    
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
-        # Construct DATABASE_URL from individual components if provided
-        if (self.DATABASE_HOST and self.DATABASE_NAME and 
-            self.DATABASE_USER and self.DATABASE_PASSWORD):
-            self.DATABASE_URL = f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
-            self.DATABASE_URL_ASYNC = f"postgresql+asyncpg://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
-        
-        # Log configuration values for debugging
-        logger = structlog.get_logger()
-        
-        logger.info("Configuration loaded", 
-                   allowed_origins=self.ALLOWED_ORIGINS,
-                   allowed_hosts=self.ALLOWED_HOSTS,
-                   environment=self.ENVIRONMENT,
-                   database_url_configured=bool(self.DATABASE_URL and self.DATABASE_URL != "postgresql://user:password@localhost:5432/careerpathpro"))
-        
-        # Validate required settings for production
-        if self.ENVIRONMENT == "production":
-            self._validate_production_settings()
-    
-    def _validate_production_settings(self):
-        """Validate that required settings are provided in production"""
-        required_settings = [
-            "SECRET_KEY",
-            "DATABASE_URL",
+    def _is_cloud_deployment(self) -> bool:
+        """Determine if we're in a cloud deployment environment"""
+        # Check for cloud deployment indicators
+        cloud_indicators = [
+            os.getenv("AWS_EXECUTION_ENV"),  # ECS/Lambda
+            os.getenv("ECS_CONTAINER_METADATA_URI"),  # ECS
+            os.getenv("AWS_LAMBDA_FUNCTION_NAME"),  # Lambda
+            os.getenv("USE_SSM_PARAMETERS", "").lower() == "true",  # Explicit flag
+            self.environment in ["production", "staging"]  # Environment-based
         ]
+        return any(cloud_indicators)
+    
+    def get_value(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """
+        Get configuration value with unified priority:
+        1. Pydantic settings (loads .env files and environment variables)
+        2. SSM parameter (for cloud deployment)
+        3. Default value
+        """
+        # First try Pydantic settings (handles .env files and environment variables)
+        try:
+            from app.core.settings import settings
+            settings_value = getattr(settings, key, None)
+            if settings_value:
+                logger.debug(f"Using Pydantic settings for {key}")
+                return settings_value
+        except Exception as e:
+            logger.debug(f"Could not access Pydantic settings: {e}")
         
-        missing_settings = []
-        for setting in required_settings:
-            if not getattr(self, setting) or getattr(self, setting) in [
-                "your-secret-key-change-in-production",
-                "postgresql://user:password@localhost:5432/careerpathpro"
-            ]:
-                missing_settings.append(setting)
+        # Try SSM parameter if in cloud deployment
+        if self.is_cloud_deployment and self.ssm_client:
+            ssm_value = self._get_ssm_parameter(key)
+            if ssm_value:
+                logger.debug(f"Using SSM parameter for {key}")
+                return ssm_value
         
-        if missing_settings:
-            raise ValueError(
-                f"Missing required environment variables for production: {', '.join(missing_settings)}"
+        # Return default
+        logger.debug(f"Using default value for {key}")
+        return default
+    
+    def _get_ssm_parameter(self, key: str) -> Optional[str]:
+        """Get parameter from SSM Parameter Store"""
+        if not self.ssm_client:
+            return None
+        
+        # Map configuration keys to SSM parameter paths
+        ssm_paths = {
+            # OpenRouter
+            "OPENROUTER_API_KEY": f"/{self.project_name}/{self.environment}/openrouter/api_key",
+            "OPENROUTER_LLM_MODEL": f"/{self.project_name}/{self.environment}/app/openrouter_llm_model",
+            
+            # Application
+            "SECRET_KEY": f"/{self.project_name}/{self.environment}/app/secret_key",
+            
+            # Database
+            "DATABASE_HOST": f"/{self.project_name}/{self.environment}/database/host",
+            "DATABASE_NAME": f"/{self.project_name}/{self.environment}/database/name",
+            "DATABASE_USER": f"/{self.project_name}/{self.environment}/database/user",
+            "DATABASE_PASSWORD": f"/{self.project_name}/{self.environment}/database/password",
+            
+            # OAuth
+            "GOOGLE_CLIENT_ID": f"/{self.project_name}/{self.environment}/google/client_id",
+            "GOOGLE_CLIENT_SECRET": f"/{self.project_name}/{self.environment}/google/client_secret",
+            "GITHUB_CLIENT_ID": f"/{self.project_name}/{self.environment}/github/client_id",
+            "GITHUB_CLIENT_SECRET": f"/{self.project_name}/{self.environment}/github/client_secret",
+            
+            # SSL/TLS
+            "SSL_CIPHER_SUITES": f"/{self.project_name}/{self.environment}/app/ssl_cipher_suites",
+            "MIN_TLS_VERSION": f"/{self.project_name}/{self.environment}/app/min_tls_version",
+        }
+        
+        ssm_path = ssm_paths.get(key)
+        if not ssm_path:
+            return None
+        
+        try:
+            response = self.ssm_client.get_parameter(
+                Name=ssm_path,
+                WithDecryption=True
             )
+            return response['Parameter']['Value']
+        except ClientError as e:
+            if e.response['Error']['Code'] != 'ParameterNotFound':
+                logger.warning(f"Error retrieving SSM parameter {ssm_path}: {e}")
+            return None
+        except Exception as e:
+            logger.warning(f"Unexpected error retrieving SSM parameter {ssm_path}: {e}")
+            return None
     
+    # Configuration properties with unified access
+    @property
+    def openrouter_api_key(self) -> Optional[str]:
+        return self.get_value("OPENROUTER_API_KEY")
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    @property
+    def openrouter_llm_model(self) -> Optional[str]:
+        return self.get_value("OPENROUTER_LLM_MODEL", "anthropic/claude-3.5-sonnet")
+    
+    @property
+    def secret_key(self) -> Optional[str]:
+        return self.get_value("SECRET_KEY")
+    
+    @property
+    def database_host(self) -> Optional[str]:
+        return self.get_value("DATABASE_HOST")
+    
+    @property
+    def database_name(self) -> Optional[str]:
+        return self.get_value("DATABASE_NAME")
+    
+    @property
+    def database_user(self) -> Optional[str]:
+        return self.get_value("DATABASE_USER")
+    
+    @property
+    def database_password(self) -> Optional[str]:
+        return self.get_value("DATABASE_PASSWORD")
+    
+    @property
+    def google_client_id(self) -> Optional[str]:
+        return self.get_value("GOOGLE_CLIENT_ID")
+    
+    @property
+    def google_client_secret(self) -> Optional[str]:
+        return self.get_value("GOOGLE_CLIENT_SECRET")
+    
+    @property
+    def github_client_id(self) -> Optional[str]:
+        return self.get_value("GITHUB_CLIENT_ID")
+    
+    @property
+    def github_client_secret(self) -> Optional[str]:
+        return self.get_value("GITHUB_CLIENT_SECRET")
+    
+    @property
+    def ssl_cipher_suites(self) -> Optional[str]:
+        return self.get_value("SSL_CIPHER_SUITES")
+    
+    @property
+    def min_tls_version(self) -> Optional[str]:
+        return self.get_value("MIN_TLS_VERSION")
+    
+    def get_database_url(self) -> Optional[str]:
+        """Construct database URL from components"""
+        host = self.database_host
+        name = self.database_name
+        user = self.database_user
+        password = self.database_password
+        port = os.getenv("DATABASE_PORT", "5432")
+        
+        if all([host, name, user, password]):
+            return f"postgresql://{user}:{password}@{host}:{port}/{name}"
+        return None
+    
+    def get_database_url_async(self) -> Optional[str]:
+        """Construct async database URL from components"""
+        host = self.database_host
+        name = self.database_name
+        user = self.database_user
+        password = self.database_password
+        port = os.getenv("DATABASE_PORT", "5432")
+        
+        if all([host, name, user, password]):
+            return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{name}"
+        return None
+    
+    def get_all_config(self) -> Dict[str, Any]:
+        """Get all configuration values for debugging"""
+        return {
+            "environment": self.environment,
+            "project_name": self.project_name,
+            "is_cloud_deployment": self.is_cloud_deployment,
+            "ssm_client_available": self.ssm_client is not None,
+            "openrouter_api_key": "***" if self.openrouter_api_key else None,
+            "openrouter_llm_model": self.openrouter_llm_model,
+            "secret_key": "***" if self.secret_key else None,
+            "database_host": self.database_host,
+            "database_name": self.database_name,
+            "database_user": self.database_user,
+            "database_password": "***" if self.database_password else None,
+            "google_client_id": self.google_client_id,
+            "google_client_secret": "***" if self.google_client_secret else None,
+            "github_client_id": self.github_client_id,
+            "github_client_secret": "***" if self.github_client_secret else None,
+            "ssl_cipher_suites": self.ssl_cipher_suites,
+            "min_tls_version": self.min_tls_version,
+        }
 
+# Global configuration instance
+@lru_cache()
+def get_config() -> Config:
+    """Get cached configuration instance"""
+    return Config()
 
-# Create settings instance
-settings = Settings()
+# Convenience functions for backward compatibility
+def get_openrouter_api_key() -> Optional[str]:
+    return get_config().openrouter_api_key
+
+def get_openrouter_llm_model() -> Optional[str]:
+    return get_config().openrouter_llm_model
+
+def get_secret_key() -> Optional[str]:
+    return get_config().secret_key
+
+def get_database_url() -> Optional[str]:
+    return get_config().get_database_url()
+
+def get_database_url_async() -> Optional[str]:
+    return get_config().get_database_url_async()

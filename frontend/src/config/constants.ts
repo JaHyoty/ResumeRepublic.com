@@ -4,13 +4,13 @@
  */
 
 export const APP_CONFIG = {
-  name: 'CareerPathPro',
+  name: 'ResumeRepublic',
   description: 'Optimize your career with AI-powered resumes',
   tagline: 'Transform your professional profile with a tool that truly knows your value. No more inaccurate AI resume generators.',
 } as const;
 
 export const CONTACT_INFO = {
-  email: 'support@careerpathpro.com',
+  email: 'support@resumerepublic.com',
   phone: '+1 (555) 123-4567',
 } as const;
 

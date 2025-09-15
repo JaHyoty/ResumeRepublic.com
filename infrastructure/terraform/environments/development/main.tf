@@ -38,6 +38,7 @@ module "networking" {
   database_subnets        = var.database_subnets
   public_subnets          = var.public_subnets
   backend_port            = var.backend_port
+  acm_certificate_arn     = var.domain_name != "" ? module.dns[0].acm_certificate_arn : null
 }
 
 # Database Module
@@ -174,7 +175,7 @@ module "compute" {
     },
     {
       name  = "ALLOWED_ORIGINS"
-      value = var.domain_name != "" ? "https://${module.storage.cloudfront_domain_name}" : "*"
+      value = var.domain_name != "" ? "https://${var.domain_name}" : "*"
     },
     {
       name  = "ALLOWED_HOSTS"
@@ -255,4 +256,20 @@ module "compute" {
       valueFrom = module.database.db_master_user_secret_arn
     }
   ])
+}
+
+# Jump host for database access
+module "jump_host" {
+  source = "../../modules/jump-host"
+
+  project_name              = var.project_name
+  environment              = local.environment
+  vpc_id                   = module.networking.vpc_id
+  private_subnet_id        = module.networking.private_subnets[0]
+  database_host            = module.database.db_endpoint
+  database_port            = module.database.db_port
+  database_security_group_id = module.database.db_security_group_id
+  instance_type            = "t3.micro"
+
+  common_tags = local.common_tags
 }

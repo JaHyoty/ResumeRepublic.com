@@ -6,7 +6,7 @@ import boto3
 import structlog
 import time
 from typing import Dict, Optional
-from app.core.config import settings
+from app.core.settings import settings
 
 logger = structlog.get_logger()
 

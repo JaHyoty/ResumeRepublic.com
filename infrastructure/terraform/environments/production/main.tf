@@ -38,6 +38,7 @@ module "networking" {
   database_subnets        = var.database_subnets
   public_subnets          = var.public_subnets
   backend_port            = var.backend_port
+  acm_certificate_arn     = var.domain_name != "" ? module.dns[0].acm_certificate_arn : null
 }
 
 # Database Module
@@ -174,7 +175,7 @@ module "compute" {
     },
     {
       name  = "ALLOWED_ORIGINS"
-      value = var.domain_name != "" ? "https://${module.storage.cloudfront_domain_name}" : "*"
+      value = var.domain_name != "" ? "https://${var.domain_name}" : "*"
     },
     {
       name  = "ALLOWED_HOSTS"

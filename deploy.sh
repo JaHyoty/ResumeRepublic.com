@@ -65,15 +65,9 @@ echo "1) Infrastructure only"
 echo "2) Backend only (requires infrastructure)"
 echo "3) Frontend only (requires infrastructure)"
 echo "4) Backend + Frontend (requires infrastructure)"
-echo "5) Run database migration"
-echo "6) Rollback database migration"
-echo "7) Generate new migration"
-echo "8) Run custom Alembic command"
-echo "9) Full deployment (infrastructure + backend + frontend + migration)"
-echo "10) Validate deployment readiness"
-echo "11) Destroy infrastructure"
+echo "5) Destroy infrastructure"
 echo ""
-read -p "Enter your choice (1-11): " choice
+read -p "Enter your choice (1-5): " choice
 
 case $choice in
     1)
@@ -96,47 +90,6 @@ case $choice in
         ./scripts/deploy-frontend.sh --environment $ENVIRONMENT
         ;;
     5)
-        echo -e "${BLUE}🗄️  Running database migration...${NC}"
-        ./scripts/run-database-migration.sh --environment $ENVIRONMENT
-        ;;
-    6)
-        echo -e "${RED}⚠️  Rolling back database migration...${NC}"
-        ./scripts/rollback-database-migration.sh --environment $ENVIRONMENT
-        ;;
-    7)
-        echo -e "${BLUE}🔧 Generating new migration...${NC}"
-        ./scripts/generate-migration.sh
-        ;;
-    8)
-        echo -e "${BLUE}🔧 Running custom Alembic command...${NC}"
-        echo -e "${YELLOW}Enter the Alembic command to run:${NC}"
-        read -p "Command: " alembic_command
-        if [ -n "$alembic_command" ]; then
-            ./scripts/run-alembic-command.sh $alembic_command
-        else
-            echo -e "${RED}❌ No command provided.${NC}"
-        fi
-        ;;
-    9)
-        echo -e "${BLUE}🚀 Starting full deployment...${NC}"
-        echo ""
-        echo -e "${BLUE}🏗️  Step 1: Deploying $ENV_NAME infrastructure...${NC}"
-        ./scripts/deploy-infrastructure.sh $ENVIRONMENT apply
-        echo ""
-        echo -e "${BLUE}⚙️  Step 2: Deploying backend...${NC}"
-        ./scripts/deploy-backend.sh --environment $ENVIRONMENT --no-build
-        echo ""
-        echo -e "${BLUE}🗄️  Step 3: Running database migration...${NC}"
-        ./scripts/run-database-migration.sh --environment $ENVIRONMENT
-        echo ""
-        echo -e "${BLUE}🎨 Step 4: Deploying frontend...${NC}"
-        ./scripts/deploy-frontend.sh --environment $ENVIRONMENT
-        ;;
-    10)
-        echo -e "${BLUE}🔍 Validating deployment readiness...${NC}"
-        ./scripts/validate-deployment.sh --environment $ENVIRONMENT --fix
-        ;;
-    11)
         echo -e "${RED}⚠️  WARNING: This will destroy the $ENV_NAME infrastructure!${NC}"
         echo -e "${YELLOW}This action cannot be undone and will delete all resources and data.${NC}"
         echo -e "${YELLOW}Are you sure? Type 'yes' to confirm:${NC}"

@@ -6,12 +6,11 @@ Main FastAPI application entry point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 import structlog
 import logging
 
-from app.core.config import settings
+from app.core.settings import settings
 from app.core.secret_manager import clear_credentials_cache
 from app.core.database import engine
 from app.api import auth, esc, resume, user, applications
@@ -67,7 +66,7 @@ if settings.ENVIRONMENT == "development":
 
 # Create FastAPI application
 app = FastAPI(
-    title="CareerPathPro API",
+    title="ResumeRepublic API",
     description="Career management and resume optimization platform",
     version="1.0.0",
     docs_url="/docs" if settings.ENVIRONMENT == "development" else None,
@@ -101,14 +100,12 @@ app.include_router(esc.router, prefix="/api/esc", tags=["experience-skills-catal
 app.include_router(resume.router, prefix="/api/resume", tags=["resume"])
 app.include_router(applications.router, prefix="/api/applications", tags=["applications"])
 
-# Mount static files for templates
-app.mount("/api/templates", StaticFiles(directory="app/templates"), name="templates")
 
 
 @app.get("/")
 async def root():
     """Health check endpoint"""
-    return {"message": "CareerPathPro API is running", "version": "1.0.0"}
+    return {"message": "ResumeRepublic API is running", "version": "1.0.0"}
 
 
 @app.get("/health")

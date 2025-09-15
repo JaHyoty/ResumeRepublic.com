@@ -224,17 +224,17 @@ build_frontend() {
     cd - > /dev/null
 }
 
-# Function to check if deployment is needed
+# Function to check if upload is needed
 check_deployment_needed() {
     local s3_bucket=$1
     local force=$2
     
     if [ "$force" = "true" ]; then
-        echo -e "${YELLOW}🔄 Force deployment requested${NC}"
+        echo -e "${YELLOW}🔄 Force upload requested${NC}"
         return 0
     fi
     
-    echo -e "${YELLOW}🔍 Checking if deployment is needed...${NC}"
+    echo -e "${YELLOW}🔍 Checking if upload is needed...${NC}"
     
     # Check if S3 bucket exists
     if ! aws s3 ls s3://$s3_bucket > /dev/null 2>&1; then
@@ -258,8 +258,8 @@ check_deployment_needed() {
         return 0
     fi
     
-    echo -e "${GREEN}✅ No deployment needed. Frontend is up to date.${NC}"
-    echo -e "${BLUE}ℹ️  Use --force to deploy anyway${NC}"
+    echo -e "${GREEN}✅ No upload needed. Frontend is up to date.${NC}"
+    echo -e "${BLUE}ℹ️  Use --force to upload anyway${NC}"
     return 1
 }
 
@@ -499,13 +499,16 @@ main() {
     # Get infrastructure details
     get_infrastructure_details "$ENV_DIR"
     
-    # Check if deployment is needed
-    if ! check_deployment_needed "$S3_BUCKET" "$FORCE"; then
-        exit 0
-    fi
-    
-    # Build frontend
+    # Build frontend (unless --no-build is specified)
     build_frontend "$NO_BUILD" "$BACKEND_URL"
+    
+    # Check if upload is needed (only if not --no-upload)
+    if [ "$NO_UPLOAD" != "true" ]; then
+        if ! check_deployment_needed "$S3_BUCKET" "$FORCE"; then
+            echo -e "${GREEN}✅ No upload needed. Frontend is up to date.${NC}"
+            exit 0
+        fi
+    fi
     
     # Upload to S3
     upload_to_s3 "$S3_BUCKET" "$NO_UPLOAD"

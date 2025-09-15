@@ -51,3 +51,9 @@ variable "backend_port" {
   type        = number
   default     = 8000
 }
+
+variable "acm_certificate_arn" {
+  description = "ACM certificate ARN for HTTPS listener"
+  type        = string
+  default     = null
+}

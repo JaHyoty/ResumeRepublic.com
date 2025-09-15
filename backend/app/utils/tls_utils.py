@@ -6,7 +6,7 @@ import ssl
 import logging
 import httpx
 from typing import Optional
-from app.core.config import settings
+from app.core.settings import settings
 
 # Use structlog for consistent logging
 import structlog

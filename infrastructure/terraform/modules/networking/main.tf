@@ -174,3 +174,20 @@ resource "aws_lb_listener" "backend" {
 
   tags = var.common_tags
 }
+
+# HTTPS Listener (only if certificate ARN is provided)
+resource "aws_lb_listener" "backend_https" {
+  count             = var.acm_certificate_arn != null ? 1 : 0
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  certificate_arn   = var.acm_certificate_arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  tags = var.common_tags
+}

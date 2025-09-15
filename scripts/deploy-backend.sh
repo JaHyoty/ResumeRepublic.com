@@ -24,12 +24,15 @@ usage() {
     echo "  --environment ENV    Target environment (dev/prod) - auto-detected if not specified"
     echo "  --force              Force deployment even if no changes detected"
     echo "  --no-build           Skip Docker build (use existing image)"
+    echo "  --run-migrations     Run database migrations after deployment"
     echo "  --help               Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0                   Deploy to detected environment"
     echo "  $0 --environment prod Deploy to production"
     echo "  $0 --force           Force deployment"
+    echo "  $0 --no-build        Skip Docker build"
+    echo "  $0 --run-migrations  Deploy and run migrations"
     exit 1
 }
 
@@ -365,8 +368,12 @@ display_summary() {
     echo "  Service: $PROJECT_NAME-$ENV_NAME-backend-service"
     echo ""
     echo -e "${BLUE}📋 Next steps:${NC}"
-    echo "  1. Run database migrations: ./scripts/run-database-migration.sh"
-    echo "  2. Deploy frontend: ./scripts/deploy-frontend.sh"
+    if [ "$RUN_MIGRATIONS" = "true" ]; then
+        echo "  1. ✅ Database migrations completed"
+    else
+        echo "  1. Run database migrations: ./scripts/run-database-migration.sh --environment $ENVIRONMENT"
+    fi
+    echo "  2. Deploy frontend: ./scripts/deploy-frontend.sh --environment $ENVIRONMENT"
     echo "  3. Test your backend API endpoints"
     echo "  4. Monitor logs: aws logs tail /ecs/$PROJECT_NAME-$ENV_NAME-backend --follow"
 }
@@ -377,6 +384,7 @@ main() {
     ENVIRONMENT=""
     FORCE="false"
     NO_BUILD="false"
+    RUN_MIGRATIONS="false"
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -390,6 +398,10 @@ main() {
                 ;;
             --no-build)
                 NO_BUILD="true"
+                shift
+                ;;
+            --run-migrations)
+                RUN_MIGRATIONS="true"
                 shift
                 ;;
             --help)
@@ -429,6 +441,7 @@ main() {
     echo -e "Environment: ${YELLOW}$ENV_NAME${NC}"
     echo -e "Force: ${YELLOW}$FORCE${NC}"
     echo -e "No Build: ${YELLOW}$NO_BUILD${NC}"
+    echo -e "Run Migrations: ${YELLOW}$RUN_MIGRATIONS${NC}"
     echo ""
     
     # Check prerequisites
@@ -454,6 +467,20 @@ main() {
     
     # Test deployment
     test_deployment "$ALB_DNS_NAME" "$API_DOMAIN_NAME"
+    
+    # Run migrations if requested
+    if [ "$RUN_MIGRATIONS" = "true" ]; then
+        echo ""
+        echo -e "${BLUE}🗄️  Running database migrations...${NC}"
+        if ./scripts/run-database-migration.sh --environment $ENVIRONMENT; then
+            echo -e "${GREEN}✅ Database migrations completed successfully!${NC}"
+        else
+            echo -e "${RED}❌ Database migrations failed${NC}"
+            echo -e "${YELLOW}⚠️  Backend deployment succeeded but migrations failed${NC}"
+            echo -e "${YELLOW}   You may need to run migrations manually:${NC}"
+            echo "   ./scripts/run-database-migration.sh --environment $ENVIRONMENT"
+        fi
+    fi
     
     # Display summary
     display_summary "$ALB_DNS_NAME" "$API_DOMAIN_NAME" "$TIMESTAMP"

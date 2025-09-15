@@ -441,7 +441,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
               <div className="p-4 border-2 border-blue-500 bg-blue-50 rounded-lg">
                 <div className="text-center">
                   <img 
-                    src="/api/templates/ResumeTemplate1.jpg" 
+                    src="/templates/ResumeTemplate1.jpg" 
                     alt="Resume Template 1" 
                     className="w-48 h-64 object-cover rounded-lg shadow-md mx-auto mb-3"
                   />

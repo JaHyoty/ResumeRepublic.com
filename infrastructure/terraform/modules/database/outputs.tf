@@ -67,3 +67,8 @@ output "db_iam_auth_role_name" {
   value       = var.iam_database_authentication_enabled ? aws_iam_role.rds_iam_auth_role[0].name : null
 }
 
+output "db_security_group_id" {
+  description = "Security group ID of the database"
+  value       = var.rds_security_group_id
+}
+

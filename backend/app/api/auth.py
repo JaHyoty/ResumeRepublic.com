@@ -9,7 +9,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 import structlog
 
-from app.core.config import settings
+from app.core.settings import settings
 from app.core.database import get_db
 from app.core.auth import create_access_token, get_current_user
 from app.core.password import verify_password
