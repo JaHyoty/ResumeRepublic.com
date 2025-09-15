@@ -16,7 +16,7 @@ const LandingPage: React.FC = () => {
       {/* <HowItWorks /> */}
       {/* <Testimonials /> */}
       <CTA />
-      <Footer />
+      {/* <Footer /> */}
     </div>
   )
 }

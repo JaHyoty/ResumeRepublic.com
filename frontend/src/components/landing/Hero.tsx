@@ -52,13 +52,13 @@ const Hero: React.FC = () => {
             >
               Tailor My Resume
             </button>
-            <button className="border-2 border-white text-white hover:bg-purple-500 hover:text-primary-700 font-semibold text-lg px-8 py-3 rounded-lg flex items-center justify-center gap-2 transition-all duration-300">
+            {/* <button className="border-2 border-white text-white hover:bg-purple-500 hover:text-primary-700 font-semibold text-lg px-8 py-3 rounded-lg flex items-center justify-center gap-2 transition-all duration-300">
               Watch Demo
-            </button>
+            </button> */}
           </div>
           <p className="text-purple-400 text-sm">
             Made to promote responsible AI usage in the application process.<br/>
-            As such, we'd like to offer this service for free to all users.
+            As such, we'd like to offer this service for <b>free</b> to all users.
           </p>
         </div>
       </div>

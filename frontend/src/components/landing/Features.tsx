@@ -1,4 +1,12 @@
 import React from 'react'
+import { 
+  FileText, 
+  Database, 
+  FileDown, 
+  Search, 
+  GitBranch, 
+  BarChart3 
+} from 'lucide-react'
 
 interface FeatureCardProps {
   icon: React.ReactNode
@@ -29,7 +37,11 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ icon, title, description, fea
 const Features: React.FC = () => {
   const featuresData = [
     {
-      icon: <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center"></div>,
+      icon: (
+        <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+          <FileText className="w-6 h-6 text-primary-600" />
+        </div>
+      ),
       title: "Smart Resume Parsing",
       description: "Upload your existing resume and let our system extract key details automatically.",
       features: [
@@ -39,7 +51,11 @@ const Features: React.FC = () => {
       ]
     },
     {
-      icon: <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center"></div>,
+      icon: (
+        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+          <Database className="w-6 h-6 text-blue-600" />
+        </div>
+      ),
       title: "Experience and Skills Catalog",
       description: "Manage your experiences and skills in one centralized dashboard.",
       features: [
@@ -49,7 +65,11 @@ const Features: React.FC = () => {
       ]
     },
     {
-      icon: <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center"></div>,
+      icon: (
+        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+          <FileDown className="w-6 h-6 text-green-600" />
+        </div>
+      ),
       title: "PDF Resume Generation",
       description: "Generate professional, ATS-optimized resumes with our clean resume templates.",
       features: [
@@ -59,7 +79,11 @@ const Features: React.FC = () => {
       ]
     },
     {
-      icon: <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center"></div>,
+      icon: (
+        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+          <Search className="w-6 h-6 text-purple-600" />
+        </div>
+      ),
       title: "Job Description Analysis",
       description: "Analyze job descriptions to identify key requirements and optimize your resume accordingly.",
       features: [
@@ -69,7 +93,11 @@ const Features: React.FC = () => {
       ]
     },
     {
-      icon: <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center"></div>,
+      icon: (
+        <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+          <GitBranch className="w-6 h-6 text-orange-600" />
+        </div>
+      ),
       title: "Resume Versioning",
       description: "Keep track of different resume versions and easily switch between them for different applications.",
       features: [
@@ -79,7 +107,11 @@ const Features: React.FC = () => {
       ]
     },
     {
-      icon: <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center"></div>,
+      icon: (
+        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+          <BarChart3 className="w-6 h-6 text-indigo-600" />
+        </div>
+      ),
       title: "Analytics & Insights",
       description: "Get insights into your career progress and resume performance.",
       features: [
