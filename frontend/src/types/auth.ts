@@ -39,7 +39,7 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
-  loginWithGoogle: (credentials: OAuthCredentials) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   loginWithGitHub: (credentials: OAuthCredentials) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;

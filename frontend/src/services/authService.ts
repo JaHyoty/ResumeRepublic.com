@@ -28,6 +28,11 @@ export interface RegisterRequest {
 export interface AuthResponse {
   access_token: string
   token_type: string
+  expires_in: number
+}
+
+export interface GoogleOAuthRequest {
+  id_token: string
 }
 
 export const authService = {
@@ -90,6 +95,14 @@ export const authService = {
   // Check if user is authenticated
   isAuthenticated(): boolean {
     return !!this.getToken()
+  },
+
+  // Google OAuth login
+  async loginWithGoogle(idToken: string): Promise<AuthResponse> {
+    const response = await api.post<AuthResponse>('/api/auth/google', {
+      id_token: idToken
+    })
+    return response.data
   }
 }
 

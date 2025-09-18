@@ -128,6 +128,15 @@ get_infrastructure_details() {
     WWW_DOMAIN=$(terraform output -raw www_domain 2>/dev/null || echo "")
     CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain 2>/dev/null || echo "")
     
+    # Get OAuth environment variables from AWS Systems Manager Parameter Store
+    echo -e "${YELLOW}🔐 Retrieving OAuth configuration...${NC}"
+    
+    # Try to get Google Client ID with error handling
+    GOOGLE_CLIENT_ID=$(aws ssm get-parameter --name "/resumerepublic/${ENVIRONMENT}/google/client_id" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+
+    # Try to get GitHub Client ID with error handling
+    GITHUB_CLIENT_ID=$(aws ssm get-parameter --name "/resumerepublic/${ENVIRONMENT}/github/client_id" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+
     cd - > /dev/null
     
     # Determine backend URL
@@ -146,6 +155,21 @@ get_infrastructure_details() {
         echo -e "${GREEN}✅ Custom Domain: $CUSTOM_DOMAIN${NC}"
     else
         echo -e "${GREEN}✅ CloudFront Domain: $CLOUDFRONT_DOMAIN${NC}"
+    fi
+    
+    # Validate OAuth configuration
+    if [ -z "$GOOGLE_CLIENT_ID" ]; then
+        echo -e "${YELLOW}⚠️  Warning: Google Client ID not found in Parameter Store${NC}"
+        echo -e "${YELLOW}   Google OAuth will not be available${NC}"
+    else
+        echo -e "${GREEN}✅ Google Client ID: ${GOOGLE_CLIENT_ID:0:20}...${NC}"
+    fi
+    
+    if [ -z "$GITHUB_CLIENT_ID" ]; then
+        echo -e "${YELLOW}⚠️  Warning: GitHub Client ID not found in Parameter Store${NC}"
+        echo -e "${YELLOW}   GitHub OAuth will not be available${NC}"
+    else
+        echo -e "${GREEN}✅ GitHub Client ID: ${GITHUB_CLIENT_ID:0:20}...${NC}"
     fi
 }
 
@@ -166,6 +190,8 @@ check_frontend_directory() {
 build_frontend() {
     local no_build=$1
     local backend_url=$2
+    local google_client_id=$3
+    local github_client_id=$4
     
     if [ "$no_build" = "true" ]; then
         echo -e "${YELLOW}⏭️  Skipping build process (--no-build specified)${NC}"
@@ -193,12 +219,19 @@ build_frontend() {
     
     echo -e "${GREEN}✅ Dependencies installed successfully!${NC}"
     
-    # Build the application with backend URL
+    # Build the application with environment variables
     echo -e "${YELLOW}🔨 Building React application...${NC}"
-    echo -e "${BLUE}Setting VITE_API_BASE_URL=$backend_url${NC}"
+    echo -e "${BLUE}Setting environment variables:${NC}"
+    echo -e "${BLUE}  API_BASE_URL=$backend_url${NC}"
+    echo -e "${BLUE}  GOOGLE_CLIENT_ID=${google_client_id:0:20}${NC}"
+    echo -e "${BLUE}  GITHUB_CLIENT_ID=${github_client_id:0:20}${NC}"
     
-    # Set environment variable and build
-    if ! VITE_API_BASE_URL=$backend_url npm run build; then
+    # Set environment variables and build
+    export API_BASE_URL="$backend_url"
+    export GOOGLE_CLIENT_ID="$google_client_id"
+    export GITHUB_CLIENT_ID="$github_client_id"
+    
+    if ! npm run build; then
         echo -e "${RED}❌ Build failed${NC}"
         exit 1
     fi
@@ -469,10 +502,12 @@ main() {
         dev|development)
             ENV_DIR="development"
             ENV_NAME="development"
+            ENVIRONMENT="development"
             ;;
         prod|production)
             ENV_DIR="production"
             ENV_NAME="production"
+            ENVIRONMENT="production"
             ;;
         *)
             echo -e "${RED}❌ Error: Invalid environment '$ENVIRONMENT'${NC}"
@@ -500,7 +535,7 @@ main() {
     get_infrastructure_details "$ENV_DIR"
     
     # Build frontend (unless --no-build is specified)
-    build_frontend "$NO_BUILD" "$BACKEND_URL"
+    build_frontend "$NO_BUILD" "$BACKEND_URL" "$GOOGLE_CLIENT_ID" "$GITHUB_CLIENT_ID"
     
     # Check if upload is needed (only if not --no-upload)
     if [ "$NO_UPLOAD" != "true" ]; then

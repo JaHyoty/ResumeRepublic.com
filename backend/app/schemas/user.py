@@ -35,6 +35,16 @@ class UserLogin(BaseModel):
     password: str
 
 
+class GoogleOAuthRequest(BaseModel):
+    """Schema for Google OAuth login"""
+    id_token: str
+
+
+class GitHubOAuthRequest(BaseModel):
+    """Schema for GitHub OAuth login"""
+    code: str
+
+
 class Token(BaseModel):
     """Schema for JWT token response"""
     access_token: str

@@ -1,89 +1,164 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import type { OAuthCredentials } from '../../types/auth';
 
 interface OAuthButtonsProps {
   onSuccess: () => void;
   onError: (error: string) => void;
-  isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
 }
 
 const OAuthButtons: React.FC<OAuthButtonsProps> = ({
   onSuccess,
   onError,
-  isLoading,
-  setIsLoading,
 }) => {
-  const { loginWithGoogle, loginWithGitHub } = useAuth();
+  const { loginWithGoogle } = useAuth();
 
-  const handleGoogleLogin = async () => {
-    setIsLoading(true);
-    try {
-      // In a real implementation, you would integrate with Google OAuth
-      // For now, we'll simulate the OAuth flow
-      const mockCredentials: OAuthCredentials = {
-        access_token: 'mock_google_token',
-      };
+  // Load Google Identity Services
+  useEffect(() => {
+    const loadGoogleScript = () => {
+      if (window.google) {
+        console.log('Google script already loaded');
+        initializeGoogleAuth();
+        return;
+      }
       
-      await loginWithGoogle(mockCredentials);
-      onSuccess();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'Google login failed. Please try again.';
-      onError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      console.log('Loading Google script...');
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        console.log('Google script loaded successfully');
+        initializeGoogleAuth();
+      };
+      script.onerror = () => {
+        console.error('Failed to load Google script');
+      };
+      document.head.appendChild(script);
+    };
 
-  const handleGitHubLogin = async () => {
-    setIsLoading(true);
-    try {
-      // In a real implementation, you would integrate with GitHub OAuth
-      // For now, we'll simulate the OAuth flow
-      const mockCredentials: OAuthCredentials = {
-        access_token: 'mock_github_token',
-      };
-      
-      await loginWithGitHub(mockCredentials);
-      onSuccess();
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 'GitHub login failed. Please try again.';
-      onError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const initializeGoogleAuth = () => {
+      try {
+        // Get Google Client ID from environment
+        const googleClientId = import.meta.env.GOOGLE_CLIENT_ID;
+        console.log('Google Client ID:', googleClientId ? 'Found' : 'Not found');
+        
+        if (!googleClientId) {
+          console.error('Google Client ID not configured');
+          return;
+        }
+
+        // Check if FedCM is supported
+        const fedcmSupported = 'IdentityCredential' in window;
+        console.log('FedCM supported:', fedcmSupported);
+        
+        // Initialize Google Identity Services with popup flow
+        const config: any = {
+          client_id: googleClientId,
+          callback: async (response: any) => {
+            console.log('Google OAuth callback received', response);
+            try {
+              console.log('Calling loginWithGoogle...');
+              await loginWithGoogle(response.credential);
+              console.log('loginWithGoogle successful, calling onSuccess...');
+              onSuccess();
+              console.log('onSuccess called');
+            } catch (error: any) {
+              console.error('Google login error:', error);
+              const errorMessage = error.response?.data?.detail || 'Google login failed. Please try again.';
+              onError(errorMessage);
+            }
+          },
+          auto_select: false,
+          context: 'signin',
+          ux_mode: 'popup',
+          itp_support: true,
+        };
+
+        // Add FedCM-specific configuration if supported
+        if (fedcmSupported) {
+          config.use_fedcm_for_prompt = true;
+        }
+
+        console.log('Initializing Google Identity Services...');
+        window.google.accounts.id.initialize(config);
+
+        console.log('Rendering Google OAuth button...');
+        // Use renderButton to create a proper button that won't be suppressed
+        window.google.accounts.id.renderButton(
+          document.getElementById('google-signin-button'),
+          {
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'rectangular',
+            logo_alignment: 'center',
+          }
+        );
+
+        // Force full width after Google renders the button
+        setTimeout(() => {
+          const buttonContainer = document.getElementById('google-signin-button');
+          if (buttonContainer) {
+            const iframe = buttonContainer.querySelector('iframe');
+            const div = buttonContainer.querySelector('div');
+            const button = buttonContainer.querySelector('.gsi-button');
+            
+            if (iframe) {
+              iframe.style.width = '100%';
+              iframe.style.minWidth = '100%';
+            }
+            if (div) {
+              div.style.width = '100%';
+              div.style.minWidth = '100%';
+            }
+            if (button) {
+              (button as HTMLElement).style.width = '100%';
+              (button as HTMLElement).style.minWidth = '100%';
+            }
+          }
+        }, 100);
+      } catch (error: any) {
+        console.error('Google auth initialization error:', error);
+      }
+    };
+
+    loadGoogleScript();
+  }, [loginWithGoogle, onSuccess, onError]);
+
+
+  // GitHub login handler - commented out for now
+  // const handleGitHubLogin = async () => {
+  //   setIsLoading(true);
+  //   try {
+  //     // In a real implementation, you would integrate with GitHub OAuth
+  //     // For now, we'll simulate the OAuth flow
+  //     const mockCredentials: OAuthCredentials = {
+  //       access_token: 'mock_github_token',
+  //     };
+  //     
+  //     await loginWithGitHub(mockCredentials);
+  //     onSuccess();
+  //   } catch (error: any) {
+  //     const errorMessage = error.response?.data?.detail || 'GitHub login failed. Please try again.';
+  //     onError(errorMessage);
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   return (
     <div className="space-y-3">
-      <button
-        onClick={handleGoogleLogin}
-        disabled={isLoading}
-        className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-          <path
-            fill="#4285F4"
-            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-          />
-          <path
-            fill="#34A853"
-            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-          />
-          <path
-            fill="#FBBC05"
-            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-          />
-          <path
-            fill="#EA4335"
-            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-          />
-        </svg>
-        Continue with Google
-      </button>
+      <div 
+        id="google-signin-button" 
+        className="w-full"
+        style={{
+          width: '100%',
+          minHeight: '40px'
+        }}
+      ></div>
 
-      <button
+      {/* GitHub login button - commented out for now */}
+      {/* <button
         onClick={handleGitHubLogin}
         disabled={isLoading}
         className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -96,7 +171,7 @@ const OAuthButtons: React.FC<OAuthButtonsProps> = ({
           />
         </svg>
         Continue with GitHub
-      </button>
+      </button> */}
     </div>
   );
 };

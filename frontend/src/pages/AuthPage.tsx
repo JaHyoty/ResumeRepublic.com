@@ -91,8 +91,6 @@ const AuthPage: React.FC = () => {
           <OAuthButtons 
             onSuccess={handleAuthSuccess}
             onError={handleError}
-            isLoading={isLoading}
-            setIsLoading={setIsLoading}
           />
 
           <div className="relative">

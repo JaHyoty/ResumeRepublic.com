@@ -13,8 +13,9 @@ from app.core.settings import settings
 from app.core.database import get_db
 from app.core.auth import create_access_token, get_current_user
 from app.core.password import verify_password
+from app.core.google_oauth import google_oauth_service
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, Token, UserResponse
+from app.schemas.user import UserCreate, UserLogin, Token, UserResponse, GoogleOAuthRequest
 
 logger = structlog.get_logger()
 
@@ -150,3 +151,74 @@ async def logout():
 async def verify_token(current_user: User = Depends(get_current_user)):
     """Verify if token is valid"""
     return {"valid": True, "user_id": current_user.id}
+
+
+@router.post("/google", response_model=Token)
+async def google_oauth_login(
+    oauth_data: GoogleOAuthRequest, 
+    db: Session = Depends(get_db)
+):
+    """Login with Google OAuth"""
+    
+    # Verify Google ID token
+    google_user_info = await google_oauth_service.verify_id_token(oauth_data.id_token)
+    
+    if not google_user_info:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google token"
+        )
+    
+    # Check if email is verified
+    if not google_user_info.get('email_verified', False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google email not verified"
+        )
+    
+    email = google_user_info['email']
+    
+    # Check if user already exists by email (account linking)
+    existing_user = db.query(User).filter(User.email == email).first()
+    
+    if existing_user:
+        # User exists - log them in
+        if not existing_user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Account is inactive"
+            )
+        
+        user = existing_user
+        logger.info("Existing user logged in via Google OAuth", 
+                   user_id=user.id, email=email)
+    
+    else:
+        # Create new user
+        user = User(
+            email=email,
+            first_name=google_user_info.get('given_name', ''),
+            last_name=google_user_info.get('family_name', ''),
+            preferred_first_name=google_user_info.get('given_name', ''),
+            is_active=True,
+            is_verified=True,  # Google verified emails are considered verified
+            password_hash=None  # OAuth users don't have passwords
+        )
+        
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        
+        logger.info("New user created via Google OAuth", 
+                   user_id=user.id, email=email)
+    
+    # Create access token
+    access_token = create_access_token(
+        data={"sub": str(user.id)}
+    )
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    }
