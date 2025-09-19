@@ -83,6 +83,11 @@ const OAuthButtons: React.FC<OAuthButtonsProps> = ({
         window.google.accounts.id.initialize(config);
 
         console.log('Rendering Google OAuth button...');
+        
+        // Get the container width to make the button responsive
+        const container = document.getElementById('google-signin-button');
+        const containerWidth = container ? Math.min(container.offsetWidth, 420) : 400;
+        
         // Use renderButton to create a proper button that won't be suppressed
         window.google.accounts.id.renderButton(
           document.getElementById('google-signin-button'),
@@ -92,6 +97,7 @@ const OAuthButtons: React.FC<OAuthButtonsProps> = ({
             text: 'continue_with',
             shape: 'rectangular',
             logo_alignment: 'center',
+            width: containerWidth, // Use responsive container width (max 420px)
           }
         );
 
@@ -99,24 +105,54 @@ const OAuthButtons: React.FC<OAuthButtonsProps> = ({
         setTimeout(() => {
           const buttonContainer = document.getElementById('google-signin-button');
           if (buttonContainer) {
+            // Target all possible Google button elements
             const iframe = buttonContainer.querySelector('iframe');
             const div = buttonContainer.querySelector('div');
             const button = buttonContainer.querySelector('.gsi-button');
+            const span = buttonContainer.querySelector('span');
             
-            if (iframe) {
-              iframe.style.width = '100%';
-              iframe.style.minWidth = '100%';
-            }
-            if (div) {
-              div.style.width = '100%';
-              div.style.minWidth = '100%';
-            }
-            if (button) {
-              (button as HTMLElement).style.width = '100%';
-              (button as HTMLElement).style.minWidth = '100%';
-            }
+            // Apply full width and center alignment to all elements
+            [iframe, div, button, span].forEach(element => {
+              if (element) {
+                (element as HTMLElement).style.width = '100% !important';
+                (element as HTMLElement).style.minWidth = '100% !important';
+                (element as HTMLElement).style.maxWidth = '100% !important';
+                (element as HTMLElement).style.display = 'block !important';
+                (element as HTMLElement).style.margin = '0 !important';
+                (element as HTMLElement).style.marginLeft = '0 !important';
+                (element as HTMLElement).style.marginRight = '0 !important';
+                (element as HTMLElement).style.marginTop = '0 !important';
+                (element as HTMLElement).style.marginBottom = '0 !important';
+                (element as HTMLElement).style.height = '48px !important';
+                (element as HTMLElement).style.minHeight = '48px !important';
+              }
+            });
+            
+            // Also try to set the container itself
+            buttonContainer.style.width = '100%';
+            buttonContainer.style.display = 'block';
           }
         }, 100);
+        
+        // Try again after a longer delay in case Google takes time to render
+        setTimeout(() => {
+          const buttonContainer = document.getElementById('google-signin-button');
+          if (buttonContainer) {
+            const allElements = buttonContainer.querySelectorAll('*');
+            allElements.forEach(element => {
+              (element as HTMLElement).style.width = '100% !important';
+              (element as HTMLElement).style.minWidth = '100% !important';
+              (element as HTMLElement).style.height = '48px !important';
+              (element as HTMLElement).style.minHeight = '48px !important';
+              (element as HTMLElement).style.margin = '0 !important';
+              (element as HTMLElement).style.marginLeft = '0 !important';
+              (element as HTMLElement).style.marginRight = '0 !important';
+              (element as HTMLElement).style.marginTop = '0 !important';
+              (element as HTMLElement).style.marginBottom = '0 !important';
+            });
+          }
+        }, 500);
+
       } catch (error: any) {
         console.error('Google auth initialization error:', error);
       }
@@ -150,10 +186,12 @@ const OAuthButtons: React.FC<OAuthButtonsProps> = ({
     <div className="space-y-3">
       <div 
         id="google-signin-button" 
-        className="w-full"
+        className="w-full flex justify-center [&>*]:!w-full [&>*]:!min-w-full [&>*]:!max-w-full [&>*]:!block [&_iframe]:!m-0 [&_iframe]:!ml-0 [&_iframe]:!mr-0 [&_iframe]:!mt-0 [&_iframe]:!mb-0"
         style={{
-          width: '100%',
-          minHeight: '40px'
+          minHeight: '48px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center'
         }}
       ></div>
 

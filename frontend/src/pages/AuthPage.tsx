@@ -51,7 +51,7 @@ const AuthPage: React.FC = () => {
         </svg>
       </button>
       
-      <div className="max-w-md w-full space-y-8">
+      <div className="w-full space-y-8" style={{ maxWidth: '420px' }}>
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             {mode === 'login' ? 'Sign in to your account' : 'Create your account'}
