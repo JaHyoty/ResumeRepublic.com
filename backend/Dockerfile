@@ -10,11 +10,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
+# Install system dependencies including LaTeX
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
+    texlive-latex-base \
+    texlive-latex-extra \
+    texlive-fonts-recommended \
+    texlive-fonts-extra \
+    texlive-latex-recommended \
+    texlive-xetex \
+    texlive-science \
     && rm -rf /var/lib/apt/lists/*
+
+# Verify LaTeX installation
+RUN pdflatex --version
 
 # Copy requirements first for better caching
 COPY requirements.txt .
