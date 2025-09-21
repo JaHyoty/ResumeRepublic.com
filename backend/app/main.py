@@ -12,7 +12,7 @@ import logging
 
 from app.core.settings import settings
 from app.core.secret_manager import clear_credentials_cache
-from app.core.database import engine
+# Note: engine imported dynamically to get fresh reference after refresh
 from app.api import auth, esc, resume, user, applications
 
 # Configure structured logging
@@ -116,7 +116,9 @@ async def health_check():
     # Check database connection and migration status
     db_status = "unknown"
     try:
-        # Use the existing engine from database module instead of creating a new one
+        # Import engine dynamically to get fresh reference after refresh
+        from app.core.database import engine
+        logger.debug(f"Health check using engine: {id(engine)}")
         with engine.connect() as conn:
             # Check if alembic_version table exists
             result = conn.execute(text("""
@@ -138,11 +140,56 @@ async def health_check():
     except Exception as e:
         error_str = str(e).lower()
         if any(keyword in error_str for keyword in ['authentication', 'password', 'login', 'access denied', 'fatal: password authentication failed']):
-            logger.warning("Database authentication error detected, clearing credentials cache", error=str(e))
-            clear_credentials_cache()
+            logger.warning("Database authentication error detected, attempting credential refresh", error=str(e))
+            try:
+                from app.core.database import force_refresh_database_engines, validate_database_connection, is_refresh_in_progress
+                
+                # Check if refresh is already in progress
+                if is_refresh_in_progress():
+                    logger.info("Database refresh already in progress, waiting for completion")
+                    db_status = "refresh_in_progress"
+                else:
+                    force_refresh_database_engines()
+                    logger.info("Successfully refreshed database engines, validating connection")
+                    
+                    # Validate the new connection using the refreshed engine
+                    if validate_database_connection():
+                        db_status = "refreshed_and_connected"
+                        logger.info("Database connection successful after credential refresh")
+                        
+                        # Retry the original health check query with the new engine
+                        try:
+                            # Import fresh engine reference
+                            from app.core.database import engine as fresh_engine
+                            logger.debug(f"Retry health check using engine: {id(fresh_engine)}")
+                            with fresh_engine.connect() as conn:
+                                result = conn.execute(text("""
+                                    SELECT EXISTS (
+                                        SELECT FROM information_schema.tables 
+                                        WHERE table_name = 'alembic_version'
+                                    )
+                                """))
+                                has_alembic_table = result.fetchone()[0]
+                                
+                                if has_alembic_table:
+                                    result = conn.execute(text("SELECT version_num FROM alembic_version"))
+                                    current_version = result.fetchone()[0] if result.rowcount > 0 else "unknown"
+                                    db_status = f"refreshed_and_migrated (version: {current_version})"
+                                else:
+                                    db_status = "refreshed_and_connected"
+                        except Exception as retry_error:
+                            logger.warning("Failed to retry health check after refresh", error=str(retry_error))
+                            db_status = "refreshed_and_connected"
+                    else:
+                        db_status = "refresh_failed"
+                        logger.error("Database connection validation failed after refresh")
+                    
+            except Exception as refresh_error:
+                logger.error("Failed to refresh database engines", error=str(refresh_error))
+                db_status = "refresh_error"
         else:
             logger.warning("Database health check failed", error=str(e))
-        db_status = "error"
+            db_status = "error"
     
     return {
         "status": "healthy",
@@ -150,6 +197,8 @@ async def health_check():
         "version": "1.0.0",
         "database": db_status
     }
+
+
 
 
 if __name__ == "__main__":
