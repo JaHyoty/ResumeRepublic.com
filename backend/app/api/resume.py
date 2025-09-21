@@ -182,9 +182,13 @@ async def generate_optimized_resume_pdf(resume_data: Dict[str, Any], current_use
         # Fetch all user data from database
         user_data = fetch_user_data_for_resume(current_user.id, db)
         
+        # Get locale for LLM formatting instructions
+        locale = resume_data.get("locale", "en-US")
+        personal_info = resume_data.get("personal_info", {})
+        
         # Prepare applicant data (combine user data with personal info from UI)
         applicant_data = {
-            "personal_info": resume_data.get("personal_info", {}),
+            "personal_info": personal_info,
             "education": user_data["education"],
             "experiences": user_data["experiences"],
             "projects": user_data["projects"],
@@ -203,7 +207,8 @@ async def generate_optimized_resume_pdf(resume_data: Dict[str, Any], current_use
             job_title=job_title,
             job_description=job_description,
             applicant_data=applicant_data,
-            template_content=template_content_for_llm
+            template_content=template_content_for_llm,
+            locale=locale
         )
         logger.debug(f"LLM service completed for user {current_user.id}")
         

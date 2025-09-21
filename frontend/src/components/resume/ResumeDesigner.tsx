@@ -45,6 +45,15 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(linkedApplicationId || null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  
+  // Get user's locale for phone number formatting
+  const [userLocale, setUserLocale] = useState<string>('en-US')
+
+  // Detect user's locale on component mount
+  useEffect(() => {
+    const detectedLocale = navigator.language || navigator.languages?.[0] || 'en-US'
+    setUserLocale(detectedLocale)
+  }, [])
 
   // Fetch user data (only for personal info and applications)
   const { data: userInfo } = useQuery({
@@ -137,7 +146,8 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
         job_title: jobTitle,
         company: company,
         job_description: jobDescription,
-        linked_application_id: selectedApplicationId
+        linked_application_id: selectedApplicationId,
+        locale: userLocale
       }
 
       // Generate optimized resume using LLM

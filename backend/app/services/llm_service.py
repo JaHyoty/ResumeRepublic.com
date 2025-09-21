@@ -42,7 +42,8 @@ class LLMService:
         job_title: str,
         job_description: str,
         applicant_data: Dict[str, Any],
-        template_content: str
+        template_content: str,
+        locale: str = "en-US"
     ) -> str:
         """
         Generate optimized resume using LLM
@@ -65,11 +66,37 @@ CRITICAL REQUIREMENTS:
 - Do NOT add explanations, comments, or markdown formatting
 - Return ONLY valid LaTeX code starting with \\begin{{document}} and ending with \\end{{document}}
 
+FORMATTING REQUIREMENTS:
+1. MULTI-POSITION FORMATTING:
+   - If an applicant has multiple positions at the same company, use the multi-position format from the template
+   - First position: Use \\resumeSubheading with company name and location
+   - Additional positions at same company: Use \\resumeSubSubheading (without repeating company name)
+   - Group all positions under the same company together
+
+2. KEYWORD INTEGRATION:
+   - You have creative freedom to rephrase and optimize experience descriptions
+   - Integrate relevant keywords from the job description naturally into achievements
+   - Enhance descriptions while maintaining factual accuracy
+   - Use action verbs and quantifiable results when possible
+   - Make descriptions more compelling and ATS-friendly
+
+3. PHONE NUMBER FORMATTING:
+   - Format phone numbers according to the specified locale: {locale}
+   - Use appropriate regional formatting for professional presentation
+   - Examples by locale:
+     * en-US/en-CA: (555) 123-4567 or +1 (555) 123-4567
+     * en-GB/en-AU: 0123 456 789 or +44 123 456 789
+     * fr-FR: 01 23 45 67 89 or +33 1 23 45 67 89
+     * de-DE: 030 12345678 or +49 30 12345678
+     * es-ES/es-MX: 123 456 789 or +34 123 456 789
+     * For other locales, use international format: +[country code] [number]
+   - Ensure the phone number looks professional and follows regional conventions
+
 ACCURACY REQUIREMENTS:
 1. Use ONLY knowledge found from the applicant's history:
    - Skills section must contain ONLY skills present in the applicant's skills list
    - Experience section must NOT claim achievements the applicant has not claimed
-   - Experience section must use ONLY skills found in the applicant's skills   - 
+   - Experience section must use ONLY skills found in the applicant's skills
    - Certifications section must use EXACT naming from the applicant's certifications
 
 2. Education:
@@ -82,7 +109,7 @@ ACCURACY REQUIREMENTS:
    - Do not display the location for education
 
 3. Experience:
-   - MANDATORY:	display the location of the every experience, even if Remote
+   - MANDATORY: display the location of every experience, even if Remote
    - MANDATORY: Select only one job title for an experience. Choose the most relevant title.
    - FORBIDDEN: Do NOT repeat job titles for an experience. One experience can have only one job title.
 
@@ -91,7 +118,6 @@ ACCURACY REQUIREMENTS:
    - Use a blank space ' ' for the date parameter
    
 5. Avoid vague adjectives - use only hard truths and specific facts
-
 
 JOB DESCRIPTION:
 {job_description}

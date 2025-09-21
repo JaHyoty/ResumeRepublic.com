@@ -22,3 +22,4 @@ class ResumeDesignRequest(BaseModel):
     company: str
     job_description: str
     linked_application_id: Optional[int] = None
+    locale: Optional[str] = "en-US"  # Default to US format
