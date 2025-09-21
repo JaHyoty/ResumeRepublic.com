@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 interface ProjectTechnology {
   technology: string
@@ -34,6 +34,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   initialData,
   mode = 'create'
 }) => {
+  const projectNameInputRef = useRef<HTMLInputElement>(null)
+  
   const [formData, setFormData] = useState<ProjectFormData>(
     initialData || {
       name: '',
@@ -48,6 +50,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   )
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Auto-focus the first input field when component mounts
+  useEffect(() => {
+    if (projectNameInputRef.current) {
+      projectNameInputRef.current.focus()
+    }
+  }, [])
 
   const handleInputChange = (field: keyof ProjectFormData, value: string | boolean) => {
     setFormData(prev => ({
@@ -183,6 +192,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           Project Name *
         </label>
         <input
+          ref={projectNameInputRef}
           type="text"
           id="name"
           value={formData.name}

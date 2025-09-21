@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { type Skill, type CreateSkillRequest } from '../../services/skillService'
 
 interface SkillsFormData {
@@ -20,11 +20,20 @@ const SkillsForm: React.FC<SkillsFormProps> = ({
   initialData,
   mode = 'create'
 }) => {
+  const skillNameInputRef = useRef<HTMLInputElement>(null)
+  
   const [formData, setFormData] = useState<SkillsFormData>({
     name: initialData?.name || ''
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof SkillsFormData, string>>>({})
+
+  // Auto-focus the first input field when component mounts
+  useEffect(() => {
+    if (skillNameInputRef.current) {
+      skillNameInputRef.current.focus()
+    }
+  }, [])
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof SkillsFormData, string>> = {}
@@ -74,6 +83,7 @@ const SkillsForm: React.FC<SkillsFormProps> = ({
           Skill Name *
         </label>
         <input
+          ref={skillNameInputRef}
           type="text"
           id="name"
           value={formData.name}

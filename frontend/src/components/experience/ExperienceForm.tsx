@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 
 interface ExperienceTitle {
   title: string
@@ -35,6 +35,8 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
   initialData,
   mode = 'create'
 }) => {
+  const companyInputRef = useRef<HTMLInputElement>(null)
+  
   const [formData, setFormData] = useState<ExperienceFormData>(
     initialData || {
       company: '',
@@ -49,6 +51,13 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
   )
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // Auto-focus the first input field when component mounts
+  useEffect(() => {
+    if (companyInputRef.current) {
+      companyInputRef.current.focus()
+    }
+  }, [])
 
   const handleInputChange = (field: keyof ExperienceFormData, value: string | boolean) => {
     setFormData(prev => ({
@@ -175,6 +184,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
             Company *
           </label>
           <input
+            ref={companyInputRef}
             type="text"
             value={formData.company}
             onChange={(e) => handleInputChange('company', e.target.value)}

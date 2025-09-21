@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { type Publication, type CreatePublicationRequest } from '../../services/publicationService'
 
 interface PublicationsFormData {
@@ -26,6 +26,8 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
   initialData,
   mode = 'create'
 }) => {
+  const publicationTitleInputRef = useRef<HTMLInputElement>(null)
+  
   const [formData, setFormData] = useState<PublicationsFormData>({
     title: initialData?.title || '',
     co_authors: initialData?.co_authors || '',
@@ -37,6 +39,13 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof PublicationsFormData, string>>>({})
+
+  // Auto-focus the first input field when component mounts
+  useEffect(() => {
+    if (publicationTitleInputRef.current) {
+      publicationTitleInputRef.current.focus()
+    }
+  }, [])
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof PublicationsFormData, string>> = {}
@@ -116,6 +125,7 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
             Publication Title *
           </label>
           <input
+            ref={publicationTitleInputRef}
             type="text"
             id="title"
             value={formData.title}

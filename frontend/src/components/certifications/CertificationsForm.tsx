@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { type Certification, type CreateCertificationRequest } from '../../services/certificationService'
 
 interface CertificationsFormData {
@@ -25,6 +25,8 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
   initialData,
   mode = 'create'
 }) => {
+  const certificationNameInputRef = useRef<HTMLInputElement>(null)
+  
   const [formData, setFormData] = useState<CertificationsFormData>({
     name: initialData?.name || '',
     issuer: initialData?.issuer || '',
@@ -35,6 +37,13 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof CertificationsFormData, string>>>({})
+
+  // Auto-focus the first input field when component mounts
+  useEffect(() => {
+    if (certificationNameInputRef.current) {
+      certificationNameInputRef.current.focus()
+    }
+  }, [])
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof CertificationsFormData, string>> = {}
@@ -109,6 +118,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             Certification Name *
           </label>
           <input
+            ref={certificationNameInputRef}
             type="text"
             id="name"
             value={formData.name}

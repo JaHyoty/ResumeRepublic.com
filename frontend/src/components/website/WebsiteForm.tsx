@@ -1,5 +1,5 @@
 import { useEnhancedClickOutside } from '../../hooks/useEnhancedClickOutside'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createWebsite, updateWebsite, type Website, type WebsiteCreate, type WebsiteUpdate } from '../../services/websiteService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 
@@ -21,6 +21,8 @@ const WebsiteForm: React.FC<WebsiteFormProps> = ({
   onSuccess,
   initialData
 }) => {
+  const siteNameInputRef = useRef<HTMLInputElement>(null)
+  
   const [formData, setFormData] = useState<WebsiteFormData>({
     site_name: '',
     url: ''
@@ -51,6 +53,13 @@ const WebsiteForm: React.FC<WebsiteFormProps> = ({
 
   // Use the scroll lock hook
   useScrollPosition(isOpen)
+
+  // Auto-focus the first input field when component mounts
+  useEffect(() => {
+    if (isOpen && siteNameInputRef.current) {
+      siteNameInputRef.current.focus()
+    }
+  }, [isOpen])
 
   const handleInputChange = (field: keyof WebsiteFormData, value: string) => {
     setFormData(prev => ({
@@ -161,6 +170,7 @@ const WebsiteForm: React.FC<WebsiteFormProps> = ({
                 Site Name *
               </label>
               <input
+                ref={siteNameInputRef}
                 type="text"
                 value={formData.site_name}
                 onChange={(e) => handleInputChange('site_name', e.target.value)}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { educationService, type Education, type EducationCreate, type EducationUpdate } from '../../services/educationService'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 
@@ -27,6 +27,8 @@ const EducationForm: React.FC<EducationFormProps> = ({
   onSuccess,
   initialData
 }) => {
+  const institutionInputRef = useRef<HTMLInputElement>(null)
+  
   const [formData, setFormData] = useState<EducationFormData>({
     institution: '',
     degree: '',
@@ -72,6 +74,13 @@ const EducationForm: React.FC<EducationFormProps> = ({
 
   // Use the scroll lock hook
   useScrollPosition(isOpen)
+
+  // Auto-focus the first input field when component mounts
+  useEffect(() => {
+    if (isOpen && institutionInputRef.current) {
+      institutionInputRef.current.focus()
+    }
+  }, [isOpen])
 
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof EducationFormData, string>> = {}
@@ -173,6 +182,7 @@ const EducationForm: React.FC<EducationFormProps> = ({
                 Institution *
               </label>
               <input
+                ref={institutionInputRef}
                 type="text"
                 value={formData.institution}
                 onChange={(e) => handleInputChange('institution', e.target.value)}
