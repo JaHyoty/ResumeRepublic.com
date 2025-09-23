@@ -7,7 +7,6 @@ from pydantic import field_validator
 from typing import List, Optional, Union
 import structlog
 import secrets
-import os
 from app.core.config import get_config
 
 logger = structlog.get_logger(__name__)

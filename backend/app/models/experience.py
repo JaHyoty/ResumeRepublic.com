@@ -23,7 +23,6 @@ class Experience(Base):
     # Relationships
     user = relationship("User", back_populates="experiences")
     titles = relationship("ExperienceTitle", back_populates="experience", cascade="all, delete-orphan")
-    achievements = relationship("Achievement", back_populates="experience", cascade="all, delete-orphan")
     tools = relationship("ExperienceTool", back_populates="experience", cascade="all, delete-orphan")
 
     def __repr__(self):
@@ -46,16 +45,3 @@ class ExperienceTitle(Base):
         return f"<ExperienceTitle(id={self.id}, title='{self.title}')>"
 
 
-class Achievement(Base):
-    """Achievements linked to experiences"""
-    __tablename__ = "achievements"
-
-    id = Column(Integer, primary_key=True, index=True)
-    experience_id = Column(Integer, ForeignKey("experiences.id", ondelete="CASCADE"), nullable=False)
-    description = Column(Text, nullable=False)
-
-    # Relationships
-    experience = relationship("Experience", back_populates="achievements")
-
-    def __repr__(self):
-        return f"<Achievement(id={self.id}, description='{self.description[:50]}...')>"

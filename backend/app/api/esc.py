@@ -10,7 +10,7 @@ from sqlalchemy import case, desc, nullslast
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.models.user import User
-from app.models.experience import Experience as ExperienceModel, ExperienceTitle as ExperienceTitleModel, Achievement as AchievementModel
+from app.models.experience import Experience as ExperienceModel, ExperienceTitle as ExperienceTitleModel
 from app.models.skill import Skill as SkillModel
 from app.models.certification import Certification as CertificationModel
 from app.models.publication import Publication as PublicationModel
@@ -82,13 +82,6 @@ def create_experience(
         )
         db.add(db_title)
     
-    # Add achievements
-    for achievement_data in experience_data.achievements:
-        db_achievement = AchievementModel(
-            experience_id=db_experience.id,
-            description=achievement_data.description
-        )
-        db.add(db_achievement)
     
     db.commit()
     db.refresh(db_experience)
@@ -136,7 +129,7 @@ def update_experience(
         )
     
     # Update main experience fields if provided
-    update_data = experience_data.model_dump(exclude_unset=True, exclude={'titles', 'achievements'})
+    update_data = experience_data.model_dump(exclude_unset=True, exclude={'titles'})
     for field, value in update_data.items():
         setattr(experience, field, value)
     
@@ -156,20 +149,6 @@ def update_experience(
             )
             db.add(db_title)
     
-    # Update achievements if provided
-    if hasattr(experience_data, 'achievements') and experience_data.achievements is not None:
-        # Delete existing achievements
-        db.query(AchievementModel).filter(
-            AchievementModel.experience_id == experience_id
-        ).delete()
-        
-        # Add new achievements
-        for achievement_data in experience_data.achievements:
-            db_achievement = AchievementModel(
-                experience_id=experience_id,
-                description=achievement_data.description
-            )
-            db.add(db_achievement)
     
     db.commit()
     db.refresh(experience)

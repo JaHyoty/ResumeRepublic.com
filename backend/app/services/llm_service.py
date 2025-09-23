@@ -62,7 +62,6 @@ CRITICAL REQUIREMENTS:
 - Use ONLY the provided LaTeX template structure
 - Replace template content with applicant's information
 - Highlight keywords from the job description
-- Use X,Y,Z format for achievements
 - Do NOT add explanations, comments, or markdown formatting
 - Return ONLY valid LaTeX code starting with \\begin{{document}} and ending with \\end{{document}}
 
@@ -75,7 +74,7 @@ FORMATTING REQUIREMENTS:
 
 2. KEYWORD INTEGRATION:
    - You have creative freedom to rephrase and optimize experience descriptions
-   - Integrate relevant keywords from the job description naturally into achievements
+   - Integrate relevant keywords from the job description naturally into descriptions
    - Enhance descriptions while maintaining factual accuracy
    - Use action verbs and quantifiable results when possible
    - Make descriptions more compelling and ATS-friendly
@@ -95,7 +94,7 @@ FORMATTING REQUIREMENTS:
 ACCURACY REQUIREMENTS:
 1. Use ONLY knowledge found from the applicant's history:
    - Skills section must contain ONLY skills present in the applicant's skills list
-   - Experience section must NOT claim achievements the applicant has not claimed
+   - Experience section must NOT claim accomplishments the applicant has not claimed
    - Experience section must use ONLY skills found in the applicant's skills
    - Certifications section must use EXACT naming from the applicant's certifications
 
@@ -324,11 +323,6 @@ Generate the optimized resume now."""
                 if exp.get('description'):
                     formatted_data.append(f"  Description: {exp['description']}")
                 
-                # Achievements
-                if exp.get('achievements'):
-                    formatted_data.append("  Key Achievements:")
-                    for achievement in exp['achievements']:
-                        formatted_data.append(f"    - {achievement.get('description', 'N/A')}")
                 
                 formatted_data.append("")
         
@@ -350,11 +344,6 @@ Generate the optimized resume now."""
                     for tech in project['technologies']:
                         formatted_data.append(f"    - {tech.get('technology', 'N/A')}")
                 
-                # Achievements
-                if project.get('achievements'):
-                    formatted_data.append("  Key Achievements:")
-                    for achievement in project['achievements']:
-                        formatted_data.append(f"    - {achievement.get('description', 'N/A')}")
                 
                 formatted_data.append("")
         

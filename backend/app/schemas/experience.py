@@ -24,22 +24,6 @@ class ExperienceTitle(ExperienceTitleBase):
         from_attributes = True
 
 
-class AchievementBase(BaseModel):
-    description: str
-
-
-class AchievementCreate(AchievementBase):
-    pass
-
-
-class Achievement(AchievementBase):
-    id: int
-    experience_id: int
-
-    class Config:
-        from_attributes = True
-
-
 class ExperienceBase(BaseModel):
     company: str
     location: Optional[str] = None
@@ -51,7 +35,6 @@ class ExperienceBase(BaseModel):
 
 class ExperienceCreate(ExperienceBase):
     titles: List[ExperienceTitleCreate] = []
-    achievements: List[AchievementCreate] = []
 
 
 class ExperienceUpdate(BaseModel):
@@ -62,14 +45,12 @@ class ExperienceUpdate(BaseModel):
     description: Optional[str] = None
     is_current: Optional[bool] = None
     titles: Optional[List[ExperienceTitleCreate]] = None
-    achievements: Optional[List[AchievementCreate]] = None
 
 
 class Experience(ExperienceBase):
     id: int
     user_id: int
     titles: List[ExperienceTitle] = []
-    achievements: List[Achievement] = []
 
     class Config:
         from_attributes = True

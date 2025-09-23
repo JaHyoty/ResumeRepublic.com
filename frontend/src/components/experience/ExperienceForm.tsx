@@ -5,10 +5,6 @@ interface ExperienceTitle {
   is_primary: boolean
 }
 
-interface Achievement {
-  description: string
-}
-
 interface ExperienceFormData {
   company: string
   location?: string
@@ -17,7 +13,6 @@ interface ExperienceFormData {
   description?: string
   is_current: boolean
   titles: ExperienceTitle[]
-  achievements: Achievement[]
 }
 
 interface ExperienceFormProps {
@@ -45,8 +40,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
       end_date: '',
       description: '',
       is_current: false,
-      titles: [{ title: '', is_primary: true }],
-      achievements: [{ description: '' }]
+      titles: [{ title: '', is_primary: true }]
     }
   )
 
@@ -80,15 +74,6 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
     }))
   }
 
-  const handleAchievementChange = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      achievements: prev.achievements.map((achievement, i) => 
-        i === index ? { ...achievement, description: value } : achievement
-      )
-    }))
-  }
-
   const addTitle = () => {
     setFormData(prev => ({
       ...prev,
@@ -101,22 +86,6 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
       setFormData(prev => ({
         ...prev,
         titles: prev.titles.filter((_, i) => i !== index)
-      }))
-    }
-  }
-
-  const addAchievement = () => {
-    setFormData(prev => ({
-      ...prev,
-      achievements: [...prev.achievements, { description: '' }]
-    }))
-  }
-
-  const removeAchievement = (index: number) => {
-    if (formData.achievements.length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        achievements: prev.achievements.filter((_, i) => i !== index)
       }))
     }
   }
@@ -140,9 +109,6 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
       newErrors.titles = 'All job titles must be filled'
     }
 
-    if (formData.achievements.some(achievement => !achievement.description.trim())) {
-      newErrors.achievements = 'All achievements must be filled or removed'
-    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -155,7 +121,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
       return
     }
 
-    // Filter out empty achievements and prepare data
+    // Prepare data
     const cleanedData = {
       ...formData,
       // Ensure dates are in YYYY-MM-DD format
@@ -164,8 +130,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
       // Ensure location is not empty string
       location: formData.location?.trim() || undefined,
       // Ensure description is not empty string  
-      description: formData.description?.trim() || undefined,
-      achievements: formData.achievements.filter(a => a.description.trim() !== '')
+      description: formData.description?.trim() || undefined
     }
 
     try {
@@ -329,51 +294,17 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
 
       {/* Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
           Description
         </label>
         <textarea
-          value={formData.description}
-          onChange={(e) => handleInputChange('description', e.target.value)}
-          rows={4}
+          value={formData.description || ''}
+          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          rows={6}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="Describe your role and responsibilities..."
+          placeholder="Describe 2-6 key achievements and how you achieved them. Use action verbs and quantify results when possible (e.g., 'Increased sales by 25% by implementing new CRM system' or 'Led team of 5 developers to deliver project 2 weeks ahead of schedule')."
         />
-      </div>
-
-      {/* Achievements */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Key Achievements
-        </label>
-        {formData.achievements.map((achievement, index) => (
-          <div key={index} className="flex items-start space-x-2 mb-2">
-            <textarea
-              value={achievement.description}
-              onChange={(e) => handleAchievementChange(index, e.target.value)}
-              rows={2}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Describe a key achievement or accomplishment..."
-            />
-            {formData.achievements.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeAchievement(index)}
-                className="text-red-500 hover:text-red-700 text-sm mt-2"
-              >
-                Remove
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={addAchievement}
-          className="text-blue-500 hover:text-blue-700 text-sm"
-        >
-          + Add another achievement
-        </button>
-        {errors.achievements && <p className="text-red-500 text-xs mt-1">{errors.achievements}</p>}
+        {errors.description && <p className="text-red-500 text-xs mt-1">{errors.description}</p>}
       </div>
 
       {/* Form Actions */}

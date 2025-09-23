@@ -817,11 +817,6 @@ const ExperienceSkillsView: React.FC = () => {
               {formatDate(experience.start_date)} - {experience.is_current ? 'Present' : (experience.end_date ? formatDate(experience.end_date) : 'Present')}
               {experience.location && ` • ${experience.location}`}
             </p>
-            {experience.achievements.length > 0 && (
-              <p className="text-xs text-gray-500 mt-1">
-                {experience.achievements.length} achievement{experience.achievements.length !== 1 ? 's' : ''}
-              </p>
-            )}
           </div>
           <div className="flex space-x-1 ml-4">
             <button 
@@ -875,19 +870,6 @@ const ExperienceSkillsView: React.FC = () => {
               </div>
             )}
             
-            {experience.achievements.length > 0 && (
-              <div>
-                <h5 className="text-sm font-medium text-gray-900 mb-2">Key Achievements</h5>
-                <ul className="space-y-1">
-                  {experience.achievements.map((achievement, index) => (
-                    <li key={index} className="text-sm text-gray-600 flex items-start">
-                      <span className="text-blue-500 mr-2">•</span>
-                      {achievement.description}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -1214,9 +1196,6 @@ const ExperienceSkillsView: React.FC = () => {
             title: t.title,
             is_primary: t.is_primary
           })),
-          achievements: editingExperience.achievements.map(a => ({
-            description: a.description
-          }))
         } : undefined}
         mode={modalMode}
       />

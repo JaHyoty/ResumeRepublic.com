@@ -6,11 +6,6 @@ export interface ExperienceTitle {
   is_primary: boolean
 }
 
-export interface Achievement {
-  id?: number
-  description: string
-}
-
 export interface Experience {
   id?: number
   company: string
@@ -20,7 +15,6 @@ export interface Experience {
   description?: string
   is_current: boolean
   titles: ExperienceTitle[]
-  achievements: Achievement[]
 }
 
 export interface CreateExperienceRequest {
@@ -31,7 +25,6 @@ export interface CreateExperienceRequest {
   description?: string
   is_current: boolean
   titles: Omit<ExperienceTitle, 'id'>[]
-  achievements: Omit<Achievement, 'id'>[]
 }
 
 export const experienceService = {

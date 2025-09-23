@@ -16,7 +16,7 @@ from app.core.auth import get_current_user
 from app.models.user import User
 from app.models.application import Application
 from app.models.resume import ResumeVersion
-from app.models.experience import Experience, ExperienceTitle, Achievement
+from app.models.experience import Experience, ExperienceTitle
 from app.models.education import Education
 from app.models.skill import Skill
 from app.models.certification import Certification
@@ -37,7 +37,7 @@ def fetch_user_data_for_resume(user_id: int, db: Session) -> Dict[str, Any]:
     """
     logger.debug(f"Fetching user data for user {user_id}")
     try:
-        # Fetch experiences with titles and achievements
+        # Fetch experiences with titles
         experiences = db.query(Experience).filter(Experience.user_id == user_id).all()
         logger.debug(f"Found {len(experiences)} experiences for user {user_id}")
     except Exception as e:
@@ -46,7 +46,6 @@ def fetch_user_data_for_resume(user_id: int, db: Session) -> Dict[str, Any]:
     experience_data = []
     for exp in experiences:
         titles = db.query(ExperienceTitle).filter(ExperienceTitle.experience_id == exp.id).all()
-        achievements = db.query(Achievement).filter(Achievement.experience_id == exp.id).all()
         
         experience_data.append({
             "company": exp.company,
@@ -55,8 +54,7 @@ def fetch_user_data_for_resume(user_id: int, db: Session) -> Dict[str, Any]:
             "end_date": exp.end_date.isoformat() if exp.end_date else None,
             "is_current": exp.is_current,
             "description": exp.description,
-            "titles": [{"title": t.title, "is_primary": t.is_primary} for t in titles],
-            "achievements": [{"description": a.description} for a in achievements]
+            "titles": [{"title": t.title, "is_primary": t.is_primary} for t in titles]
         })
     
     # Fetch education
