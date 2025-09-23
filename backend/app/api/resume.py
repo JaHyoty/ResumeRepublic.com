@@ -313,7 +313,7 @@ async def design_resume(
             user_id=current_user.id,
             application_id=application_id,
             title=f"{resume_data.personal_info.name} - {application.company}",
-            template_used='resume-template-1',
+            template_used='Detailed Resume',
             pdf_content=pdf_content_b64,
             pdf_url=None,  # Will be set after commit when we have the ID
             resume_metadata={

@@ -38,7 +38,6 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  // Template is now fixed to resume-template-1
   const [jobTitle, setJobTitle] = useState('')
   const [company, setCompany] = useState('')
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '')

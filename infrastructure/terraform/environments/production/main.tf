@@ -196,6 +196,18 @@ module "compute" {
     {
       name  = "DATABASE_CREDENTIALS_CACHE_TTL"
       value = "300"
+    },
+    {
+      name  = "ENFORCE_TLS"
+      value = "true"
+    },
+    {
+      name  = "SSL_VERIFY_CERTIFICATES"
+      value = "true"
+    },
+    {
+      name  = "SSL_VERIFY_CERTIFICATES_DEV"
+      value = "true"
     }
   ]
 
