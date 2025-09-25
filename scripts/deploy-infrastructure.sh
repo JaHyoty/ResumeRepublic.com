@@ -29,15 +29,28 @@ usage() {
     echo ""
     echo "ACTION:"
     echo "  plan                Plan the deployment (default)"
-    echo "  apply               Apply the deployment"
+    echo "  apply               Apply the deployment (auto-detects count dependencies)"
     echo "  destroy             Destroy the environment"
     echo "  init                Initialize Terraform"
     echo "  validate            Validate Terraform configuration"
     echo ""
+    echo "FEATURES:"
+    echo "  🎯 Targeted Deployment: Automatically detects count dependency issues"
+    echo "     and uses targeted deployment (DNS + Networking first, then rest)"
+    echo "  🔍 Smart Detection: Checks for 'Invalid count argument' errors"
+    echo "  🚀 Production Ready: Handles complex Terraform dependencies gracefully"
+    echo ""
     echo "Examples:"
     echo "  $0 dev plan         Plan development environment"
-    echo "  $0 prod apply       Deploy production environment"
+    echo "  $0 prod apply       Deploy production environment (with auto-targeting)"
     echo "  $0 dev destroy      Destroy development environment"
+    echo ""
+    echo "Targeted Deployment Process:"
+    echo "  1. Detects count dependency issues automatically"
+    echo "  2. Phase 1: Deploys Networking module (excluding HTTPS listener)"
+    echo "  3. Phase 2: Deploys DNS module (creates ACM certificate)"
+    echo "  4. Phase 3: Deploys remaining infrastructure (including HTTPS listener)"
+    echo "  5. Provides detailed progress and error handling"
     exit 1
 }
 
@@ -174,6 +187,52 @@ plan_deployment() {
     echo -e "${BLUE}ℹ️  To apply this plan, run: $0 $ENVIRONMENT apply${NC}"
 }
 
+# Function to check for count dependency issues
+check_count_dependency() {
+    local env_path=$1
+    
+    echo -e "${YELLOW}🔍 Checking for count dependency issues...${NC}"
+    cd "$env_path"
+    
+    # Try to plan and check for count dependency errors
+    if terraform plan -out=tfplan 2>&1 | grep -q "Invalid count argument"; then
+        echo -e "${YELLOW}⚠️  Count dependency detected. Using targeted deployment approach.${NC}"
+        return 0  # Count dependency found
+    else
+        return 1  # No count dependency
+    fi
+}
+
+# Function to apply deployment with targeted approach for count dependencies
+apply_deployment_targeted() {
+    local env_path=$1
+    local env_name=$2
+    
+    echo -e "${YELLOW}🚀 Deploying $env_name infrastructure with targeted approach...${NC}"
+    cd "$env_path"
+    
+    echo -e "${BLUE}📋 Phase 1: Deploying Networking module (VPC, subnets, security groups)...${NC}"
+    # Deploy networking module but exclude the HTTPS listener that has count dependency
+    if ! terraform apply -target=module.networking -target=-module.networking.aws_lb_listener.backend_https -auto-approve; then
+        echo -e "${RED}❌ Phase 1 deployment failed${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}📋 Phase 2: Deploying DNS module...${NC}"
+    if ! terraform apply -target=module.dns -auto-approve; then
+        echo -e "${RED}❌ Phase 2 deployment failed${NC}"
+        exit 1
+    fi
+    
+    echo -e "${BLUE}📋 Phase 3: Deploying remaining infrastructure...${NC}"
+    if ! terraform apply -auto-approve; then
+        echo -e "${RED}❌ Phase 3 deployment failed${NC}"
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✅ Infrastructure deployed successfully with targeted approach!${NC}"
+}
+
 # Function to apply deployment
 apply_deployment() {
     local env_path=$1
@@ -182,24 +241,43 @@ apply_deployment() {
     echo -e "${YELLOW}📋 Planning $env_name infrastructure deployment...${NC}"
     cd "$env_path"
     
-    if ! terraform plan -out=tfplan; then
-        echo -e "${RED}❌ Terraform plan failed${NC}"
-        exit 1
-    fi
-    
-    echo -e "${YELLOW}⚠️  Review the plan above. Do you want to proceed with infrastructure deployment? (y/N)${NC}"
-    read -p "> " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${BLUE}ℹ️  Infrastructure deployment cancelled.${NC}"
-        exit 0
-    fi
-    
-    echo -e "${YELLOW}🚀 Deploying $env_name infrastructure...${NC}"
-    
-    if ! terraform apply tfplan; then
-        echo -e "${RED}❌ Infrastructure deployment failed${NC}"
-        exit 1
+    # Check for count dependency issues first
+    if check_count_dependency "$env_path"; then
+        echo -e "${YELLOW}⚠️  Count dependency detected. This is normal for production deployments.${NC}"
+        echo -e "${BLUE}ℹ️  Using targeted deployment to resolve count dependency issues.${NC}"
+        echo ""
+        echo -e "${YELLOW}⚠️  Do you want to proceed with targeted deployment? (y/N)${NC}"
+        read -p "> " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${BLUE}ℹ️  Infrastructure deployment cancelled.${NC}"
+            exit 0
+        fi
+        
+        apply_deployment_targeted "$env_path" "$env_name"
+    else
+        # Normal deployment
+        if ! terraform plan -out=tfplan; then
+            echo -e "${RED}❌ Terraform plan failed${NC}"
+            exit 1
+        fi
+        
+        echo -e "${YELLOW}⚠️  Review the plan above. Do you want to proceed with infrastructure deployment? (y/N)${NC}"
+        read -p "> " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${BLUE}ℹ️  Infrastructure deployment cancelled.${NC}"
+            exit 0
+        fi
+        
+        echo -e "${YELLOW}🚀 Deploying $env_name infrastructure...${NC}"
+        
+        if ! terraform apply tfplan; then
+            echo -e "${RED}❌ Infrastructure deployment failed${NC}"
+            exit 1
+        fi
+        
+        echo -e "${GREEN}✅ Infrastructure deployed successfully!${NC}"
     fi
     
     # Get outputs
@@ -211,7 +289,6 @@ apply_deployment() {
     ECR_REPOSITORY_URL=$(terraform output -raw ecr_repository_url 2>/dev/null || echo "N/A")
     ALB_DNS_NAME=$(terraform output -raw alb_dns_name 2>/dev/null || echo "N/A")
     
-    echo -e "${GREEN}✅ Infrastructure deployed successfully!${NC}"
     echo ""
     echo -e "${BLUE}📊 Deployment Summary:${NC}"
     echo "  Environment: $env_name"

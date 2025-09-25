@@ -77,6 +77,11 @@ output "cloudfront_distribution_id" {
   value       = module.storage.cloudfront_distribution_id
 }
 
+output "jump_host_instance_id" {
+  description = "Jump host instance ID for database access"
+  value       = module.jump_host.jump_host_instance_id
+}
+
 output "ecr_repository_url" {
   description = "ECR repository URL"
   value       = module.storage.ecr_repository_url
@@ -101,7 +106,7 @@ output "api_domain_name" {
 
 output "acm_certificate_arn" {
   description = "ACM certificate ARN"
-  value       = module.dns.acm_certificate_arn
+  value       = length(module.dns) > 0 ? module.dns[0].acm_certificate_arn : null
 }
 
 # IAM outputs

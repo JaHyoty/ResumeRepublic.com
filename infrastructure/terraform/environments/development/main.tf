@@ -131,6 +131,7 @@ module "dns" {
   create_route53_zone        = var.create_route53_zone
   create_dns_records         = true
   create_www_record          = var.create_www_record
+  create_cloudfront_records  = var.create_cloudfront_records
   subject_alternative_names  = concat(
     var.create_www_record ? ["www.${var.domain_name}"] : [],
     var.api_domain_name != "" ? [var.api_domain_name] : []
@@ -220,6 +221,7 @@ module "compute" {
       name      = "GOOGLE_CLIENT_SECRET"
       valueFrom = module.iam.google_client_secret_parameter_arn
     },
+    # GitHub secrets (only if provided)
     {
       name      = "GITHUB_CLIENT_ID"
       valueFrom = module.iam.github_client_id_parameter_arn

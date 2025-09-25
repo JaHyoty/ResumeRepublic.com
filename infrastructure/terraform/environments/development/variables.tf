@@ -222,6 +222,12 @@ variable "create_www_record" {
   default     = false
 }
 
+variable "create_cloudfront_records" {
+  description = "Whether to create CloudFront-dependent DNS records (can cause circular dependency)"
+  type        = bool
+  default     = false
+}
+
 # IAM variables
 variable "create_ec2_ssm_role" {
   description = "Whether to create EC2 SSM role for dev machines"

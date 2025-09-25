@@ -27,12 +27,12 @@ output "acm_certificate_validation_arn" {
 
 output "main_domain_record_name" {
   description = "Main domain record name"
-  value       = var.create_dns_records ? aws_route53_record.main[0].name : null
+  value       = var.create_dns_records && var.create_cloudfront_records && var.cloudfront_domain_name != "" && var.cloudfront_hosted_zone_id != "" ? aws_route53_record.main[0].name : null
 }
 
 output "www_domain_record_name" {
   description = "WWW domain record name"
-  value       = var.create_dns_records && var.create_www_record ? aws_route53_record.www[0].name : null
+  value       = var.create_dns_records && var.create_www_record && var.create_cloudfront_records && var.cloudfront_domain_name != "" && var.cloudfront_hosted_zone_id != "" ? aws_route53_record.www[0].name : null
 }
 
 output "api_domain_record_name" {

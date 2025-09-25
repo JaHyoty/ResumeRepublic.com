@@ -53,7 +53,8 @@ create_www_record = false
 create_ec2_ssm_role = true  # Enable for dev machines
 
 # Application Secrets
-secret_key = "your-dev-secret-key-here"
+# Leave empty to auto-generate a secure secret key, or provide your own
+secret_key = ""
 
 # OAuth Configuration (can use dev/test credentials)
 google_client_id     = "your-dev-google-client-id"

@@ -53,7 +53,8 @@ create_www_record = true
 create_ec2_ssm_role = false
 
 # Application Secrets
-secret_key = "your-secret-key-here"
+# Leave empty to auto-generate a secure secret key, or provide your own
+secret_key = ""
 
 # OAuth Configuration
 google_client_id     = "your-google-client-id"

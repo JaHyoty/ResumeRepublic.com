@@ -68,6 +68,17 @@ fi
 echo -e "${GREEN}✅ Database user: $DB_USER${NC}"
 echo -e "${GREEN}✅ Database name: $DB_NAME${NC}"
 
+# Get secret key from SSM Parameter Store
+echo -e "${YELLOW}🔑 Getting secret key...${NC}"
+SECRET_KEY=$(aws ssm get-parameter --name "/resumerepublic/$ENVIRONMENT/app/secret_key" --with-decryption --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+
+if [ -z "$SECRET_KEY" ]; then
+    echo -e "${YELLOW}⚠️  Could not get secret key from SSM Parameter Store${NC}"
+    echo -e "${YELLOW}   This may cause issues with production validation${NC}"
+else
+    echo -e "${GREEN}✅ Secret key retrieved${NC}"
+fi
+
 # Set environment variables for Alembic
 echo -e "${YELLOW}📋 Setting environment variables for Alembic...${NC}"
 export DATABASE_HOST="localhost"
@@ -113,11 +124,13 @@ export DATABASE_URL_ASYNC="postgresql+asyncpg://$DB_USER:$DB_PASSWORD@localhost:
 export ENVIRONMENT="$ENVIRONMENT"
 export DATABASE_CREDENTIALS_SECRET_ARN="$SECRET_ARN"
 export USE_IAM_DATABASE_AUTH="false"
+export SECRET_KEY="$SECRET_KEY"
 
 echo "🚀 Database environment loaded for $ENVIRONMENT"
 echo "📊 Database: $DB_NAME on localhost:$LOCAL_PORT"
 echo "🔧 Ready to run Alembic commands!"
 echo "🔑 Secret ARN: $SECRET_ARN"
+echo "🔐 Secret Key: ${SECRET_KEY:0:10}... (loaded from SSM)"
 echo ""
 echo "Available commands:"
 echo "  alembic current"

@@ -39,6 +39,12 @@ variable "create_dns_records" {
   default     = true
 }
 
+variable "create_cloudfront_records" {
+  description = "Whether to create CloudFront-dependent DNS records (can cause circular dependency)"
+  type        = bool
+  default     = false
+}
+
 variable "create_www_record" {
   description = "Whether to create www subdomain record"
   type        = bool

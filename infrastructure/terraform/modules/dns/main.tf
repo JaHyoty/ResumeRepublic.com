@@ -63,9 +63,9 @@ resource "aws_acm_certificate_validation" "main" {
   validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
 }
 
-# Route 53 A record for main domain
+# Route 53 A record for main domain (CloudFront)
 resource "aws_route53_record" "main" {
-  count   = var.create_dns_records ? 1 : 0
+  count   = var.create_dns_records && var.create_cloudfront_records && var.cloudfront_domain_name != "" && var.cloudfront_hosted_zone_id != "" ? 1 : 0
   zone_id = var.create_route53_zone ? aws_route53_zone.main[0].zone_id : data.aws_route53_zone.main[0].zone_id
   name    = var.domain_name
   type    = "A"
@@ -77,9 +77,9 @@ resource "aws_route53_record" "main" {
   }
 }
 
-# Route 53 A record for www subdomain
+# Route 53 A record for www subdomain (CloudFront)
 resource "aws_route53_record" "www" {
-  count   = var.create_dns_records && var.create_www_record ? 1 : 0
+  count   = var.create_dns_records && var.create_www_record && var.create_cloudfront_records && var.cloudfront_domain_name != "" && var.cloudfront_hosted_zone_id != "" ? 1 : 0
   zone_id = var.create_route53_zone ? aws_route53_zone.main[0].zone_id : data.aws_route53_zone.main[0].zone_id
   name    = "www.${var.domain_name}"
   type    = "A"

@@ -84,7 +84,7 @@ variable "db_instance_class" {
 variable "db_allocated_storage" {
   description = "Initial allocated storage in GB"
   type        = number
-  default     = 20
+  default     = 10
 }
 
 variable "db_max_allocated_storage" {
@@ -102,7 +102,7 @@ variable "db_storage_type" {
 variable "db_name" {
   description = "Database name"
   type        = string
-  default     = "resumerepublic"
+  default     = "resumerepublic_prod"
 }
 
 variable "db_username" {
@@ -212,6 +212,18 @@ variable "log_retention_days" {
 # DNS variables
 variable "create_route53_zone" {
   description = "Whether to create a new Route53 hosted zone"
+  type        = bool
+  default     = false
+}
+
+variable "create_www_record" {
+  description = "Whether to create a www subdomain record"
+  type        = bool
+  default     = true
+}
+
+variable "create_cloudfront_records" {
+  description = "Whether to create CloudFront-dependent DNS records (can cause circular dependency)"
   type        = bool
   default     = false
 }

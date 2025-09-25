@@ -8,11 +8,24 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.1"
+    }
   }
 }
 
 # Data sources
 data "aws_caller_identity" "current" {}
+
+# Generate a secure secret key for the application
+resource "random_password" "secret_key" {
+  length  = 64
+  special = true
+  upper   = true
+  lower   = true
+  numeric = true
+}
 
 # ECS Execution Role
 resource "aws_iam_role" "ecs_execution_role" {
@@ -233,7 +246,7 @@ resource "aws_ssm_parameter" "database_password" {
 resource "aws_ssm_parameter" "secret_key" {
   name  = "/${var.project_name}/${var.environment}/app/secret_key"
   type  = "SecureString"
-  value = var.secret_key
+  value = var.secret_key != "" ? var.secret_key : random_password.secret_key.result
 
   tags = var.common_tags
 }

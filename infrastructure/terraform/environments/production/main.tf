@@ -13,12 +13,15 @@ terraform {
 
 # Local values
 locals {
-  environment = "development"
+  environment = "production"
   common_tags = {
     Project     = var.project_name
     Environment = local.environment
     ManagedBy   = "terraform"
   }
+  
+  # ACM certificate ARN for networking module
+  acm_certificate_arn = var.domain_name != "" ? module.dns[0].acm_certificate_arn : null
 }
 
 # Data sources
@@ -38,7 +41,7 @@ module "networking" {
   database_subnets        = var.database_subnets
   public_subnets          = var.public_subnets
   backend_port            = var.backend_port
-  acm_certificate_arn     = var.domain_name != "" ? module.dns[0].acm_certificate_arn : null
+  acm_certificate_arn     = local.acm_certificate_arn
 }
 
 # Database Module
@@ -101,7 +104,7 @@ module "iam" {
   min_tls_version     = var.min_tls_version
   database_host       = module.database.db_hostname
   database_name       = module.database.db_name
-  database_user       = var.db_iam_database_authentication_enabled ? module.database.db_iam_username : module.database.db_username
+  database_user       = module.database.db_username
 }
 
 # Storage Module
@@ -131,12 +134,13 @@ module "dns" {
   create_route53_zone        = var.create_route53_zone
   create_dns_records         = true
   create_www_record          = var.create_www_record
+  create_cloudfront_records  = var.create_cloudfront_records
   subject_alternative_names  = concat(
     var.create_www_record ? ["www.${var.domain_name}"] : [],
     var.api_domain_name != "" ? [var.api_domain_name] : []
   )
-  cloudfront_domain_name     = module.storage.cloudfront_domain_name
-  cloudfront_hosted_zone_id  = module.storage.cloudfront_hosted_zone_id
+  # CloudFront variables not passed to avoid circular dependency
+  # DNS records will be created manually in the main configuration
   alb_dns_name               = module.networking.alb_dns_name
   alb_hosted_zone_id         = module.networking.alb_hosted_zone_id
   api_domain_name            = var.api_domain_name
@@ -171,7 +175,7 @@ module "compute" {
     },
     {
       name  = "DEBUG"
-      value = "true"
+      value = "false"
     },
     {
       name  = "ALLOWED_ORIGINS"
@@ -260,7 +264,7 @@ module "compute" {
       name      = "MIN_TLS_VERSION"
       valueFrom = module.iam.min_tls_version_parameter_arn
     }
-  ], 
+  ],
   # Conditionally add database credentials secret only if not using IAM auth
   var.db_iam_database_authentication_enabled ? [] : [
     {
@@ -268,4 +272,47 @@ module "compute" {
       valueFrom = module.database.db_master_user_secret_arn
     }
   ])
+}
+
+# DNS Records for CloudFront (created after both DNS and Storage modules to avoid circular dependency)
+resource "aws_route53_record" "main_domain" {
+  count   = var.domain_name != "" && var.create_cloudfront_records && length(module.dns) > 0 ? 1 : 0
+  zone_id = module.dns[0].route53_zone_id
+  name    = var.domain_name
+  type    = "A"
+
+  alias {
+    name                   = module.storage.cloudfront_domain_name
+    zone_id                = module.storage.cloudfront_hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "www_domain" {
+  count   = var.domain_name != "" && var.create_cloudfront_records && var.create_www_record && length(module.dns) > 0 ? 1 : 0
+  zone_id = module.dns[0].route53_zone_id
+  name    = "www.${var.domain_name}"
+  type    = "A"
+
+  alias {
+    name                   = module.storage.cloudfront_domain_name
+    zone_id                = module.storage.cloudfront_hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+# Jump host for database access
+module "jump_host" {
+  source = "../../modules/jump-host"
+
+  project_name              = var.project_name
+  environment              = local.environment
+  vpc_id                   = module.networking.vpc_id
+  private_subnet_id        = module.networking.private_subnets[0]
+  database_host            = module.database.db_endpoint
+  database_port            = module.database.db_port
+  database_security_group_id = module.database.db_security_group_id
+  instance_type            = "t3.micro"
+
+  common_tags = local.common_tags
 }
