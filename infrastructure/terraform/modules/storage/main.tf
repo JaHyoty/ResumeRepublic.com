@@ -24,7 +24,8 @@ resource "random_string" "bucket_suffix" {
 
 # S3 Bucket for Frontend
 resource "aws_s3_bucket" "frontend" {
-  bucket = "${var.project_name}-frontend-${random_string.bucket_suffix.result}"
+  bucket        = "${var.project_name}-${var.environment}-frontend-${random_string.bucket_suffix.result}"
+  force_destroy = true  # Allow bucket to be destroyed even if not empty
 
   tags = var.common_tags
 }
@@ -80,6 +81,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   is_ipv6_enabled     = true
   default_root_object = "index.html"
   aliases             = var.cloudfront_aliases
+  price_class         = "PriceClass_100"  # USA and Europe only - more cost effective
 
   default_cache_behavior {
     allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
