@@ -707,7 +707,7 @@ const ApplicationsView: React.FC = () => {
                       <div>
                         <h4 className="font-medium text-gray-900">{resume.title}</h4>
                         <p className="text-sm text-gray-500">
-                          Template: {resume.template_used} • Created: {new Date(resume.created_at).toLocaleDateString()}
+                          Template: {resume.template_used} • Created: {new Date(resume.created_at).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true })}
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">
