@@ -85,8 +85,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "cloudfront_logs" {
 
 # S3 bucket ACL for CloudFront logs (required for CloudFront logging)
 resource "aws_s3_bucket_acl" "cloudfront_logs" {
-  bucket = aws_s3_bucket.cloudfront_logs.id
-  acl    = "private"
+  depends_on = [aws_s3_bucket_ownership_controls.cloudfront_logs]
+  bucket     = aws_s3_bucket.cloudfront_logs.id
+  acl        = "private"
 }
 
 # S3 bucket public access block for CloudFront logs
