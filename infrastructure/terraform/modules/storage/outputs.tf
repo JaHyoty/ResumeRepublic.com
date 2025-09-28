@@ -59,3 +59,67 @@ output "ecr_repository_name" {
   description = "ECR repository name for backend"
   value       = aws_ecr_repository.backend.name
 }
+
+# Resumes S3 Bucket Outputs
+output "resumes_s3_bucket_id" {
+  description = "S3 bucket ID for resumes"
+  value       = aws_s3_bucket.resumes.id
+}
+
+output "resumes_s3_bucket_name" {
+  description = "S3 bucket name for resumes"
+  value       = aws_s3_bucket.resumes.bucket
+}
+
+output "resumes_s3_bucket_arn" {
+  description = "S3 bucket ARN for resumes"
+  value       = aws_s3_bucket.resumes.arn
+}
+
+output "resumes_s3_bucket_domain_name" {
+  description = "S3 bucket domain name for resumes"
+  value       = aws_s3_bucket.resumes.bucket_domain_name
+}
+
+output "resumes_s3_bucket_regional_domain_name" {
+  description = "S3 bucket regional domain name for resumes"
+  value       = aws_s3_bucket.resumes.bucket_regional_domain_name
+}
+
+# CloudFront Logs S3 Bucket Outputs
+output "cloudfront_logs_s3_bucket_id" {
+  description = "S3 bucket ID for CloudFront logs"
+  value       = aws_s3_bucket.cloudfront_logs.id
+}
+
+output "cloudfront_logs_s3_bucket_name" {
+  description = "S3 bucket name for CloudFront logs"
+  value       = aws_s3_bucket.cloudfront_logs.bucket
+}
+
+output "cloudfront_logs_s3_bucket_arn" {
+  description = "S3 bucket ARN for CloudFront logs"
+  value       = aws_s3_bucket.cloudfront_logs.arn
+}
+
+# Resumes CloudFront Distribution Outputs
+output "resumes_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for resumes"
+  value       = aws_cloudfront_distribution.resumes.id
+}
+
+output "resumes_cloudfront_domain_name" {
+  description = "CloudFront domain name for resumes"
+  value       = aws_cloudfront_distribution.resumes.domain_name
+}
+
+output "resumes_cloudfront_hosted_zone_id" {
+  description = "CloudFront hosted zone ID for resumes"
+  value       = aws_cloudfront_distribution.resumes.hosted_zone_id
+}
+
+output "cloudfront_public_key_id" {
+  description = "CloudFront public key ID for signed URLs"
+  value       = aws_cloudfront_public_key.resumes.id
+}
+

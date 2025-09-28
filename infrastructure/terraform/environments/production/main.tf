@@ -118,6 +118,7 @@ module "storage" {
   cloudfront_aliases    = var.domain_name != "" ? [var.domain_name] : []
   acm_certificate_arn   = var.domain_name != "" ? module.dns[0].acm_certificate_validation_arn : null
   enable_spa_routing    = true
+  cloudfront_public_key = module.iam.cloudfront_public_key
 }
 
 # DNS Module (only if domain is provided)
@@ -212,7 +213,23 @@ module "compute" {
     {
       name  = "SSL_VERIFY_CERTIFICATES_DEV"
       value = "true"
-    }
+    },
+    {
+      name  = "RESUMES_S3_BUCKET"
+      value = module.storage.resumes_s3_bucket_name
+    },
+        {
+          name  = "RESUMES_CLOUDFRONT_DOMAIN"
+          value = var.domain_name != "" ? module.storage.cloudfront_domain_name : ""
+        },
+        {
+          name  = "CLOUDFRONT_KEY_PAIR_ID"
+          value = module.storage.cloudfront_public_key_id
+        },
+        {
+          name  = "CLOUDFRONT_PRIVATE_KEY_PATH"
+          value = "/app/cloudfront_private_key.pem"
+        }
   ]
 
   container_secrets = concat([
@@ -251,6 +268,10 @@ module "compute" {
     {
       name      = "SECRET_KEY"
       valueFrom = module.iam.secret_key_parameter_arn
+    },
+    {
+      name      = "CLOUDFRONT_PRIVATE_KEY"
+      valueFrom = module.iam.cloudfront_private_key_parameter_arn
     },
     {
       name      = "OPENROUTER_LLM_MODEL"

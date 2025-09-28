@@ -337,3 +337,7 @@ variable "database_user" {
   type        = string
   default     = ""
 }
+
+# CloudFront Configuration
+# CloudFront public key ID is now generated dynamically by Terraform
+# No variables needed for CloudFront key management

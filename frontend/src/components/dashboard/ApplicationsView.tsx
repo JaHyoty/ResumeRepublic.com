@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { applicationService } from '../../services/applicationService'
-import { api } from '../../services/api'
+import { resumeService } from '../../services/resumeService'
 import type { Application, ApplicationStats } from '../../services/applicationService'
+import type { ResumeVersion } from '../../services/resumeService'
 
 const ApplicationsView: React.FC = () => {
   const navigate = useNavigate()
@@ -24,7 +25,7 @@ const ApplicationsView: React.FC = () => {
   // State for resume design flow
   const [, setCreatedApplicationId] = useState<number | null>(null)
   // State for resume versions
-  const [resumeVersions, setResumeVersions] = useState<{[key: number]: any[]}>({})
+  const [resumeVersions, setResumeVersions] = useState<{[key: number]: ResumeVersion[]}>({})
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false)
   const [selectedApplicationForResume, setSelectedApplicationForResume] = useState<number | null>(null)
   
@@ -150,10 +151,10 @@ const ApplicationsView: React.FC = () => {
     try {
       // Check if we already have resume versions for this application
       if (!resumeVersions[applicationId]) {
-        const response = await api.get<{ resume_versions: any[] }>(`/api/resume/versions/${applicationId}`)
+        const versions = await resumeService.getResumeVersions(applicationId)
         setResumeVersions(prev => ({
           ...prev,
-          [applicationId]: response.data.resume_versions
+          [applicationId]: versions
         }))
       }
       setSelectedApplicationForResume(applicationId)
@@ -182,25 +183,12 @@ const ApplicationsView: React.FC = () => {
     }
   }
 
-  const handleDownloadResume = async (resumeId: number, title: string) => {
+  const handleViewResumePdf = async (resumeId: number) => {
     try {
-      const response = await api.get<Blob>(`/api/resume/pdf/${resumeId}`, {
-        responseType: 'blob'
-      })
-      
-      // Create blob URL and trigger download
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+      await resumeService.viewResumePdf(resumeId)
     } catch (error) {
-      console.error('Failed to download resume:', error)
-      alert('Failed to download resume. Please try again.')
+      console.error('Failed to open PDF:', error)
+      alert('Failed to open PDF. Please try again.')
     }
   }
 
@@ -725,10 +713,10 @@ const ApplicationsView: React.FC = () => {
                       <div className="flex items-center space-x-2">
                         {resume.has_pdf ? (
                           <button
-                            onClick={() => handleDownloadResume(resume.id, resume.title)}
-                            className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors duration-200"
+                            onClick={() => handleViewResumePdf(resume.id)}
+                            className="px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors duration-200"
                           >
-                            Download
+                            View PDF
                           </button>
                         ) : (
                           <span className="px-3 py-1.5 text-sm font-medium text-gray-400 bg-gray-100 border border-gray-200 rounded-lg">

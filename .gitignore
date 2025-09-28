@@ -148,3 +148,9 @@ override.tf.json
 
 # Kubernetes
 *.kubeconfig
+
+# CloudFront keys (NEVER commit these!)
+keys/
+keys/development/
+keys/production/
+*.pem

@@ -115,3 +115,18 @@ output "database_user_parameter_arn" {
   description = "Database user SSM parameter ARN"
   value       = aws_ssm_parameter.database_user.arn
 }
+
+output "cloudfront_private_key_parameter_arn" {
+  description = "CloudFront private key SSM parameter ARN"
+  value       = aws_ssm_parameter.cloudfront_private_key.arn
+}
+
+output "cloudfront_key_pair_id" {
+  description = "CloudFront key pair ID for signed URLs"
+  value       = random_id.cloudfront_key_pair_id.hex
+}
+
+output "cloudfront_public_key" {
+  description = "CloudFront public key for signed URLs"
+  value       = tls_private_key.cloudfront.public_key_pem
+}

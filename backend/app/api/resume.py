@@ -6,7 +6,6 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional
 import logging
-import base64
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -168,7 +167,7 @@ def combine_template_with_content(template_content: str, optimized_content: str)
     
     return complete_latex
 
-async def generate_optimized_resume_pdf(resume_data: Dict[str, Any], current_user: User, db: Session) -> bytes:
+async def generate_optimized_resume_pdf(resume_data: Dict[str, Any], current_user: User, db: Session) -> tuple[bytes, str]:
     """
     Generate an AI-optimized PDF resume using LLM and LaTeX compilation
     """
@@ -240,13 +239,13 @@ async def generate_optimized_resume_pdf(resume_data: Dict[str, Any], current_use
             
             # Compile LaTeX to PDF
             logger.debug(f"Starting LaTeX compilation for user {current_user.id}")
-            pdf_file = latex_service._compile_latex(tex_file, temp_path)
+            pdf_file = latex_service.compile_latex(tex_file, temp_path)
             logger.debug(f"LaTeX compilation completed for user {current_user.id}")
             
             # Read PDF content
             pdf_bytes = pdf_file.read_bytes()
             logger.debug(f"PDF file read successfully, size: {len(pdf_bytes)} bytes")
-            return pdf_bytes
+            return pdf_bytes, complete_latex
             
     except Exception as e:
         logger.error(f"Failed to generate optimized resume: {str(e)}")
@@ -297,7 +296,7 @@ async def design_resume(
         # Generate optimized PDF using LLM and LaTeX service
         logger.debug(f"Starting resume generation for user {current_user.id}")
         try:
-            pdf_content = await generate_optimized_resume_pdf(resume_data_dict, current_user, db)
+            pdf_content, latex_content = await generate_optimized_resume_pdf(resume_data_dict, current_user, db)
             logger.debug(f"Resume generation completed for user {current_user.id}, PDF size: {len(pdf_content)} bytes")
         except Exception as e:
             logger.error(f"Error in resume generation for user {current_user.id}: {str(e)}")
@@ -305,17 +304,15 @@ async def design_resume(
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
         
-        # Encode PDF content as base64 for storage
-        pdf_content_b64 = base64.b64encode(pdf_content).decode('utf-8')
-        
-        # Create resume version record
+        # Create resume version record first to get the ID
         resume_version = ResumeVersion(
             user_id=current_user.id,
             application_id=application_id,
             title=f"{resume_data.personal_info.name} - {application.company}",
             template_used='Detailed Resume',
-            pdf_content=pdf_content_b64,
-            pdf_url=None,  # Will be set after commit when we have the ID
+            pdf_url=None,  # Will be set after S3 upload
+            s3_key=None,  # Will be set after S3 upload
+            latex_s3_key=None,  # Will be set after S3 upload
             resume_metadata={
                 'job_description': resume_data.job_description,
                 'optimization_settings': {},
@@ -326,17 +323,80 @@ async def design_resume(
         db.commit()
         db.refresh(resume_version)
         
-        # Update pdf_url with the actual resume version ID
-        resume_version.pdf_url = f"/api/resume/pdf/{resume_version.id}"
-        db.commit()
+        # Upload both PDF and LaTeX to S3
+        from app.services.s3_service import s3_service
+        
+        # Generate user-friendly filename for the PDF
+        filename_parts = ["Resume"]
+        
+        # Get user name
+        user_name = f"{current_user.first_name} {current_user.last_name}"
+        clean_name = "".join(c if c.isalnum() or c in " -" else "" for c in user_name.strip())
+        filename_parts.append(clean_name.replace(" ", "_"))
+        
+        # Get job title and company from application
+        if application:
+            if application.job_title:
+                clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in application.job_title.strip())
+                filename_parts.append(clean_title.replace(" ", "_"))
+            if application.company:
+                clean_company = "".join(c if c.isalnum() or c in " -" else "" for c in application.company.strip())
+                filename_parts.append(clean_company.replace(" ", "_"))
+        
+        # Fallback to title if no application data
+        if len(filename_parts) == 2 and resume_version.title:
+            clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in resume_version.title.strip())
+            filename_parts.append(clean_title.replace(" ", "_"))
+        
+        pdf_filename = "_".join(filename_parts) if len(filename_parts) > 2 else f"Resume_{resume_version.id}"
+        pdf_filename += ".pdf"
+        
+        pdf_s3_key = await s3_service.upload_pdf(pdf_content, current_user.id, resume_version.id, filename=pdf_filename)
+        latex_s3_key = await s3_service.upload_latex(latex_content, current_user.id, resume_version.id)
+        
+        if pdf_s3_key and latex_s3_key:
+            # Both uploads successful - update with S3 information
+            resume_version.s3_key = pdf_s3_key
+            resume_version.latex_s3_key = latex_s3_key
+            resume_version.pdf_url = f"/api/resume/pdf/{resume_version.id}"  # Keep existing API endpoint
+            db.commit()
+        else:
+            # If S3 upload fails, return error
+            error_details = []
+            if not pdf_s3_key:
+                error_details.append("PDF upload to S3 failed")
+            if not latex_s3_key:
+                error_details.append("LaTeX upload to S3 failed")
+            
+            logger.error(f"S3 upload failed for resume {resume_version.id}: {', '.join(error_details)}")
+            
+            # Clean up the resume version record since we can't store the content
+            db.delete(resume_version)
+            db.commit()
+            
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to store resume content: {', '.join(error_details)}"
+            )
         
         # Return PDF as response
         logger.debug(f"Returning PDF response, size: {len(pdf_content)} bytes")
+        
+        # Create user-friendly filename for download
+        filename_parts = []
+        if resume_version.title:
+            clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in resume_version.title.strip())
+            filename_parts.append(clean_title.replace(" ", "_"))
+        filename_parts.append(f"v{resume_version.id}")
+        
+        filename = "_".join(filename_parts) if filename_parts else f"resume_{resume_version.id}"
+        filename += ".pdf"
+        
         return Response(
             content=pdf_content,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename=resume_{application_id}_{resume_version.id}.pdf"
+                "Content-Disposition": f"attachment; filename={filename}"
             }
         )
         
@@ -387,20 +447,22 @@ def get_resume_versions(
                 "template_used": version.template_used,
                 "created_at": version.created_at.isoformat(),
                 "pdf_url": version.pdf_url,
-                "has_pdf": version.pdf_content is not None and len(version.pdf_content) > 0
+                "has_pdf": version.s3_key is not None
             }
             for version in resume_versions
         ]
     }
 
-@router.get("/pdf/{resume_version_id}")
-def get_resume_pdf(
+
+
+@router.get("/pdf/{resume_version_id}/url")
+async def get_resume_pdf_url(
     resume_version_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get PDF content for a specific resume version
+    Get the CloudFront URL for a specific resume version (for frontend to open in new tab)
     """
     # Get resume version and verify ownership
     resume_version = db.query(ResumeVersion).filter(
@@ -414,53 +476,54 @@ def get_resume_pdf(
             detail="Resume version not found"
         )
     
-    if not resume_version.pdf_content:
+    # Check if PDF is stored in S3
+    if resume_version.s3_key:
+        from app.services.s3_service import s3_service
+        try:
+            # Generate secure CloudFront signed URL (30 minutes expiration)
+            pdf_url = await s3_service.get_pdf_url(resume_version.s3_key, expiration=1800)
+            if pdf_url:
+                # Generate filename on-the-fly (same logic as in /design endpoint)
+                filename_parts = ["Resume"]
+                
+                # Get user name
+                user_name = f"{resume_version.user.first_name} {resume_version.user.last_name}"
+                clean_name = "".join(c if c.isalnum() or c in " -" else "" for c in user_name.strip())
+                filename_parts.append(clean_name.replace(" ", "_"))
+                
+                # Get job title and company from application
+                application = db.query(Application).filter(Application.id == resume_version.application_id).first()
+                if application:
+                    if application.job_title:
+                        clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in application.job_title.strip())
+                        filename_parts.append(clean_title.replace(" ", "_"))
+                    if application.company:
+                        clean_company = "".join(c if c.isalnum() or c in " -" else "" for c in application.company.strip())
+                        filename_parts.append(clean_company.replace(" ", "_"))
+                
+                # Fallback to title if no application data
+                if len(filename_parts) == 2 and resume_version.title:
+                    clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in resume_version.title.strip())
+                    filename_parts.append(clean_title.replace(" ", "_"))
+                
+                filename = "_".join(filename_parts) if len(filename_parts) > 2 else f"Resume_{resume_version.id}"
+                filename += ".pdf"
+                
+                return {"url": pdf_url, "filename": filename}
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to generate PDF URL"
+                )
+        except Exception as e:
+            logger.error(f"Failed to get PDF URL for resume version {resume_version_id}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve PDF URL from storage"
+            )
+    else:
+        # No S3 key means this resume was not properly generated
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="PDF content not available"
+            detail="PDF content not available - resume may not have been properly generated"
         )
-    
-    # Decode base64 content
-    try:
-        pdf_content = base64.b64decode(resume_version.pdf_content)
-    except Exception as e:
-        logger.error(f"Failed to decode PDF content for resume version {resume_version_id}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to decode PDF content"
-        )
-    
-    return Response(
-        content=pdf_content,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f"attachment; filename=resume_{resume_version_id}.pdf"
-        }
-    )
-
-@router.get("/templates")
-def get_resume_templates(
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Get available resume templates
-    """
-    return {
-        "templates": [
-            {
-                "id": "professional",
-                "name": "Professional",
-                "description": "Clean, professional layout suitable for most industries"
-            },
-            {
-                "id": "modern",
-                "name": "Modern",
-                "description": "Contemporary design with emphasis on skills and achievements"
-            },
-            {
-                "id": "academic",
-                "name": "Academic",
-                "description": "Traditional academic format with publications and research focus"
-            }
-        ]
-    }

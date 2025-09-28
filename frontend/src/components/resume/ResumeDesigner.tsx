@@ -196,7 +196,27 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     if (pdfUrl) {
       const link = document.createElement('a')
       link.href = pdfUrl
-      link.download = 'resume.pdf'
+      
+      // Create user-friendly filename with Resume_ prefix
+      const filenameParts = ['Resume']
+      if (personalInfo.name) {
+        const cleanName = personalInfo.name.replace(/[^a-z0-9\s-]/gi, '').replace(/\s+/g, '_')
+        filenameParts.push(cleanName)
+      }
+      if (jobTitle) {
+        const cleanTitle = jobTitle.replace(/[^a-z0-9\s-]/gi, '').replace(/\s+/g, '_')
+        filenameParts.push(cleanTitle)
+      }
+      if (company) {
+        const cleanCompany = company.replace(/[^a-z0-9\s-]/gi, '').replace(/\s+/g, '_')
+        filenameParts.push(cleanCompany)
+      }
+      
+      const filename = filenameParts.length > 1 
+        ? `${filenameParts.join('_')}.pdf`
+        : 'Resume.pdf'
+      
+      link.download = filename
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)

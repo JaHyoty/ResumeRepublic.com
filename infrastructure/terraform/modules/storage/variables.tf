@@ -22,6 +22,7 @@ variable "cloudfront_aliases" {
   default     = []
 }
 
+
 variable "acm_certificate_arn" {
   description = "ACM certificate ARN for CloudFront"
   type        = string
@@ -32,4 +33,15 @@ variable "enable_spa_routing" {
   description = "Enable SPA routing support (404/403 -> index.html)"
   type        = bool
   default     = true
+}
+
+variable "cloudfront_public_key" {
+  description = "CloudFront public key for signed URLs"
+  type        = string
+}
+
+variable "resumes_cloudfront_aliases" {
+  description = "CloudFront aliases for resumes distribution"
+  type        = list(string)
+  default     = []
 }

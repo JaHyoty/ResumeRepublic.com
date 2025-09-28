@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.1"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -25,6 +29,33 @@ resource "random_password" "secret_key" {
   upper   = true
   lower   = true
   numeric = true
+}
+
+# Generate CloudFront key pair for signed URLs
+resource "tls_private_key" "cloudfront" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
+# Store CloudFront private key in SSM Parameter Store
+resource "aws_ssm_parameter" "cloudfront_private_key" {
+  name  = "/${var.project_name}/${var.environment}/cloudfront/private_key"
+  type  = "SecureString"
+  value = tls_private_key.cloudfront.private_key_pem
+  tags  = var.common_tags
+}
+
+# Store CloudFront public key in SSM Parameter Store (for reference)
+resource "aws_ssm_parameter" "cloudfront_public_key" {
+  name  = "/${var.project_name}/${var.environment}/cloudfront/public_key"
+  type  = "SecureString"
+  value = tls_private_key.cloudfront.public_key_pem
+  tags  = var.common_tags
+}
+
+# Generate a unique key pair ID for CloudFront
+resource "random_id" "cloudfront_key_pair_id" {
+  byte_length = 8
 }
 
 # ECS Execution Role
@@ -160,6 +191,19 @@ resource "aws_iam_role_policy" "ecs_task_application_policy" {
         Resource = [
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-*",
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rds!db-*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.project_name}-${var.environment}-resumes-*",
+          "arn:aws:s3:::${var.project_name}-${var.environment}-resumes-*/*"
         ]
       }
     ]
@@ -330,3 +374,4 @@ resource "aws_ssm_parameter" "database_user" {
 
   tags = var.common_tags
 }
+

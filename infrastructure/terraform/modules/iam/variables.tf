@@ -155,3 +155,4 @@ variable "database_user" {
   type        = string
   default     = ""
 }
+

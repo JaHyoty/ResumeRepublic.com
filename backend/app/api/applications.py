@@ -159,7 +159,7 @@ async def delete_application(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete an application"""
+    """Delete an application and its associated resume files from S3"""
     application = db.query(Application).filter(
         Application.id == application_id,
         Application.user_id == current_user.id
@@ -171,6 +171,33 @@ async def delete_application(
             detail="Application not found"
         )
     
+    # Get all resume versions for this application before deleting
+    from app.models.resume import ResumeVersion
+    resume_versions = db.query(ResumeVersion).filter(
+        ResumeVersion.application_id == application_id
+    ).all()
+    
+    # Delete S3 files for each resume version
+    if resume_versions:
+        from app.services.s3_service import s3_service
+        
+        for resume_version in resume_versions:
+            try:
+                # Delete PDF from S3 if it exists
+                if resume_version.s3_key:
+                    await s3_service.delete_pdf(resume_version.s3_key)
+                    logger.info(f"Deleted PDF from S3: {resume_version.s3_key}")
+                
+                # Delete LaTeX file from S3 if it exists
+                if resume_version.latex_s3_key:
+                    await s3_service.delete_latex(resume_version.latex_s3_key)
+                    logger.info(f"Deleted LaTeX file from S3: {resume_version.latex_s3_key}")
+                    
+            except Exception as e:
+                logger.error(f"Failed to delete S3 files for resume version {resume_version.id}: {e}")
+                # Continue with deletion even if S3 cleanup fails
+    
+    # Delete the application (resume versions will be deleted by cascade)
     db.delete(application)
     db.commit()
     

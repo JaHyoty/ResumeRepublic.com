@@ -119,3 +119,28 @@ output "ecs_task_role_arn" {
   description = "ECS task role ARN"
   value       = module.iam.ecs_task_role_arn
 }
+
+output "cloudfront_key_pair_id" {
+  description = "CloudFront key pair ID for signed URLs"
+  value       = module.iam.cloudfront_key_pair_id
+}
+
+output "resumes_s3_bucket_name" {
+  description = "S3 bucket name for resumes"
+  value       = module.storage.resumes_s3_bucket_name
+}
+
+output "resumes_cloudfront_domain_name" {
+  description = "CloudFront domain name for resumes"
+  value       = module.storage.resumes_cloudfront_domain_name
+}
+
+output "resumes_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for resumes"
+  value       = module.storage.resumes_cloudfront_distribution_id
+}
+
+output "cloudfront_logs_s3_bucket_name" {
+  description = "S3 bucket name for CloudFront logs"
+  value       = module.storage.cloudfront_logs_s3_bucket_name
+}

@@ -76,6 +76,31 @@ output "cloudfront_distribution_id" {
   value       = module.storage.cloudfront_distribution_id
 }
 
+output "cloudfront_logs_s3_bucket_name" {
+  description = "S3 bucket name for CloudFront logs"
+  value       = module.storage.cloudfront_logs_s3_bucket_name
+}
+
+output "resumes_s3_bucket_name" {
+  description = "S3 bucket name for resumes"
+  value       = module.storage.resumes_s3_bucket_name
+}
+
+output "resumes_cloudfront_domain_name" {
+  description = "CloudFront domain name for resumes"
+  value       = module.storage.resumes_cloudfront_domain_name
+}
+
+output "resumes_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for resumes"
+  value       = module.storage.resumes_cloudfront_distribution_id
+}
+
+output "cloudfront_key_pair_id" {
+  description = "CloudFront key pair ID for signed URLs"
+  value       = module.iam.cloudfront_key_pair_id
+}
+
 output "jump_host_instance_id" {
   description = "Jump host instance ID for database access"
   value       = module.jump_host.jump_host_instance_id

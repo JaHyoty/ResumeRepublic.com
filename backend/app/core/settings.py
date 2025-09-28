@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     DATABASE_CREDENTIALS_SECRET_ARN: Optional[str] = None
     DATABASE_CREDENTIALS_CACHE_TTL: int = 300  # 5 minutes
     
+    # S3 Configuration
+    RESUMES_S3_BUCKET: Optional[str] = None
+    RESUMES_CLOUDFRONT_DOMAIN: Optional[str] = None
+    AWS_REGION: str = "us-east-1"
+    
+    # CloudFront Signed URLs Configuration
+    CLOUDFRONT_KEY_PAIR_ID: Optional[str] = None
+    CLOUDFRONT_PRIVATE_KEY_PATH: Optional[str] = None
+    
     # IAM Database Authentication
     USE_IAM_DATABASE_AUTH: bool = False
     
