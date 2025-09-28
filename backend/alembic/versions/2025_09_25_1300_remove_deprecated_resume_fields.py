@@ -1,7 +1,7 @@
 """remove deprecated resume fields
 
-Revision ID: 2025_09_25_1300
-Revises: 2025_09_25_1245
+Revision ID: remove_deprecated_resume_fields
+Revises: add_latex_s3_key_resume_versions
 Create Date: 2025-09-25 13:00:00.123456
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '2025_09_25_1300'
-down_revision = '2025_09_25_1245'
+revision = 'remove_deprecated_resume_fields'
+down_revision = 'add_latex_s3_key_resume_versions'
 branch_labels = None
 depends_on = None
 
