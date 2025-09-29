@@ -16,10 +16,10 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   projectName,
   isLoading = false
 }) => {
-  if (!isOpen) return null
-
   // Use enhanced click outside functionality
   const { handleBackdropMouseDown, handleBackdropMouseUp } = useEnhancedClickOutside(onClose)
+
+  if (!isOpen) return null
 
   return (
     <div 

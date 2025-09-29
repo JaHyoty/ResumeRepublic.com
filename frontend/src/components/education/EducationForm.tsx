@@ -114,13 +114,13 @@ const EducationForm: React.FC<EducationFormProps> = ({
       const educationData: EducationCreate | EducationUpdate = {
         institution: formData.institution.trim(),
         degree: formData.degree.trim(),
-        field_of_study: formData.field_of_study.trim() || undefined,
+        field_of_study: formData.field_of_study.trim() || null,
         start_date: formData.start_date,
-        end_date: formData.end_date || undefined,
-        gpa: formData.gpa.trim() || undefined,
-        description: formData.description.trim() || undefined,
-        location: formData.location.trim() || undefined,
-        website_url: formData.website_url.trim() || undefined
+        end_date: formData.end_date || null,
+        gpa: formData.gpa.trim() || null,
+        description: formData.description.trim() || null,
+        location: formData.location.trim() || null,
+        website_url: formData.website_url.trim() || null
       }
 
       if (initialData) {
@@ -316,25 +316,24 @@ const EducationForm: React.FC<EducationFormProps> = ({
               placeholder="Additional details about your education..."
             />
           </div>
+          {/* Form Footer */}
+          <div className="pt-4 border-t border-gray-200 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors duration-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+            >
+              {isSubmitting ? 'Saving...' : (initialData ? 'Update Education' : 'Add Education')}
+            </button>
+          </div>
         </form>
-        
-        {/* Modal Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors duration-200"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-          >
-            {isSubmitting ? 'Saving...' : (initialData ? 'Update Education' : 'Add Education')}
-          </button>
-        </div>
       </div>
     </div>
   )

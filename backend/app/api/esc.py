@@ -549,8 +549,8 @@ def update_education(
             detail="Education entry not found"
         )
     
-    # Update only provided fields
-    update_data = education_data.model_dump(exclude_unset=True)
+    # Update provided fields, including those explicitly set to None (to clear them)
+    update_data = education_data.model_dump(exclude_unset=True, exclude_none=False)
     for field, value in update_data.items():
         setattr(education, field, value)
     

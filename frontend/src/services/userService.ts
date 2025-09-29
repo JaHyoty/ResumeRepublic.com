@@ -30,12 +30,12 @@ export interface UpdateUserRequest {
 
 export const userService = {
   async getUserInfo(): Promise<UserInfo> {
-    const response = await api.get<UserInfo>('/api/user/')
+    const response = await api.get('/api/user/')
     return response.data
   },
 
   async updateUser(userData: UpdateUserRequest): Promise<UserInfo> {
-    const response = await api.put<UserInfo>('/api/user/', userData)
+    const response = await api.put('/api/user/', userData)
     return response.data
   }
 }

@@ -21,10 +21,10 @@ const PublicationsDeleteConfirmationModal: React.FC<PublicationsDeleteConfirmati
   // Use the scroll lock hook
   useScrollPosition(isOpen)
 
-  if (!isOpen || !publication) return null
-
   // Use enhanced click outside functionality
   const { handleBackdropMouseDown, handleBackdropMouseUp } = useEnhancedClickOutside(onClose)
+
+  if (!isOpen || !publication) return null
 
   return (
     <div 

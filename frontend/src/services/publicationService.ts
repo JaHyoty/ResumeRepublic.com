@@ -14,46 +14,46 @@ export interface Publication {
 
 export interface CreatePublicationRequest {
   title: string
-  co_authors?: string
-  publisher?: string
-  publication_date?: string  // YYYY-MM-DD format
-  url?: string
-  description?: string
-  publication_type?: string
+  co_authors?: string | null
+  publisher?: string | null
+  publication_date?: string | null  // YYYY-MM-DD format
+  url?: string | null
+  description?: string | null
+  publication_type?: string | null
 }
 
 export interface UpdatePublicationRequest {
   title?: string
-  co_authors?: string
-  publisher?: string
-  publication_date?: string  // YYYY-MM-DD format
-  url?: string
-  description?: string
-  publication_type?: string
+  co_authors?: string | null
+  publisher?: string | null
+  publication_date?: string | null  // YYYY-MM-DD format
+  url?: string | null
+  description?: string | null
+  publication_type?: string | null
 }
 
 export const publicationService = {
   // Get all publications for the current user
   async getPublications(): Promise<Publication[]> {
-    const response = await api.get<Publication[]>('/api/esc/publications')
+    const response = await api.get('/api/esc/publications')
     return response.data
   },
 
   // Create a new publication
   async createPublication(data: CreatePublicationRequest): Promise<Publication> {
-    const response = await api.post<Publication>('/api/esc/publications', data)
+    const response = await api.post('/api/esc/publications', data)
     return response.data
   },
 
   // Get a specific publication by ID
   async getPublication(id: number): Promise<Publication> {
-    const response = await api.get<Publication>(`/api/esc/publications/${id}`)
+    const response = await api.get(`/api/esc/publications/${id}`)
     return response.data
   },
 
   // Update a publication
   async updatePublication(id: number, data: UpdatePublicationRequest): Promise<Publication> {
-    const response = await api.put<Publication>(`/api/esc/publications/${id}`, data)
+    const response = await api.put(`/api/esc/publications/${id}`, data)
     return response.data
   },
 

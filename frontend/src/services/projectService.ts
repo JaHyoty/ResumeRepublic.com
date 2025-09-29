@@ -36,7 +36,7 @@ export interface CreateProjectRequest {
 export const projectService = {
   async getProjects(): Promise<Project[]> {
     try {
-      const response = await api.get<Project[]>('/api/esc/projects')
+      const response = await api.get('/api/esc/projects')
       return response.data
     } catch (error) {
       console.error('Failed to fetch projects:', error)
@@ -46,7 +46,7 @@ export const projectService = {
 
   async createProject(projectData: CreateProjectRequest): Promise<Project> {
     try {
-      const response = await api.post<Project>('/api/esc/projects', projectData)
+      const response = await api.post('/api/esc/projects', projectData)
       return response.data
     } catch (error) {
       console.error('Failed to create project:', error)
@@ -56,7 +56,7 @@ export const projectService = {
 
   async updateProject(id: number, projectData: Partial<CreateProjectRequest>): Promise<Project> {
     try {
-      const response = await api.put<Project>(`/api/esc/projects/${id}`, projectData)
+      const response = await api.put(`/api/esc/projects/${id}`, projectData)
       return response.data
     } catch (error) {
       console.error('Failed to update project:', error)
@@ -75,7 +75,7 @@ export const projectService = {
 
   async getProject(id: number): Promise<Project> {
     try {
-      const response = await api.get<Project>(`/api/esc/projects/${id}`)
+      const response = await api.get(`/api/esc/projects/${id}`)
       return response.data
     } catch (error) {
       console.error('Failed to fetch project:', error)

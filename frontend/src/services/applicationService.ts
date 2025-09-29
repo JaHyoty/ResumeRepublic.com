@@ -60,31 +60,31 @@ export interface UpdateApplicationRequest {
 export const applicationService = {
   // Get all applications
   async getApplications(): Promise<Application[]> {
-    const response = await api.get<Application[]>('/api/applications/')
+    const response = await api.get('/api/applications/')
     return response.data
   },
 
   // Get application statistics
   async getApplicationStats(): Promise<ApplicationStats> {
-    const response = await api.get<ApplicationStats>('/api/applications/stats')
+    const response = await api.get('/api/applications/stats')
     return response.data
   },
 
   // Get a specific application
   async getApplication(id: number): Promise<Application> {
-    const response = await api.get<Application>(`/api/applications/${id}`)
+    const response = await api.get(`/api/applications/${id}`)
     return response.data
   },
 
   // Create a new application
   async createApplication(data: CreateApplicationRequest): Promise<Application> {
-    const response = await api.post<Application>('/api/applications/', data)
+    const response = await api.post('/api/applications/', data)
     return response.data
   },
 
   // Update an application
   async updateApplication(id: number, data: UpdateApplicationRequest): Promise<Application> {
-    const response = await api.put<Application>(`/api/applications/${id}`, data)
+    const response = await api.put(`/api/applications/${id}`, data)
     return response.data
   },
 

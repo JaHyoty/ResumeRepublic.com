@@ -20,11 +20,11 @@ const CertificationDeleteConfirmationModal: React.FC<CertificationDeleteConfirma
 }) => {
   // Use the scroll lock hook
   useScrollPosition(isOpen)
-
-  if (!isOpen || !certification) return null
-
+  
   // Use enhanced click outside functionality
   const { handleBackdropMouseDown, handleBackdropMouseUp } = useEnhancedClickOutside(onClose)
+
+  if (!isOpen || !certification) return null
 
   return (
     <div 

@@ -7,10 +7,10 @@ interface ExperienceTitle {
 
 interface ExperienceFormData {
   company: string
-  location?: string
+  location?: string | null
   start_date: string
-  end_date?: string
-  description?: string
+  end_date?: string | null
+  description?: string | null
   is_current: boolean
   titles: ExperienceTitle[]
 }
@@ -126,11 +126,11 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
       ...formData,
       // Ensure dates are in YYYY-MM-DD format
       start_date: formData.start_date,
-      end_date: formData.is_current ? undefined : formData.end_date || undefined,
+      end_date: formData.is_current ? null : formData.end_date || null,
       // Ensure location is not empty string
-      location: formData.location?.trim() || undefined,
+      location: formData.location?.trim() || null,
       // Ensure description is not empty string  
-      description: formData.description?.trim() || undefined
+      description: formData.description?.trim() || null
     }
 
     try {
@@ -167,7 +167,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
           </label>
           <input
             type="text"
-            value={formData.location}
+            value={formData.location || ''}
             onChange={(e) => handleInputChange('location', e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="City, State/Country"
@@ -198,7 +198,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
           </label>
           <input
             type="date"
-            value={formData.end_date}
+            value={formData.end_date || ''}
             onChange={(e) => handleInputChange('end_date', e.target.value)}
             disabled={formData.is_current}
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${

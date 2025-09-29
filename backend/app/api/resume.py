@@ -392,13 +392,15 @@ async def design_resume(
         filename = "_".join(filename_parts) if filename_parts else f"resume_{resume_version.id}"
         filename += ".pdf"
         
-        return Response(
-            content=pdf_content,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename={filename}"
-            }
-        )
+        # Return JSON response with PDF data and resume version ID
+        import base64
+        
+        return {
+            "resume_version_id": resume_version.id,
+            "pdf_data": base64.b64encode(pdf_content).decode('utf-8'),
+            "filename": filename,
+            "content_type": "application/pdf"
+        }
         
     except LaTeXCompilationError as e:
         logger.error(f"LaTeX compilation failed for user {current_user.id}: {str(e)}")
@@ -526,4 +528,187 @@ async def get_resume_pdf_url(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="PDF content not available - resume may not have been properly generated"
+        )
+
+
+@router.get("/latex/{resume_version_id}")
+async def get_resume_latex(
+    resume_version_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get the LaTeX content for a specific resume version
+    """
+    # Get resume version and verify ownership
+    resume_version = db.query(ResumeVersion).filter(
+        ResumeVersion.id == resume_version_id,
+        ResumeVersion.user_id == current_user.id
+    ).first()
+    
+    if not resume_version:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume version not found"
+        )
+    
+    # Check if LaTeX is stored in S3
+    if resume_version.latex_s3_key:
+        from app.services.s3_service import s3_service
+        try:
+            latex_content = await s3_service.get_latex_content(resume_version.latex_s3_key)
+            if latex_content:
+                return {"latex_content": latex_content}
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to retrieve LaTeX content from storage"
+                )
+        except Exception as e:
+            logger.error(f"Failed to get LaTeX content for resume version {resume_version_id}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve LaTeX content from storage"
+            )
+    else:
+        # No LaTeX S3 key means this resume was not properly generated
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="LaTeX content not available - resume may not have been properly generated"
+        )
+
+
+@router.put("/latex/{resume_version_id}")
+async def update_resume_latex(
+    resume_version_id: int,
+    latex_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update the LaTeX content for a specific resume version and regenerate PDF
+    """
+    # Get resume version and verify ownership
+    resume_version = db.query(ResumeVersion).filter(
+        ResumeVersion.id == resume_version_id,
+        ResumeVersion.user_id == current_user.id
+    ).first()
+    
+    if not resume_version:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resume version not found"
+        )
+    
+    # Extract LaTeX content from request
+    latex_content = latex_data.get("latex_content")
+    if not latex_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="LaTeX content is required"
+        )
+    
+    # Validate LaTeX content
+    if not latex_content.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="LaTeX content cannot be empty"
+        )
+    
+    if '\\begin{document}' not in latex_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="LaTeX content must contain \\begin{document}"
+        )
+    
+    if '\\end{document}' not in latex_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="LaTeX content must contain \\end{document}"
+        )
+    
+    try:
+        # Compile LaTeX to PDF
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            # Write LaTeX file
+            tex_file = temp_path / "resume.tex"
+            tex_file.write_text(latex_content, encoding='utf-8')
+            
+            # Compile LaTeX to PDF
+            logger.debug(f"Starting LaTeX compilation for resume version {resume_version_id}")
+            pdf_file = latex_service.compile_latex(tex_file, temp_path)
+            logger.debug(f"LaTeX compilation completed for resume version {resume_version_id}")
+            
+            # Read PDF content
+            pdf_bytes = pdf_file.read_bytes()
+            logger.debug(f"PDF file read successfully, size: {len(pdf_bytes)} bytes")
+            
+            # Upload new PDF and LaTeX to S3
+            from app.services.s3_service import s3_service
+            
+            # Delete old files from S3 if they exist
+            if resume_version.s3_key:
+                await s3_service.delete_pdf(resume_version.s3_key)
+            if resume_version.latex_s3_key:
+                await s3_service.delete_latex(resume_version.latex_s3_key)
+            
+            # Upload new files
+            pdf_s3_key = await s3_service.upload_pdf(pdf_bytes, current_user.id, resume_version.id)
+            latex_s3_key = await s3_service.upload_latex(latex_content, current_user.id, resume_version.id)
+            
+            if pdf_s3_key and latex_s3_key:
+                # Update resume version with new S3 keys
+                resume_version.s3_key = pdf_s3_key
+                resume_version.latex_s3_key = latex_s3_key
+                resume_version.updated_at = datetime.now()
+                db.commit()
+                
+                # Return PDF as response
+                logger.debug(f"Returning updated PDF response, size: {len(pdf_bytes)} bytes")
+                
+                # Create user-friendly filename for download
+                filename_parts = []
+                if resume_version.title:
+                    clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in resume_version.title.strip())
+                    filename_parts.append(clean_title.replace(" ", "_"))
+                filename_parts.append(f"v{resume_version.id}")
+                
+                filename = "_".join(filename_parts) if filename_parts else f"resume_{resume_version.id}"
+                filename += ".pdf"
+                
+                return Response(
+                    content=pdf_bytes,
+                    media_type="application/pdf",
+                    headers={
+                        "Content-Disposition": f"attachment; filename={filename}"
+                    }
+                )
+            else:
+                # If S3 upload fails, return error
+                error_details = []
+                if not pdf_s3_key:
+                    error_details.append("PDF upload to S3 failed")
+                if not latex_s3_key:
+                    error_details.append("LaTeX upload to S3 failed")
+                
+                logger.error(f"S3 upload failed for resume {resume_version.id}: {', '.join(error_details)}")
+                
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to store updated resume content: {', '.join(error_details)}"
+                )
+                
+    except LaTeXCompilationError as e:
+        logger.error(f"LaTeX compilation failed for resume version {resume_version_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"LaTeX compilation failed: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"Failed to update resume LaTeX for version {resume_version_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update resume content"
         )

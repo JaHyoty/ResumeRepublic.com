@@ -28,28 +28,28 @@ export interface EducationCreate {
 export interface EducationUpdate {
   institution?: string
   degree?: string
-  field_of_study?: string
+  field_of_study?: string | null
   start_date?: string
-  end_date?: string
-  gpa?: string
-  description?: string
-  location?: string
-  website_url?: string
+  end_date?: string | null
+  gpa?: string | null
+  description?: string | null
+  location?: string | null
+  website_url?: string | null
 }
 
 export const educationService = {
   async getEducation(): Promise<Education[]> {
-    const response = await api.get<Education[]>('/api/esc/education')
+    const response = await api.get('/api/esc/education')
     return response.data
   },
 
   async createEducation(educationData: EducationCreate): Promise<Education> {
-    const response = await api.post<Education>('/api/esc/education', educationData)
+    const response = await api.post('/api/esc/education', educationData)
     return response.data
   },
 
   async updateEducation(id: number, educationData: EducationUpdate): Promise<Education> {
-    const response = await api.put<Education>(`/api/esc/education/${id}`, educationData)
+    const response = await api.put(`/api/esc/education/${id}`, educationData)
     return response.data
   },
 

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { applicationService } from '../../services/applicationService'
 import { userService } from '../../services/userService'
-import { api } from '../../services/api'
+import { resumeService, type ResumeDesignRequest } from '../../services/resumeService'
 import PDFViewer from './PDFViewer'
 
 interface PersonalInfo {
@@ -38,6 +38,11 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [currentResumeVersionId, setCurrentResumeVersionId] = useState<number | null>(null)
+  const [viewMode, setViewMode] = useState<'view' | 'edit'>('view')
+  const [latexContent, setLatexContent] = useState<string>('')
+  const [isLoadingLatex, setIsLoadingLatex] = useState(false)
+  const [isUpdatingLatex, setIsUpdatingLatex] = useState(false)
   const [jobTitle, setJobTitle] = useState('')
   const [company, setCompany] = useState('')
   const [jobDescription, setJobDescription] = useState(initialJobDescription || '')
@@ -140,7 +145,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     
     try {
       // Prepare resume data (only personal info and job details - backend fetches the rest)
-      const data = {
+      const data: ResumeDesignRequest = {
         personal_info: personalInfo,
         job_title: jobTitle,
         company: company,
@@ -149,34 +154,19 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
         locale: userLocale
       }
 
-      // Generate optimized resume using LLM
-      const response = await api.post<Blob>('/api/resume/design', data, {
-        responseType: 'blob',
-        timeout: 60000 // 60 seconds timeout for resume generation
-      })
-
-      const blob = new Blob([response.data], { type: 'application/pdf' })
-      const url = URL.createObjectURL(blob)
+      // Generate optimized resume using resumeService
+      const result = await resumeService.designResume(data)
+      
+      // Set the resume version ID and create PDF URL
+      setCurrentResumeVersionId(result.resumeVersionId)
+      
+      const url = URL.createObjectURL(result.pdfBlob)
       setPdfUrl(url)
+      setViewMode('view') // Always start in view mode after generation
 
     } catch (error) {
       console.error('Error generating resume:', error)
-      
-      let errorMessage = 'Failed to generate resume. Please try again.'
-      
-      if (error instanceof Error) {
-        if (error.message.includes('timeout')) {
-          errorMessage = 'Resume generation timed out. Please try again with a shorter job description.'
-        } else if (error.message.includes('Network Error')) {
-          errorMessage = 'Network error. Please check your connection and try again.'
-        } else if (error.message.includes('403')) {
-          errorMessage = 'Authentication error. Please log in again.'
-        } else if (error.message.includes('500')) {
-          errorMessage = 'Server error. Please try again later.'
-        }
-      }
-      
-      alert(errorMessage)
+      alert(error instanceof Error ? error.message : 'Failed to generate resume. Please try again.')
     } finally {
       setIsGenerating(false)    
       
@@ -242,6 +232,55 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     if (!selectedApplicationId || !applications) return 'Select an application...'
     const application = applications.find(app => app.id === selectedApplicationId)
     return application ? `${application.job_title} at ${application.company}` : 'Select an application...'
+  }
+
+  const fetchLatexContent = async () => {
+    if (!currentResumeVersionId) return
+
+    setIsLoadingLatex(true)
+    try {
+      const content = await resumeService.getLatexContent(currentResumeVersionId)
+      setLatexContent(content)
+    } catch (error) {
+      console.error('Error fetching LaTeX content:', error)
+      alert(error instanceof Error ? error.message : 'Failed to load LaTeX content. Please try again.')
+    } finally {
+      setIsLoadingLatex(false)
+    }
+  }
+
+  const updateLatexContent = async () => {
+    if (!currentResumeVersionId || !latexContent.trim()) return
+
+    setIsUpdatingLatex(true)
+    try {
+      const pdfBlob = await resumeService.updateLatexContent(currentResumeVersionId, latexContent)
+      
+      // Update PDF with new content
+      const url = URL.createObjectURL(pdfBlob)
+      
+      // Clean up old PDF URL
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl)
+      }
+      
+      setPdfUrl(url)
+      setViewMode('view') // Switch back to view mode after successful update
+      
+    } catch (error) {
+      console.error('Error updating LaTeX content:', error)
+      alert(error instanceof Error ? error.message : 'Failed to update resume. Please try again.')
+    } finally {
+      setIsUpdatingLatex(false)
+    }
+  }
+
+  const handleViewModeChange = async (mode: 'view' | 'edit') => {
+    if (mode === 'edit' && !latexContent && currentResumeVersionId) {
+      // Fetch LaTeX content when switching to edit mode for the first time
+      await fetchLatexContent()
+    }
+    setViewMode(mode)
   }
 
   return (
@@ -502,14 +541,93 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-semibold text-gray-900">Resume Preview</h2>
-                <button
-                  onClick={downloadResume}
-                  className="bg-green-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors"
-                >
-                  Download PDF
-                </button>
+                <div className="flex items-center gap-4">
+                  {/* Edit/View Mode Toggle */}
+                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => handleViewModeChange('view')}
+                      className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                        viewMode === 'view'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800'
+                      }`}
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => handleViewModeChange('edit')}
+                      disabled={!currentResumeVersionId}
+                      className={`px-4 py-2 rounded-md font-medium transition-colors ${
+                        viewMode === 'edit'
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-800 disabled:text-gray-400 disabled:cursor-not-allowed'
+                      }`}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  
+                  <button
+                    onClick={downloadResume}
+                    className="bg-green-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors"
+                  >
+                    Download PDF
+                  </button>
+                </div>
               </div>
-              <PDFViewer pdfUrl={pdfUrl} id="pdf-viewer" onReady={handlePdfViewerReady} />
+              
+              <div style={{ display: viewMode === 'view' ? 'block' : 'none' }}>
+                <PDFViewer pdfUrl={pdfUrl} id="pdf-viewer" onReady={handlePdfViewerReady} />
+              </div>
+              
+              {viewMode === 'edit' && (
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">LaTeX Editor</h3>
+                    <button
+                      onClick={updateLatexContent}
+                      disabled={isUpdatingLatex || !latexContent.trim()}
+                      className="bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isUpdatingLatex ? (
+                        <div className="flex items-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Rendering...
+                        </div>
+                      ) : (
+                        'Update & Render'
+                      )}
+                    </button>
+                  </div>
+                  
+                  {isLoadingLatex ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <span className="ml-3 text-gray-600">Loading LaTeX content...</span>
+                    </div>
+                  ) : (
+                    <textarea
+                      value={latexContent}
+                      onChange={(e) => setLatexContent(e.target.value)}
+                      className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                      placeholder="LaTeX content will appear here..."
+                      style={{ fontFamily: 'Monaco, Consolas, "Lucida Console", monospace' }}
+                    />
+                  )}
+                  
+                  <div className="mt-4 text-sm text-gray-600">
+                    <p className="mb-2">
+                      <strong>Tips:</strong>
+                    </p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Edit the LaTeX code directly to customize your resume</li>
+                      <li>Click "Update & Render" to compile your changes and generate a new PDF</li>
+                      <li>Make sure to maintain proper LaTeX syntax to avoid compilation errors</li>
+                      <li>The system will automatically switch back to View mode after successful rendering</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-md p-6">

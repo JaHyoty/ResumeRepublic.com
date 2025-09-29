@@ -46,8 +46,8 @@ class ApiClient {
             try {
               const refreshToken = localStorage.getItem('refresh_token');
               if (refreshToken) {
-                const response = await this.post<{ access_token: string }>('/api/auth/refresh');
-                const { access_token } = response.data;
+                const response = await this.post('/api/auth/refresh');
+                const { access_token } = response.data as { access_token: string };
                 localStorage.setItem('auth_token', access_token);
                 originalRequest.headers.Authorization = `Bearer ${access_token}`;
                 return this.client(originalRequest);
@@ -66,19 +66,19 @@ class ApiClient {
     );
   }
 
-  async get<T>(url: string, config?: AxiosRequestConfig): Promise<{ data: T }> {
+  async get(url: string, config?: AxiosRequestConfig) {
     return this.client.get(url, config);
   }
 
-  async post<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<{ data: T }> {
+  async post(url: string, data?: any, config?: AxiosRequestConfig) {
     return this.client.post(url, data, config);
   }
 
-  async put<T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<{ data: T }> {
+  async put(url: string, data?: any, config?: AxiosRequestConfig) {
     return this.client.put(url, data, config);
   }
 
-  async delete<T>(url: string, config?: AxiosRequestConfig): Promise<{ data: T }> {
+  async delete(url: string, config?: AxiosRequestConfig) {
     return this.client.delete(url, config);
   }
 }

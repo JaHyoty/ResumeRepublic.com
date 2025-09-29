@@ -86,9 +86,9 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
       name: formData.name.trim(),
       issuer: formData.issuer.trim(),
       issue_date: formData.issue_date.trim(),
-      expiry_date: formData.expiry_date?.trim() || undefined,
-      credential_id: formData.credential_id?.trim() || undefined,
-      credential_url: formData.credential_url?.trim() || undefined
+      expiry_date: formData.expiry_date?.trim() || null,
+      credential_id: formData.credential_id?.trim() || null,
+      credential_url: formData.credential_url?.trim() || null
     }
 
     onSubmit(submitData)

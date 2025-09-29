@@ -15,42 +15,42 @@ export interface CreateCertificationRequest {
   name: string
   issuer: string
   issue_date: string  // YYYY-MM-DD format
-  expiry_date?: string  // YYYY-MM-DD format
-  credential_id?: string
-  credential_url?: string
+  expiry_date?: string | null  // YYYY-MM-DD format
+  credential_id?: string | null
+  credential_url?: string | null
 }
 
 export interface UpdateCertificationRequest {
   name?: string
   issuer?: string
   issue_date?: string  // YYYY-MM-DD format
-  expiry_date?: string  // YYYY-MM-DD format
-  credential_id?: string
-  credential_url?: string
+  expiry_date?: string | null  // YYYY-MM-DD format
+  credential_id?: string | null
+  credential_url?: string | null
 }
 
 export const certificationService = {
   // Get all certifications for the current user
   async getCertifications(): Promise<Certification[]> {
-    const response = await api.get<Certification[]>('/api/esc/certifications')
+    const response = await api.get('/api/esc/certifications')
     return response.data
   },
 
   // Create a new certification
   async createCertification(data: CreateCertificationRequest): Promise<Certification> {
-    const response = await api.post<Certification>('/api/esc/certifications', data)
+    const response = await api.post('/api/esc/certifications', data)
     return response.data
   },
 
   // Get a specific certification by ID
   async getCertification(id: number): Promise<Certification> {
-    const response = await api.get<Certification>(`/api/esc/certifications/${id}`)
+    const response = await api.get(`/api/esc/certifications/${id}`)
     return response.data
   },
 
   // Update a certification
   async updateCertification(id: number, data: UpdateCertificationRequest): Promise<Certification> {
-    const response = await api.put<Certification>(`/api/esc/certifications/${id}`, data)
+    const response = await api.put(`/api/esc/certifications/${id}`, data)
     return response.data
   },
 

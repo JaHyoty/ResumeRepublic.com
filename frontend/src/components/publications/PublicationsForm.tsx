@@ -78,12 +78,12 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
 
     const submitData: CreatePublicationRequest = {
       title: formData.title.trim(),
-      co_authors: formData.co_authors?.trim() || undefined,
-      publisher: formData.publisher?.trim() || undefined,
-      publication_date: formData.publication_date?.trim() || undefined,
-      url: formData.url?.trim() || undefined,
-      description: formData.description?.trim() || undefined,
-      publication_type: formData.publication_type?.trim() || undefined
+      co_authors: formData.co_authors?.trim() || null,
+      publisher: formData.publisher?.trim() || null,
+      publication_date: formData.publication_date?.trim() || null,
+      url: formData.url?.trim() || null,
+      description: formData.description?.trim() || null,
+      publication_type: formData.publication_type?.trim() || null
     }
 
     onSubmit(submitData)

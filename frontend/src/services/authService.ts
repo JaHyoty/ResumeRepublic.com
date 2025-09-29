@@ -38,19 +38,19 @@ export interface GoogleOAuthRequest {
 export const authService = {
   // Register a new user
   async register(userData: RegisterRequest): Promise<User> {
-    const response = await api.post<User>('/api/auth/register', userData)
+    const response = await api.post('/api/auth/register', userData)
     return response.data
   },
 
   // Login user
   async login(credentials: LoginRequest): Promise<AuthResponse> {
-    const response = await api.post<AuthResponse>('/api/auth/login', credentials)
+    const response = await api.post('/api/auth/login', credentials)
     return response.data
   },
 
   // Get current user info
   async getCurrentUser(): Promise<User> {
-    const response = await api.get<User>('/api/auth/me')
+    const response = await api.get('/api/auth/me')
     return response.data
   },
 
@@ -99,7 +99,7 @@ export const authService = {
 
   // Google OAuth login
   async loginWithGoogle(idToken: string): Promise<AuthResponse> {
-    const response = await api.post<AuthResponse>('/api/auth/google', {
+    const response = await api.post('/api/auth/google', {
       id_token: idToken
     })
     return response.data
