@@ -5,6 +5,7 @@ import { applicationService } from '../../services/applicationService'
 import { userService } from '../../services/userService'
 import { resumeService, type ResumeDesignRequest } from '../../services/resumeService'
 import PDFViewer from './PDFViewer'
+import KeywordAnalysis from './KeywordAnalysis'
 
 interface PersonalInfo {
   name: string
@@ -49,6 +50,12 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(linkedApplicationId || null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  
+  // Keyword analysis workflow state
+  const [showKeywordAnalysis, setShowKeywordAnalysis] = useState(false)
+  const [keywordAnalysisCompleted, setKeywordAnalysisCompleted] = useState(false)
+  const [analyzedKeywords, setAnalyzedKeywords] = useState<string[]>([])
+  const [selectedSkillsFromAnalysis, setSelectedSkillsFromAnalysis] = useState<string[]>([])
   
   // Get user's locale for phone number formatting
   const [userLocale, setUserLocale] = useState<string>('en-US')
@@ -135,12 +142,25 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     }))
   }
 
-  const generateResume = async () => {
+  const startResumeGeneration = () => {
     if (!jobTitle.trim() || !company.trim() || !jobDescription.trim()) {
       alert('Please provide job title, company, and job description')
       return
     }
     
+    // Show keyword analysis step
+    setShowKeywordAnalysis(true)
+    
+    // Scroll to keyword analysis section
+    setTimeout(() => {
+      const keywordSection = document.getElementById('keyword-analysis-section');
+      if (keywordSection) {
+        keywordSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100)
+  }
+
+  const generateResume = async () => {
     setIsGenerating(true)
     
     try {
@@ -172,6 +192,13 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
       
       // Scroll will be handled by the PDFViewer onReady callback
     }
+  }
+
+  const handleKeywordAnalysisComplete = (keywords: string[], selectedSkills: string[]) => {
+    setKeywordAnalysisCompleted(true)
+    setAnalyzedKeywords(keywords)
+    setSelectedSkillsFromAnalysis(selectedSkills)
+    generateResume()
   }
 
   const handlePdfViewerReady = () => {
@@ -287,7 +314,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     <div className="max-w-7xl mx-auto p-6">
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Resume Designer</h2>
-        <p className="text-gray-600">Create an AI-optimized resume tailored to your target job</p>
+        <p className="text-gray-600 text-lg">Create an AI-optimized resume tailored to your target job</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -521,22 +548,36 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
           </div>
 
           {/* Generate Button */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <button
-              onClick={generateResume}
-              disabled={isGenerating || !personalInfo.name || !personalInfo.email || !personalInfo.phone || !personalInfo.location || !jobTitle.trim() || !company.trim() || !jobDescription.trim()}
-              className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {isGenerating ? 'Designing Resume...' : 'Design Resume with AI'}
-            </button>
-            <p className="text-sm text-gray-500 mt-2 text-center">
-              AI will optimize your resume content, keywords, and structure for this specific job
-            </p>
-          </div>
+          {!showKeywordAnalysis && !keywordAnalysisCompleted && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <button
+                onClick={startResumeGeneration}
+                disabled={isGenerating || !personalInfo.name || !personalInfo.email || !personalInfo.phone || !personalInfo.location || !jobTitle.trim() || !company.trim() || !jobDescription.trim()}
+                className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Continue
+              </button>
+              <p className="text-sm text-gray-500 mt-2 text-center">
+                AI will optimize your resume content, keywords, and structure for this specific job
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Preview Panel */}
         <div className="space-y-6" id="pdf-viewer">
+          {/* Keyword Analysis Section */}
+          {(showKeywordAnalysis || keywordAnalysisCompleted) && (
+            <div id="keyword-analysis-section">
+              <KeywordAnalysis
+                jobDescription={jobDescription}
+                onComplete={handleKeywordAnalysisComplete}
+                isCompleted={keywordAnalysisCompleted}
+                analyzedKeywords={analyzedKeywords}
+                selectedSkills={selectedSkillsFromAnalysis}
+              />
+            </div>
+          )}
           {pdfUrl ? (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
@@ -632,9 +673,26 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
           ) : (
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="text-center py-12">
-                <div className="text-gray-400 text-6xl mb-4">🎨</div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Resume Designed</h3>
-                <p className="text-gray-600">Fill in your information and job description, then click "Design Resume with AI" to create an optimized resume</p>
+                {isGenerating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Generating your optimized resume...</h3>
+                    <p className="text-gray-600">Please wait while we create your personalized resume</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-gray-400 text-6xl mb-4">🎨</div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      {(showKeywordAnalysis || keywordAnalysisCompleted) ? 'Resume Ready to Generate' : 'No Resume Designed'}
+                    </h3>
+                    <p className="text-gray-600">
+                      {(showKeywordAnalysis || keywordAnalysisCompleted) 
+                        ? 'Finalize your keyword optimization to create optimized resume'
+                        : 'Fill in your information and job description to create an optimized resume'
+                      }
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           )}

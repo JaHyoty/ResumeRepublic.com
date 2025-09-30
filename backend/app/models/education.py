@@ -18,7 +18,7 @@ class Education(Base):
     field_of_study = Column(String(255), nullable=True)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=True)  # None for current education
-    gpa = Column(String(10), nullable=True)  # e.g., "3.8/4.0", "First Class"
+    gpa = Column(String(10), nullable=True)  # e.g., "3.85", "First Class", flexible format
     description = Column(Text, nullable=True)
     location = Column(String(255), nullable=True)
     website_url = Column(String(500), nullable=True)

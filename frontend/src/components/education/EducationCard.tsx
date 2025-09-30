@@ -39,7 +39,7 @@ const EducationCard: React.FC<EducationCardProps> = ({
             <p className="text-xs text-gray-500">
               {formatDateRange()}
               {education.location && ` • ${education.location}`}
-              {education.gpa && ` • GPA: ${education.gpa}`}
+              {education.gpa && ` • GPA: ${isNaN(parseFloat(education.gpa)) ? education.gpa : parseFloat(education.gpa).toFixed(2)}`}
             </p>
           </div>
           {education.website_url && (

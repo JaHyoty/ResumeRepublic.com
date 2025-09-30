@@ -42,5 +42,11 @@ export const skillService = {
   // Delete a skill
   async deleteSkill(id: number): Promise<void> {
     await api.delete(`/api/esc/skills/${id}`)
+  },
+
+  // Create multiple skills at once
+  async createSkillsBulk(skillNames: string[]): Promise<Skill[]> {
+    const response = await api.post('/api/esc/skills/bulk', skillNames)
+    return response.data
   }
 }

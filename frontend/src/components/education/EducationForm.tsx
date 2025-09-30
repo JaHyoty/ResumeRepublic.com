@@ -239,7 +239,7 @@ const EducationForm: React.FC<EducationFormProps> = ({
                 value={formData.gpa}
                 onChange={(e) => handleInputChange('gpa', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="3.8/4.0"
+                placeholder="3.85/4.00 or First Class"
               />
             </div>
 

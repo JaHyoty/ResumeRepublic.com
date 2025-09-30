@@ -285,6 +285,53 @@ def delete_skill(
     return {"message": "Skill deleted successfully"}
 
 
+@router.post("/skills/bulk", response_model=List[Skill])
+def create_skills_bulk(
+    skill_names: List[str],
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create multiple skills at once from a list of skill names"""
+    
+    if not skill_names:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No skill names provided"
+        )
+    
+    # Get existing skill names for the user to avoid duplicates
+    existing_skills = db.query(SkillModel).filter(
+        SkillModel.user_id == current_user.id
+    ).all()
+    existing_skill_names = {skill.name.lower() for skill in existing_skills}
+    
+    # Filter out duplicates and empty names
+    new_skills = []
+    for skill_name in skill_names:
+        skill_name = skill_name.strip()
+        if skill_name and skill_name.lower() not in existing_skill_names:
+            new_skills.append(SkillModel(
+                user_id=current_user.id,
+                name=skill_name,
+                source="job_analysis"  # Mark these as coming from keyword analysis
+            ))
+            existing_skill_names.add(skill_name.lower())  # Prevent duplicates within the same request
+    
+    if not new_skills:
+        # If no new skills to add, return empty list
+        return []
+    
+    # Add all new skills to database
+    db.add_all(new_skills)
+    db.commit()
+    
+    # Refresh all new skills to get their IDs
+    for skill in new_skills:
+        db.refresh(skill)
+    
+    return new_skills
+
+
 # Certifications endpoints
 @router.get("/certifications", response_model=List[Certification])
 def get_user_certifications(

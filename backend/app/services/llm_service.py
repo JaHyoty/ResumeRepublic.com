@@ -106,6 +106,7 @@ ACCURACY REQUIREMENTS:
    - EXAMPLE: If Graduation Date shows "June 2023", you MUST display "June 2023" exactly
    - If Graduation Date is null/empty, leave the date field empty - do NOT add placeholder text
    - Do not display the location for education
+   - GPA FORMATTING: If GPA is a number, display it with exactly 2 decimal places (e.g., "3.85", "4.00"). If GPA is text (e.g., "First Class", "Magna Cum Laude"), display as-is.
 
 3. Experience:
    - MANDATORY: display the location of every experience, even if Remote
@@ -275,116 +276,324 @@ Generate the optimized resume now."""
         
         return latex_content.strip()
     
+    async def analyze_keywords(self, job_description: str) -> list[str]:
+        """
+        Analyze job description to extract key skills and keywords
+        """
+        
+        # Validate API key
+        if not self.api_key:
+            raise Exception("OPENROUTER_API_KEY is not configured. Please set the environment variable.")
+        
+        prompt = f"""You are a professional resume analyst. Analyze the following job description and extract ONLY the technical skills, tools, technologies, and keywords that are EXPLICITLY MENTIONED in the text.
+
+CRITICAL REQUIREMENTS:
+- Extract ONLY keywords that are DIRECTLY STATED in the job description text
+- Do NOT infer, assume, or add related skills that are not explicitly mentioned
+- Do NOT include soft skills, general terms, job requirements, education majors, or degree requirements
+- Return ONLY a JSON array of strings, no explanations or additional text
+- Each skill must be a specific, searchable keyword that appears in the job description
+- Maximum 20 keywords, but ONLY return what is actually present in the text
+- If there are only 3-5 technical terms mentioned, return only those 3-5 terms
+- Use proper capitalization and exact naming conventions as they appear in the job description
+
+STRICT EXTRACTION RULES:
+- ONLY extract terms that are literally present in the job description
+- Do NOT add synonyms or related technologies (e.g., if "React" is mentioned, don't add "JavaScript" unless it's also mentioned)
+- Do NOT add common tools that "might be used" with mentioned technologies
+- Do NOT pad the list with generic terms to reach a target number
+- If the job description mentions very few technical terms, return a short list
+
+EXAMPLES of what TO INCLUDE (only if explicitly mentioned):
+- Programming languages: "Python", "JavaScript", "Java", "C++"
+- Frameworks: "React", "Angular", "Django", "Spring Boot"
+- Tools: "Docker", "Kubernetes", "Git", "Jenkins"
+- Technologies: "AWS", "PostgreSQL", "Redis", "GraphQL"
+- Certifications: "AWS Certified", "PMP", "Scrum Master"
+- Methodologies: "Agile", "DevOps", "CI/CD"
+
+EXAMPLES of what NOT to include:
+- Soft skills: "communication", "teamwork", "leadership", "problem-solving"
+- General terms: "experience", "knowledge", "ability", "skills"
+- Job requirements: "bachelor's degree", "5+ years", "master's degree"
+- Education majors: "Computer Science", "Engineering", "Business Administration"
+- Vague terms: "strong", "excellent", "proficient", "familiar"
+- Inferred technologies not explicitly mentioned
+
+QUALITY OVER QUANTITY:
+- Better to return 5 accurate keywords than 15 keywords with hallucinations
+- Only extract what is genuinely present in the job description
+- Do not try to reach a specific number of keywords
+
+JOB DESCRIPTION:
+{job_description}
+
+Return only the JSON array of keywords that are explicitly mentioned in the job description:"""
+
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": self.llm_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.1,  # Low temperature for more deterministic, factual extraction
+            "max_tokens": 500    # Limit response length to prevent over-generation
+        }
+        
+        try:
+            logger.info("Making keyword analysis LLM API request", 
+                       url=self.base_url, 
+                       using_https=self.base_url.startswith('https://'))
+            
+            # Use httpx client with TLS enforcement
+            async with create_httpx_client() as client:
+                response = await client.post(self.base_url, headers=headers, json=data)
+                
+                logger.info("Keyword analysis LLM API response received",
+                           status_code=response.status_code,
+                           using_https=str(response.url).startswith('https://'),
+                           content_length=len(response.content))
+            
+            # Handle specific HTTP status codes
+            if response.status_code == 401:
+                raise Exception("OpenRouter API authentication failed. Please check your OPENROUTER_API_KEY.")
+            elif response.status_code == 403:
+                raise Exception("OpenRouter API access forbidden. Please check your API key permissions.")
+            elif response.status_code == 429:
+                raise Exception("OpenRouter API rate limit exceeded. Please try again later.")
+            
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            # Check for OpenRouter-specific error responses
+            if "error" in result:
+                error_msg = result["error"].get("message", "Unknown error")
+                raise Exception(f"OpenRouter API error: {error_msg}")
+            
+            # Extract content from response
+            if "choices" in result and len(result["choices"]) > 0:
+                raw_content = result["choices"][0]["message"]["content"]
+                logger.debug(f"Raw keyword analysis response: {raw_content}")
+                
+                # Parse JSON response
+                try:
+                    import json
+                    # Clean the response to extract only JSON
+                    cleaned_content = raw_content.strip()
+                    
+                    # Find JSON array in the response
+                    start_idx = cleaned_content.find('[')
+                    end_idx = cleaned_content.rfind(']')
+                    
+                    if start_idx != -1 and end_idx != -1:
+                        json_str = cleaned_content[start_idx:end_idx+1]
+                        keywords = json.loads(json_str)
+                        
+                        # Validate that it's a list of strings
+                        if isinstance(keywords, list) and all(isinstance(k, str) for k in keywords):
+                            logger.debug(f"Extracted {len(keywords)} keywords: {keywords}")
+                            return keywords
+                        else:
+                            raise ValueError("Response is not a valid list of strings")
+                    else:
+                        raise ValueError("No JSON array found in response")
+                        
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.error(f"Failed to parse keyword analysis response as JSON: {e}")
+                    logger.error(f"Raw response: {raw_content}")
+                    # Fallback: try to extract keywords manually
+                    return self._extract_keywords_fallback(raw_content)
+                    
+            else:
+                raise Exception("No response content received from OpenRouter API")
+            
+        except httpx.ConnectError as e:
+            if "SSL" in str(e) or "TLS" in str(e) or "certificate" in str(e).lower():
+                logger.error(f"TLS connection error to OpenRouter API: {str(e)}")
+                raise Exception(f"TLS connection failed to OpenRouter API. Please check your network configuration and SSL settings. Error: {str(e)}")
+            else:
+                logger.error(f"Connection error to OpenRouter API: {str(e)}")
+                raise Exception(f"Failed to connect to OpenRouter API. Please check your network connection. Error: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 401:
+                raise Exception("OpenRouter API authentication failed. Please check your OPENROUTER_API_KEY.")
+            else:
+                logger.error(f"HTTP error to OpenRouter API: {e.response.status_code} - {str(e)}")
+                raise Exception(f"OpenRouter API request failed: {e.response.status_code} - {str(e)}")
+        except httpx.RequestError as e:
+            logger.error(f"Request error to OpenRouter API: {str(e)}")
+            raise Exception(f"OpenRouter API request failed: {str(e)}")
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout error to OpenRouter API: {str(e)}")
+            raise Exception(f"OpenRouter API request timed out. Please try again later. Error: {str(e)}")
+        except ssl.SSLError as e:
+            logger.error(f"SSL error when connecting to OpenRouter API: {str(e)}")
+            raise Exception(f"SSL certificate verification failed for OpenRouter API. Error: {str(e)}")
+        except KeyError as e:
+            raise Exception(f"Unexpected response format from OpenRouter API: {str(e)}")
+    
+    def _extract_keywords_fallback(self, raw_content: str) -> list[str]:
+        """
+        Fallback method to extract keywords when JSON parsing fails
+        """
+        import re
+        
+        # Try to find quoted strings that look like technical terms
+        keywords = []
+        
+        # Look for quoted strings
+        quoted_pattern = r'"([^"]+)"'
+        matches = re.findall(quoted_pattern, raw_content)
+        
+        for match in matches:
+            # Filter for technical-looking terms
+            if len(match) > 1 and not match.lower() in ['and', 'or', 'the', 'a', 'an', 'to', 'for', 'with', 'in', 'on', 'at']:
+                keywords.append(match)
+        
+        # If no quoted strings, try to extract capitalized words
+        if not keywords:
+            cap_pattern = r'\b[A-Z][a-zA-Z0-9+#\.]*\b'
+            matches = re.findall(cap_pattern, raw_content)
+            keywords = [m for m in matches if len(m) > 2][:20]
+        
+        return keywords[:20]  # Limit to 20 keywords
+    
     def _format_applicant_data(self, applicant_data: Dict[str, Any]) -> str:
-        """Format applicant data for the LLM prompt"""
+        """Format applicant data in Markdown format for better LLM parsing"""
         
         formatted_data = []
         
         # Personal Information
         if applicant_data.get("personal_info"):
             personal = applicant_data["personal_info"]
-            formatted_data.append("PERSONAL INFORMATION:")
-            formatted_data.append(f"Name: {personal.get('name', 'N/A')}")
-            formatted_data.append(f"Email: {personal.get('email', 'N/A')}")
-            formatted_data.append(f"Phone: {personal.get('phone', 'N/A')}")
-            formatted_data.append(f"Location: {personal.get('location', 'N/A')}")
+            formatted_data.append("# Personal Information")
+            formatted_data.append("")
+            formatted_data.append(f"**Name:** {personal.get('name', 'N/A')}")
+            formatted_data.append(f"**Email:** {personal.get('email', 'N/A')}")
+            formatted_data.append(f"**Phone:** {personal.get('phone', 'N/A')}")
+            formatted_data.append(f"**Location:** {personal.get('location', 'N/A')}")
             if personal.get('summary'):
-                formatted_data.append(f"Professional Summary: {personal['summary']}")
+                formatted_data.append(f"**Professional Summary:** {personal['summary']}")
             formatted_data.append("")
         
         # Education
         if applicant_data.get("education"):
-            formatted_data.append("EDUCATION:")
+            formatted_data.append("# Education")
+            formatted_data.append("")
             for edu in applicant_data["education"]:
-                formatted_data.append(f"- {edu.get('degree', 'N/A')} in {edu.get('field_of_study', 'N/A')}")
-                formatted_data.append(f"  Institution: {edu.get('institution', 'N/A')}")
-                formatted_data.append(f"  Location: {edu.get('location', 'N/A')}")
-                formatted_data.append(f"  Graduation Date: {edu.get('end_date', 'N/A')}")
+                formatted_data.append(f"## {edu.get('degree', 'N/A')} in {edu.get('field_of_study', 'N/A')}")
+                formatted_data.append(f"**Institution:** {edu.get('institution', 'N/A')}")
+                formatted_data.append(f"**Location:** {edu.get('location', 'N/A')}")
+                formatted_data.append(f"**Graduation Date:** {edu.get('end_date', 'N/A')}")
                 if edu.get('gpa'):
-                    formatted_data.append(f"  GPA: {edu['gpa']}")
+                    # Format GPA with 2 decimal places if it's a number
+                    gpa_value = edu['gpa']
+                    try:
+                        # Try to format as a number with 2 decimal places
+                        gpa_formatted = f"{float(gpa_value):.2f}"
+                        formatted_data.append(f"**GPA:** {gpa_formatted}")
+                    except (ValueError, TypeError):
+                        # If it's not a number (e.g., "First Class"), use as-is
+                        formatted_data.append(f"**GPA:** {gpa_value}")
                 formatted_data.append("")
         
         # Work Experience
         if applicant_data.get("experiences"):
-            formatted_data.append("WORK EXPERIENCE:")
+            formatted_data.append("# Work Experience")
+            formatted_data.append("")
             for exp in applicant_data["experiences"]:
-                formatted_data.append(f"- Company: {exp.get('company', 'N/A')}")
-                formatted_data.append(f"  Location: {exp.get('location', 'N/A')}")
-                formatted_data.append(f"  Start Date: {exp.get('start_date', 'N/A')}")
-                formatted_data.append(f"  End Date: {'Present' if exp.get('is_current') else exp.get('end_date', 'N/A')}")
+                formatted_data.append(f"## {exp.get('company', 'N/A')}")
+                formatted_data.append(f"**Location:** {exp.get('location', 'N/A')}")
+                formatted_data.append(f"**Duration:** {exp.get('start_date', 'N/A')} - {'Present' if exp.get('is_current') else exp.get('end_date', 'N/A')}")
                 
                 # Job Titles
                 if exp.get('titles'):
-                    formatted_data.append("  Job Titles:")
+                    formatted_data.append("**Positions:**")
                     for title in exp['titles']:
-                        primary_indicator = " (Primary)" if title.get('is_primary') else ""
-                        formatted_data.append(f"    - {title.get('title', 'N/A')}{primary_indicator}")
+                        primary_indicator = " *(Primary)*" if title.get('is_primary') else ""
+                        formatted_data.append(f"- {title.get('title', 'N/A')}{primary_indicator}")
                 
                 if exp.get('description'):
-                    formatted_data.append(f"  Description: {exp['description']}")
-                
+                    formatted_data.append("**Description:**")
+                    formatted_data.append(f"{exp['description']}")
                 
                 formatted_data.append("")
         
         # Projects
         if applicant_data.get("projects"):
-            formatted_data.append("PROJECTS:")
+            formatted_data.append("# Projects")
+            formatted_data.append("")
             for project in applicant_data["projects"]:
-                formatted_data.append(f"- Project: {project.get('name', 'N/A')}")
-                formatted_data.append(f"  Start Date: {project.get('start_date', 'N/A')}")
-                formatted_data.append(f"  End Date: {'Present' if project.get('is_current') else project.get('end_date', 'N/A')}")
+                formatted_data.append(f"## {project.get('name', 'N/A')}")
+                formatted_data.append(f"**Duration:** {project.get('start_date', 'N/A')} - {'Present' if project.get('is_current') else project.get('end_date', 'N/A')}")
                 if project.get('url'):
-                    formatted_data.append(f"  URL: {project['url']}")
+                    formatted_data.append(f"**URL:** {project['url']}")
                 if project.get('description'):
-                    formatted_data.append(f"  Description: {project['description']}")
+                    formatted_data.append("**Description:**")
+                    formatted_data.append(f"{project['description']}")
                 
                 # Technologies
                 if project.get('technologies'):
-                    formatted_data.append("  Technologies Used:")
-                    for tech in project['technologies']:
-                        formatted_data.append(f"    - {tech.get('technology', 'N/A')}")
-                
+                    formatted_data.append("**Technologies Used:**")
+                    tech_list = [tech.get('technology', 'N/A') for tech in project['technologies']]
+                    formatted_data.append(f"{', '.join(tech_list)}")
                 
                 formatted_data.append("")
         
         # Skills
         if applicant_data.get("skills"):
-            formatted_data.append("SKILLS:")
-            for skill in applicant_data["skills"]:
-                formatted_data.append(f"- {skill.get('name', 'N/A')}")
+            formatted_data.append("# Skills")
+            formatted_data.append("")
+            skill_names = [skill.get('name', 'N/A') for skill in applicant_data["skills"]]
+            # Group skills in a more readable format
+            skills_per_line = 8
+            for i in range(0, len(skill_names), skills_per_line):
+                skill_group = skill_names[i:i + skills_per_line]
+                formatted_data.append(f"- {' • '.join(skill_group)}")
             formatted_data.append("")
         
         # Certifications
         if applicant_data.get("certifications"):
-            formatted_data.append("CERTIFICATIONS:")
+            formatted_data.append("# Certifications")
+            formatted_data.append("")
             for cert in applicant_data["certifications"]:
-                formatted_data.append(f"- {cert.get('name', 'N/A')}")
-                formatted_data.append(f"  Issuer: {cert.get('issuer', 'N/A')}")
-                formatted_data.append(f"  Issue Date: {cert.get('issue_date', 'N/A')}")
+                formatted_data.append(f"## {cert.get('name', 'N/A')}")
+                formatted_data.append(f"**Issuer:** {cert.get('issuer', 'N/A')}")
+                formatted_data.append(f"**Issue Date:** {cert.get('issue_date', 'N/A')}")
                 if cert.get('expiry_date'):
-                    formatted_data.append(f"  Expiry Date: {cert['expiry_date']}")
+                    formatted_data.append(f"**Expiry Date:** {cert['expiry_date']}")
                 formatted_data.append("")
         
         # Publications
         if applicant_data.get("publications"):
-            formatted_data.append("PUBLICATIONS:")
+            formatted_data.append("# Publications")
+            formatted_data.append("")
             for pub in applicant_data["publications"]:
-                formatted_data.append(f"- {pub.get('title', 'N/A')}")
+                formatted_data.append(f"## {pub.get('title', 'N/A')}")
                 if pub.get('co_authors'):
-                    formatted_data.append(f"  Co-authors: {pub['co_authors']}")
+                    formatted_data.append(f"**Co-authors:** {pub['co_authors']}")
                 if pub.get('publisher'):
-                    formatted_data.append(f"  Publisher: {pub['publisher']}")
+                    formatted_data.append(f"**Publisher:** {pub['publisher']}")
                 if pub.get('publication_date'):
-                    formatted_data.append(f"  Publication Date: {pub['publication_date']}")
+                    formatted_data.append(f"**Publication Date:** {pub['publication_date']}")
                 if pub.get('url'):
-                    formatted_data.append(f"  URL: {pub['url']}")
+                    formatted_data.append(f"**URL:** {pub['url']}")
                 formatted_data.append("")
         
         # Websites
         if applicant_data.get("websites"):
-            formatted_data.append("WEBSITES:")
+            formatted_data.append("# Websites & Links")
+            formatted_data.append("")
             for website in applicant_data["websites"]:
-                formatted_data.append(f"- {website.get('site_name', 'N/A')}: {website.get('url', 'N/A')}")
+                formatted_data.append(f"- **{website.get('site_name', 'N/A')}:** {website.get('url', 'N/A')}")
             formatted_data.append("")
         
         return "\n".join(formatted_data)

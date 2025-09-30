@@ -48,6 +48,14 @@ export interface ResumeDesignApiResponse {
   content_type: string
 }
 
+export interface KeywordAnalysisRequest {
+  job_description: string
+}
+
+export interface KeywordAnalysisResponse {
+  keywords: string[]
+}
+
 export const resumeService = {
   // Get resume versions for an application
   async getResumeVersions(applicationId: number): Promise<ResumeVersion[]> {
@@ -156,6 +164,38 @@ export const resumeService = {
     } catch (error) {
       console.error('Failed to open PDF:', error)
       throw new Error('Failed to open PDF. Please try again.')
+    }
+  },
+
+  // Analyze job description for keywords
+  async analyzeKeywords(jobDescription: string): Promise<string[]> {
+    try {
+      const response = await api.post('/api/resume/analyze-keywords', {
+        job_description: jobDescription
+      }, {
+        timeout: 30000 // 30 seconds timeout for keyword analysis
+      })
+
+      const result = response.data as KeywordAnalysisResponse
+      return result.keywords
+    } catch (error) {
+      console.error('Error analyzing keywords:', error)
+      
+      let errorMessage = 'Failed to analyze keywords. Please try again.'
+      
+      if (error instanceof Error) {
+        if (error.message.includes('timeout')) {
+          errorMessage = 'Keyword analysis timed out. Please try again with a shorter job description.'
+        } else if (error.message.includes('Network Error')) {
+          errorMessage = 'Network error. Please check your connection and try again.'
+        } else if (error.message.includes('503')) {
+          errorMessage = 'AI service temporarily unavailable. Please try again later.'
+        } else if (error.message.includes('400')) {
+          errorMessage = 'Please provide a valid job description.'
+        }
+      }
+      
+      throw new Error(errorMessage)
     }
   }
 }

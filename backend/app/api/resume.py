@@ -26,9 +26,16 @@ from app.services.latex_service import latex_service, LaTeXCompilationError
 from app.services.llm_service import llm_service
 from app.utils.template_utils import extract_template_content, get_full_template_content
 from app.schemas.resume import ResumeDesignRequest
+from pydantic import BaseModel
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+class KeywordAnalysisRequest(BaseModel):
+    job_description: str
+
+class KeywordAnalysisResponse(BaseModel):
+    keywords: list[str]
 
 def fetch_user_data_for_resume(user_id: int, db: Session) -> Dict[str, Any]:
     """
@@ -712,3 +719,47 @@ async def update_resume_latex(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update resume content"
         )
+
+
+@router.post("/analyze-keywords", response_model=KeywordAnalysisResponse)
+async def analyze_keywords(
+    request: KeywordAnalysisRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Analyze job description to extract key skills and keywords using LLM
+    """
+    logger.info(f"Keyword analysis request received for user {current_user.id}")
+    
+    try:
+        # Validate job description
+        if not request.job_description.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Job description cannot be empty"
+            )
+        
+        # Use LLM service to analyze keywords
+        logger.debug(f"Starting keyword analysis for user {current_user.id}")
+        keywords = await llm_service.analyze_keywords(request.job_description)
+        logger.debug(f"Keyword analysis completed for user {current_user.id}, found {len(keywords)} keywords")
+        
+        return KeywordAnalysisResponse(keywords=keywords)
+        
+    except Exception as e:
+        logger.error(f"Error in keyword analysis for user {current_user.id}: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Return user-friendly error message
+        error_message = str(e)
+        if "OpenRouter" in error_message:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=error_message
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to analyze keywords. Please try again."
+            )
