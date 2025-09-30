@@ -540,11 +540,10 @@ Return only the JSON array of keywords that are explicitly mentioned in the job 
                     formatted_data.append("**Description:**")
                     formatted_data.append(f"{project['description']}")
                 
-                # Technologies
-                if project.get('technologies'):
+                # Technologies Used
+                if project.get('technologies_used'):
                     formatted_data.append("**Technologies Used:**")
-                    tech_list = [tech.get('technology', 'N/A') for tech in project['technologies']]
-                    formatted_data.append(f"{', '.join(tech_list)}")
+                    formatted_data.append(f"{project['technologies_used']}")
                 
                 formatted_data.append("")
         

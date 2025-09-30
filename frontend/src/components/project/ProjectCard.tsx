@@ -37,14 +37,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onEdit, onDelete }) 
           <p className="text-xs text-gray-500 mt-1">
             {formatDate(project.start_date)} - {project.is_current ? 'Present' : (project.end_date ? formatDate(project.end_date) : 'Present')}
           </p>
-          {project.technologies.length > 0 && (
+          {project.technologies_used && (
             <p className="text-xs text-gray-500 mt-1">
-              {project.technologies.length} technolog{project.technologies.length !== 1 ? 'ies' : 'y'}
-            </p>
-          )}
-          {project.achievements.length > 0 && (
-            <p className="text-xs text-gray-500 mt-1">
-              {project.achievements.length} achievement{project.achievements.length !== 1 ? 's' : ''}
+              Technologies: {project.technologies_used}
             </p>
           )}
         </div>
@@ -76,7 +71,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onEdit, onDelete }) 
           {project.description && (
             <div className="mb-3">
               <h5 className="text-sm font-medium text-gray-900 mb-1">Description</h5>
-              <p className="text-sm text-gray-600">{project.description}</p>
+              <p className="text-sm text-gray-600 whitespace-pre-wrap">{project.description}</p>
             </div>
           )}
           
@@ -95,33 +90,19 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onEdit, onDelete }) 
             </div>
           )}
           
-          {project.technologies.length > 0 && (
+          {project.technologies_used && (
             <div className="mb-3">
               <h5 className="text-sm font-medium text-gray-900 mb-2">Technologies Used</h5>
               <div className="flex flex-wrap gap-1">
-                {project.technologies.map((tech, index) => (
+                {project.technologies_used.split(',').map((tech, index) => (
                   <span 
                     key={index}
                     className="inline-flex items-center px-2 py-1 rounded text-xs bg-orange-100 text-orange-800"
                   >
-                    {tech.technology}
+                    {tech.trim()}
                   </span>
                 ))}
               </div>
-            </div>
-          )}
-          
-          {project.achievements.length > 0 && (
-            <div>
-              <h5 className="text-sm font-medium text-gray-900 mb-2">Key Achievements</h5>
-              <ul className="space-y-1">
-                {project.achievements.map((achievement, index) => (
-                  <li key={index} className="text-sm text-gray-600 flex items-start">
-                    <span className="text-orange-500 mr-2">•</span>
-                    {achievement.description}
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
         </div>

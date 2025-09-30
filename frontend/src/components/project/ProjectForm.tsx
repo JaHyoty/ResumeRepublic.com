@@ -1,12 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-
-interface ProjectTechnology {
-  technology: string
-}
-
-interface ProjectAchievement {
-  description: string
-}
+import { projectService, type Project, type CreateProjectRequest } from '../../services/projectService'
 
 interface ProjectFormData {
   name: string
@@ -15,41 +8,59 @@ interface ProjectFormData {
   end_date?: string
   url?: string
   is_current: boolean
-  technologies: ProjectTechnology[]
-  achievements: ProjectAchievement[]
+  technologies_used?: string
 }
 
 interface ProjectFormProps {
-  onSubmit: (data: ProjectFormData) => Promise<void>
+  onSuccess: (data: any) => void
   onCancel: () => void
-  isLoading?: boolean
-  initialData?: ProjectFormData
-  mode?: 'create' | 'edit'
+  initialData?: Project | null
 }
 
 const ProjectForm: React.FC<ProjectFormProps> = ({
-  onSubmit,
+  onSuccess,
   onCancel,
-  isLoading = false,
-  initialData,
-  mode = 'create'
+  initialData
 }) => {
   const projectNameInputRef = useRef<HTMLInputElement>(null)
   
-  const [formData, setFormData] = useState<ProjectFormData>(
-    initialData || {
-      name: '',
-      description: '',
-      start_date: '',
-      end_date: '',
-      url: '',
-      is_current: false,
-      technologies: [{ technology: '' }],
-      achievements: [{ description: '' }]
-    }
-  )
+  const [formData, setFormData] = useState<ProjectFormData>({
+    name: '',
+    description: '',
+    start_date: '',
+    end_date: '',
+    url: '',
+    is_current: false,
+    technologies_used: ''
+  })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        name: initialData.name,
+        description: initialData.description || '',
+        start_date: initialData.start_date,
+        end_date: initialData.end_date || '',
+        url: initialData.url || '',
+        is_current: initialData.is_current,
+        technologies_used: initialData.technologies_used || ''
+      })
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+        start_date: '',
+        end_date: '',
+        url: '',
+        is_current: false,
+        technologies_used: ''
+      })
+    }
+    setErrors({})
+  }, [initialData])
 
   // Auto-focus the first input field when component mounts
   useEffect(() => {
@@ -78,56 +89,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
     }
   }
 
-  const handleTechnologyChange = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      technologies: prev.technologies.map((tech, i) => 
-        i === index ? { ...tech, technology: value } : tech
-      )
-    }))
-  }
-
-  const addTechnology = () => {
-    setFormData(prev => ({
-      ...prev,
-      technologies: [...prev.technologies, { technology: '' }]
-    }))
-  }
-
-  const removeTechnology = (index: number) => {
-    if (formData.technologies.length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        technologies: prev.technologies.filter((_, i) => i !== index)
-      }))
-    }
-  }
-
-  const handleAchievementChange = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      achievements: prev.achievements.map((achievement, i) => 
-        i === index ? { ...achievement, description: value } : achievement
-      )
-    }))
-  }
-
-  const addAchievement = () => {
-    setFormData(prev => ({
-      ...prev,
-      achievements: [...prev.achievements, { description: '' }]
-    }))
-  }
-
-  const removeAchievement = (index: number) => {
-    if (formData.achievements.length > 1) {
-      setFormData(prev => ({
-        ...prev,
-        achievements: prev.achievements.filter((_, i) => i !== index)
-      }))
-    }
-  }
-
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {}
 
@@ -147,18 +108,6 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       newErrors.end_date = 'End date must be after start date'
     }
 
-    // Validate technologies
-    const validTechnologies = formData.technologies.filter(tech => tech.technology.trim())
-    if (validTechnologies.length === 0) {
-      newErrors.technologies = 'At least one technology is required'
-    }
-
-    // Validate achievements
-    const validAchievements = formData.achievements.filter(achievement => achievement.description.trim())
-    if (validAchievements.length === 0) {
-      newErrors.achievements = 'At least one achievement is required'
-    }
-
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -170,18 +119,33 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       return
     }
 
-    // Filter out empty technologies and achievements
-    const filteredTechnologies = formData.technologies.filter(tech => tech.technology.trim())
-    const filteredAchievements = formData.achievements.filter(achievement => achievement.description.trim())
-    
-    const submitData = {
-      ...formData,
-      technologies: filteredTechnologies,
-      achievements: filteredAchievements,
-      end_date: formData.is_current ? undefined : formData.end_date
-    }
+    setIsSubmitting(true)
 
-    await onSubmit(submitData)
+    try {
+      const projectData: CreateProjectRequest = {
+        name: formData.name.trim(),
+        description: formData.description?.trim() || undefined,
+        start_date: formData.start_date,
+        end_date: formData.is_current ? undefined : formData.end_date,
+        url: formData.url?.trim() || undefined,
+        is_current: formData.is_current,
+        technologies_used: formData.technologies_used?.trim() || undefined
+      }
+
+      if (initialData) {
+        await projectService.updateProject(initialData.id!, projectData)
+      } else {
+        await projectService.createProject(projectData)
+      }
+
+      onSuccess(projectData)
+      onCancel() // This closes the modal
+    } catch (error) {
+      console.error('Failed to save project:', error)
+      alert('Failed to save project. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -201,7 +165,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             errors.name ? 'border-red-500' : 'border-gray-300'
           }`}
           placeholder="Enter project name"
-          disabled={isLoading}
+          disabled={isSubmitting}
         />
         {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
       </div>
@@ -216,10 +180,13 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           value={formData.description}
           onChange={(e) => handleInputChange('description', e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          rows={3}
-          placeholder="Describe the project, its purpose, and your role"
-          disabled={isLoading}
+          rows={8}
+          placeholder="Describe the project, its purpose, your role, and key achievements"
+          disabled={isSubmitting}
         />
+        <p className="text-gray-500 text-sm mt-1">
+          Include both project details and key achievements in the description
+        </p>
       </div>
 
       {/* URL */}
@@ -234,7 +201,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           onChange={(e) => handleInputChange('url', e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="https://example.com"
-          disabled={isLoading}
+          disabled={isSubmitting}
         />
       </div>
 
@@ -252,7 +219,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.start_date ? 'border-red-500' : 'border-gray-300'
             }`}
-            disabled={isLoading}
+            disabled={isSubmitting}
           />
           {errors.start_date && <p className="text-red-500 text-sm mt-1">{errors.start_date}</p>}
         </div>
@@ -269,7 +236,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               errors.end_date ? 'border-red-500' : 'border-gray-300'
             } ${formData.is_current ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-            disabled={isLoading || formData.is_current}
+            disabled={isSubmitting || formData.is_current}
           />
           {formData.is_current && (
             <p className="text-gray-500 text-sm mt-1">End date is not required for ongoing projects</p>
@@ -286,91 +253,30 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           checked={formData.is_current}
           onChange={(e) => handleInputChange('is_current', e.target.checked)}
           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-          disabled={isLoading}
+          disabled={isSubmitting}
         />
         <label htmlFor="is_current" className="ml-2 block text-sm text-gray-700">
           This is an ongoing project
         </label>
       </div>
 
-      {/* Technologies */}
+      {/* Technologies Used */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Technologies Used *
+        <label htmlFor="technologies_used" className="block text-sm font-medium text-gray-700 mb-1">
+          Technologies Used
         </label>
-        {formData.technologies.map((tech, index) => (
-          <div key={index} className="flex items-center space-x-2 mb-2">
-            <input
-              type="text"
-              value={tech.technology}
-              onChange={(e) => handleTechnologyChange(index, e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., React, Python, AWS"
-              disabled={isLoading}
-            />
-            {formData.technologies.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeTechnology(index)}
-                className="text-red-600 hover:text-red-800 p-1"
-                disabled={isLoading}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={addTechnology}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-          disabled={isLoading}
-        >
-          + Add Technology
-        </button>
-        {errors.technologies && <p className="text-red-500 text-sm mt-1">{errors.technologies}</p>}
-      </div>
-
-      {/* Key Achievements */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Key Achievements *
-        </label>
-        {formData.achievements.map((achievement, index) => (
-          <div key={index} className="flex items-start space-x-2 mb-2">
-            <textarea
-              value={achievement.description}
-              onChange={(e) => handleAchievementChange(index, e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              rows={2}
-              placeholder="Describe a key achievement or outcome from this project"
-              disabled={isLoading}
-            />
-            {formData.achievements.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeAchievement(index)}
-                className="text-red-600 hover:text-red-800 p-1 mt-1"
-                disabled={isLoading}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={addAchievement}
-          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-          disabled={isLoading}
-        >
-          + Add Achievement
-        </button>
-        {errors.achievements && <p className="text-red-500 text-sm mt-1">{errors.achievements}</p>}
+        <input
+          type="text"
+          id="technologies_used"
+          value={formData.technologies_used}
+          onChange={(e) => handleInputChange('technologies_used', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="React, Python, AWS, Docker (comma-separated)"
+          disabled={isSubmitting}
+        />
+        <p className="text-gray-500 text-sm mt-1">
+          Enter technologies separated by commas (e.g., "React, Python, AWS, Docker")
+        </p>
       </div>
 
       {/* Form Actions */}
@@ -379,16 +285,16 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           type="button"
           onClick={onCancel}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
-          disabled={isLoading}
+          disabled={isSubmitting}
         >
           Cancel
         </button>
         <button
           type="submit"
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={isLoading}
+          disabled={isSubmitting}
         >
-          {isLoading ? 'Saving...' : mode === 'edit' ? 'Update Project' : 'Add Project'}
+          {isSubmitting ? 'Saving...' : (initialData ? 'Update Project' : 'Add Project')}
         </button>
       </div>
     </form>

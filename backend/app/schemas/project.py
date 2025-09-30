@@ -1,42 +1,10 @@
 """
-Project-related Pydantic schemas
+Project schemas for API serialization
 """
 
-from datetime import date
-from typing import Optional, List
 from pydantic import BaseModel
-
-
-class ProjectTechnologyBase(BaseModel):
-    technology: str
-
-
-class ProjectTechnologyCreate(ProjectTechnologyBase):
-    pass
-
-
-class ProjectTechnology(ProjectTechnologyBase):
-    id: int
-    project_id: int
-
-    class Config:
-        from_attributes = True
-
-
-class ProjectAchievementBase(BaseModel):
-    description: str
-
-
-class ProjectAchievementCreate(ProjectAchievementBase):
-    pass
-
-
-class ProjectAchievement(ProjectAchievementBase):
-    id: int
-    project_id: int
-
-    class Config:
-        from_attributes = True
+from typing import Optional
+from datetime import date
 
 
 class ProjectBase(BaseModel):
@@ -46,11 +14,11 @@ class ProjectBase(BaseModel):
     end_date: Optional[date] = None
     url: Optional[str] = None
     is_current: bool = False
+    technologies_used: Optional[str] = None  # Comma-separated text field
 
 
 class ProjectCreate(ProjectBase):
-    technologies: List[ProjectTechnologyCreate] = []
-    achievements: List[ProjectAchievementCreate] = []
+    pass
 
 
 class ProjectUpdate(BaseModel):
@@ -60,15 +28,12 @@ class ProjectUpdate(BaseModel):
     end_date: Optional[date] = None
     url: Optional[str] = None
     is_current: Optional[bool] = None
-    technologies: Optional[List[ProjectTechnologyCreate]] = None
-    achievements: Optional[List[ProjectAchievementCreate]] = None
+    technologies_used: Optional[str] = None
 
 
 class Project(ProjectBase):
     id: int
     user_id: int
-    technologies: List[ProjectTechnology] = []
-    achievements: List[ProjectAchievement] = []
 
     class Config:
         from_attributes = True

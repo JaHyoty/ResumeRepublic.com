@@ -20,7 +20,7 @@ from app.models.education import Education
 from app.models.skill import Skill
 from app.models.certification import Certification
 from app.models.publication import Publication
-from app.models.project import Project, ProjectTechnology, ProjectAchievement
+from app.models.project import Project
 from app.models.website import Website
 from app.services.latex_service import latex_service, LaTeXCompilationError
 from app.services.llm_service import llm_service
@@ -118,13 +118,10 @@ def fetch_user_data_for_resume(user_id: int, db: Session) -> Dict[str, Any]:
             "description": pub.description
         })
     
-    # Fetch projects with technologies and achievements
+    # Fetch projects
     projects = db.query(Project).filter(Project.user_id == user_id).all()
     projects_data = []
     for project in projects:
-        technologies = db.query(ProjectTechnology).filter(ProjectTechnology.project_id == project.id).all()
-        achievements = db.query(ProjectAchievement).filter(ProjectAchievement.project_id == project.id).all()
-        
         projects_data.append({
             "name": project.name,
             "description": project.description,
@@ -132,8 +129,7 @@ def fetch_user_data_for_resume(user_id: int, db: Session) -> Dict[str, Any]:
             "end_date": project.end_date.isoformat() if project.end_date else None,
             "is_current": project.is_current,
             "url": project.url,
-            "technologies": [{"technology": t.technology} for t in technologies],
-            "achievements": [{"description": a.description} for a in achievements]
+            "technologies_used": project.technologies_used
         })
     
     # Fetch websites

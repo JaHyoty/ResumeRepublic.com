@@ -1,15 +1,5 @@
 import { api } from './api'
 
-export interface ProjectTechnology {
-  id?: number
-  technology: string
-}
-
-export interface ProjectAchievement {
-  id?: number
-  description: string
-}
-
 export interface Project {
   id?: number
   name: string
@@ -18,8 +8,7 @@ export interface Project {
   end_date?: string
   url?: string
   is_current: boolean
-  technologies: ProjectTechnology[]
-  achievements: ProjectAchievement[]
+  technologies_used?: string
 }
 
 export interface CreateProjectRequest {
@@ -29,8 +18,7 @@ export interface CreateProjectRequest {
   end_date?: string
   url?: string
   is_current: boolean
-  technologies: Omit<ProjectTechnology, 'id'>[]
-  achievements: Omit<ProjectAchievement, 'id'>[]
+  technologies_used?: string
 }
 
 export const projectService = {
@@ -68,17 +56,7 @@ export const projectService = {
     try {
       await api.delete(`/api/esc/projects/${id}`)
     } catch (error) {
-      console.error('Failed to delete project:', error)
-      throw error
-    }
-  },
-
-  async getProject(id: number): Promise<Project> {
-    try {
-      const response = await api.get(`/api/esc/projects/${id}`)
-      return response.data
-    } catch (error) {
-      console.error('Failed to fetch project:', error)
+      console.error('Error deleting project:', error)
       throw error
     }
   }

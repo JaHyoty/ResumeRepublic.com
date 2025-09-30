@@ -14,19 +14,19 @@ import WebsiteCard from '../website/WebsiteCard'
 import ProjectModal from '../project/ProjectModal'
 import ProjectDeleteConfirmationModal from '../project/DeleteConfirmationModal'
 import ProjectCard from '../project/ProjectCard'
-import { experienceService, type Experience, type CreateExperienceRequest } from '../../services/experienceService'
-import { skillService, type Skill, type CreateSkillRequest } from '../../services/skillService'
-import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certificationService'
-import { publicationService, type Publication, type CreatePublicationRequest } from '../../services/publicationService'
+import { experienceService, type Experience } from '../../services/experienceService'
+import { skillService, type Skill } from '../../services/skillService'
+import { certificationService, type Certification } from '../../services/certificationService'
+import { publicationService, type Publication } from '../../services/publicationService'
 import { educationService, type Education } from '../../services/educationService'
-import { getWebsites, createWebsite, updateWebsite, deleteWebsite, type Website } from '../../services/websiteService'
-import { projectService, type Project, type CreateProjectRequest } from '../../services/projectService'
+import { getWebsites, deleteWebsite, type Website } from '../../services/websiteService'
+import { projectService, type Project } from '../../services/projectService'
 
 const ExperienceSkillsView: React.FC = () => {
   const [isExperienceModalOpen, setIsExperienceModalOpen] = useState(false)
   const [selectedExperience, setSelectedExperience] = useState<Experience | null>(null)
   const [editingExperience, setEditingExperience] = useState<Experience | null>(null)
-  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create')
+  const [experienceModalMode, setExperienceModalMode] = useState<'create' | 'edit'>('create')
   const [deletingExperience, setDeletingExperience] = useState<Experience | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isSkillsModalOpen, setIsSkillsModalOpen] = useState(false)
@@ -45,12 +45,10 @@ const ExperienceSkillsView: React.FC = () => {
   const [isPublicationDeleteModalOpen, setIsPublicationDeleteModalOpen] = useState(false)
   const [isEducationModalOpen, setIsEducationModalOpen] = useState(false)
   const [editingEducation, setEditingEducation] = useState<Education | null>(null)
-  const [educationModalMode, setEducationModalMode] = useState<'create' | 'edit'>('create')
   const [deletingEducation, setDeletingEducation] = useState<Education | null>(null)
   const [, setIsEducationDeleteModalOpen] = useState(false)
   const [isWebsiteModalOpen, setIsWebsiteModalOpen] = useState(false)
   const [editingWebsite, setEditingWebsite] = useState<Website | null>(null)
-  const [websiteModalMode, setWebsiteModalMode] = useState<'create' | 'edit'>('create')
   const [deletingWebsite, setDeletingWebsite] = useState<Website | null>(null)
   const [, setIsWebsiteDeleteModalOpen] = useState(false)
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false)
@@ -65,35 +63,6 @@ const ExperienceSkillsView: React.FC = () => {
   const { data: experiences = [], isLoading: experiencesLoading, error: experiencesError } = useQuery({
     queryKey: ['experiences'],
     queryFn: experienceService.getExperiences,
-  })
-
-  // Create experience mutation
-  const createExperienceMutation = useMutation({
-    mutationFn: experienceService.createExperience,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['experiences'] })
-      setIsExperienceModalOpen(false)
-      setEditingExperience(null)
-    },
-    onError: (error) => {
-      console.error('Failed to create experience:', error)
-      // You could add toast notification here
-    }
-  })
-
-  // Update experience mutation
-  const updateExperienceMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: CreateExperienceRequest }) => 
-      experienceService.updateExperience(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['experiences'] })
-      setIsExperienceModalOpen(false)
-      setEditingExperience(null)
-    },
-    onError: (error) => {
-      console.error('Failed to update experience:', error)
-      // You could add toast notification here
-    }
   })
 
   // Delete experience mutation
@@ -116,35 +85,6 @@ const ExperienceSkillsView: React.FC = () => {
     queryFn: skillService.getSkills,
   })
 
-  // Create skill mutation
-  const createSkillMutation = useMutation({
-    mutationFn: skillService.createSkill,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['skills'] })
-      setIsSkillsModalOpen(false)
-      setEditingSkill(null)
-    },
-    onError: (error) => {
-      console.error('Failed to create skill:', error)
-      // You could add toast notification here
-    }
-  })
-
-  // Update skill mutation
-  const updateSkillMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: CreateSkillRequest }) => 
-      skillService.updateSkill(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['skills'] })
-      setIsSkillsModalOpen(false)
-      setEditingSkill(null)
-    },
-    onError: (error) => {
-      console.error('Failed to update skill:', error)
-      // You could add toast notification here
-    }
-  })
-
   // Delete skill mutation
   const deleteSkillMutation = useMutation({
     mutationFn: (id: number) => skillService.deleteSkill(id),
@@ -161,35 +101,6 @@ const ExperienceSkillsView: React.FC = () => {
   const { data: certifications = [], isLoading: certificationsLoading, error: certificationsError } = useQuery({
     queryKey: ['certifications'],
     queryFn: certificationService.getCertifications,
-  })
-
-  // Create certification mutation
-  const createCertificationMutation = useMutation({
-    mutationFn: certificationService.createCertification,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['certifications'] })
-      setIsCertificationsModalOpen(false)
-      setEditingCertification(null)
-    },
-    onError: (error) => {
-      console.error('Failed to create certification:', error)
-      // You could add toast notification here
-    }
-  })
-
-  // Update certification mutation
-  const updateCertificationMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: CreateCertificationRequest }) => 
-      certificationService.updateCertification(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['certifications'] })
-      setIsCertificationsModalOpen(false)
-      setEditingCertification(null)
-    },
-    onError: (error) => {
-      console.error('Failed to update certification:', error)
-      // You could add toast notification here
-    }
   })
 
   // Delete certification mutation
@@ -212,35 +123,6 @@ const ExperienceSkillsView: React.FC = () => {
     queryFn: publicationService.getPublications,
   })
 
-  // Create publication mutation
-  const createPublicationMutation = useMutation({
-    mutationFn: publicationService.createPublication,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['publications'] })
-      setIsPublicationsModalOpen(false)
-      setEditingPublication(null)
-    },
-    onError: (error) => {
-      console.error('Failed to create publication:', error)
-      // You could add toast notification here
-    }
-  })
-
-  // Update publication mutation
-  const updatePublicationMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: CreatePublicationRequest }) => 
-      publicationService.updatePublication(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['publications'] })
-      setIsPublicationsModalOpen(false)
-      setEditingPublication(null)
-    },
-    onError: (error) => {
-      console.error('Failed to update publication:', error)
-      // You could add toast notification here
-    }
-  })
-
   // Delete publication mutation
   const deletePublicationMutation = useMutation({
     mutationFn: (id: number) => publicationService.deletePublication(id),
@@ -259,34 +141,6 @@ const ExperienceSkillsView: React.FC = () => {
   const { data: education = [] } = useQuery({
     queryKey: ['education'],
     queryFn: educationService.getEducation,
-  })
-
-  // Create education mutation
-  const createEducationMutation = useMutation({
-    mutationFn: educationService.createEducation,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['education'] })
-      setIsEducationModalOpen(false)
-      setEditingEducation(null)
-    },
-    onError: (error) => {
-      console.error('Failed to create education:', error)
-      // You could add toast notification here
-    }
-  })
-
-  // Update education mutation
-  const updateEducationMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => educationService.updateEducation(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['education'] })
-      setIsEducationModalOpen(false)
-      setEditingEducation(null)
-    },
-    onError: (error) => {
-      console.error('Failed to update education:', error)
-      // You could add toast notification here
-    }
   })
 
   // Delete education mutation
@@ -315,34 +169,6 @@ const ExperienceSkillsView: React.FC = () => {
     queryFn: projectService.getProjects,
   })
 
-  // Create website mutation
-  const createWebsiteMutation = useMutation({
-    mutationFn: createWebsite,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['websites'] })
-      setIsWebsiteModalOpen(false)
-      setEditingWebsite(null)
-    },
-    onError: (error) => {
-      console.error('Failed to create website:', error)
-      // You could add toast notification here
-    }
-  })
-
-  // Update website mutation
-  const updateWebsiteMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => updateWebsite(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['websites'] })
-      setIsWebsiteModalOpen(false)
-      setEditingWebsite(null)
-    },
-    onError: (error) => {
-      console.error('Failed to update website:', error)
-      // You could add toast notification here
-    }
-  })
-
   // Delete website mutation
   const deleteWebsiteMutation = useMutation({
     mutationFn: deleteWebsite,
@@ -353,35 +179,6 @@ const ExperienceSkillsView: React.FC = () => {
     },
     onError: (error) => {
       console.error('Failed to delete website:', error)
-      // You could add toast notification here
-    }
-  })
-
-  // Create project mutation
-  const createProjectMutation = useMutation({
-    mutationFn: projectService.createProject,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-      setIsProjectModalOpen(false)
-      setEditingProject(null)
-    },
-    onError: (error) => {
-      console.error('Failed to create project:', error)
-      // You could add toast notification here
-    }
-  })
-
-  // Update project mutation
-  const updateProjectMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: CreateProjectRequest }) => 
-      projectService.updateProject(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-      setIsProjectModalOpen(false)
-      setEditingProject(null)
-    },
-    onError: (error) => {
-      console.error('Failed to update project:', error)
       // You could add toast notification here
     }
   })
@@ -472,15 +269,13 @@ const ExperienceSkillsView: React.FC = () => {
     ;(window as any).__savedScrollPosition = scrollY
     
     if (sectionId === 'education') {
-      setEducationModalMode('create')
       setEditingEducation(null)
       setIsEducationModalOpen(true)
     } else if (sectionId === 'experience') {
-      setModalMode('create')
+      setExperienceModalMode('create')
       setEditingExperience(null)
       setIsExperienceModalOpen(true)
     } else if (sectionId === 'websites') {
-      setWebsiteModalMode('create')
       setEditingWebsite(null)
       setIsWebsiteModalOpen(true)
     } else if (sectionId === 'projects') {
@@ -498,7 +293,7 @@ const ExperienceSkillsView: React.FC = () => {
     const scrollY = window.scrollY
     ;(window as any).__savedScrollPosition = scrollY
     
-    setModalMode('edit')
+    setExperienceModalMode('edit')
     setEditingExperience(experience)
     setIsExperienceModalOpen(true)
   }
@@ -518,15 +313,11 @@ const ExperienceSkillsView: React.FC = () => {
     }
   }
 
-  const handleExperienceSubmit = async (data: CreateExperienceRequest) => {
-    if (modalMode === 'edit' && editingExperience) {
-      await updateExperienceMutation.mutateAsync({ 
-        id: editingExperience.id!, 
-        data 
-      })
-    } else {
-      await createExperienceMutation.mutateAsync(data)
-    }
+  const handleExperienceSuccess = async () => {
+    // Just invalidate queries to refresh the data - the form already handled the API call
+    queryClient.invalidateQueries({ queryKey: ['experiences'] })
+    setIsExperienceModalOpen(false)
+    setEditingExperience(null)
   }
 
   // Skills handlers
@@ -564,15 +355,11 @@ const ExperienceSkillsView: React.FC = () => {
   }
 
 
-  const handleSkillSubmit = async (data: CreateSkillRequest) => {
-    if (skillsModalMode === 'edit' && editingSkill) {
-      await updateSkillMutation.mutateAsync({ 
-        id: editingSkill.id!, 
-        data 
-      })
-    } else {
-      await createSkillMutation.mutateAsync(data)
-    }
+  const handleSkillSuccess = async () => {
+    // Just invalidate queries to refresh the data - the form already handled the API call
+    queryClient.invalidateQueries({ queryKey: ['skills'] })
+    setIsSkillsModalOpen(false)
+    setEditingSkill(null)
   }
 
   // Certifications handlers
@@ -611,15 +398,11 @@ const ExperienceSkillsView: React.FC = () => {
     }
   }
 
-  const handleCertificationSubmit = async (data: CreateCertificationRequest) => {
-    if (certificationsModalMode === 'edit' && editingCertification) {
-      await updateCertificationMutation.mutateAsync({ 
-        id: editingCertification.id!, 
-        data 
-      })
-    } else {
-      await createCertificationMutation.mutateAsync(data)
-    }
+  const handleCertificationSuccess = async () => {
+    // Just invalidate queries to refresh the data - the form already handled the API call
+    queryClient.invalidateQueries({ queryKey: ['certifications'] })
+    setIsCertificationsModalOpen(false)
+    setEditingCertification(null)
   }
 
   // Publications handlers
@@ -658,15 +441,11 @@ const ExperienceSkillsView: React.FC = () => {
     }
   }
 
-  const handlePublicationSubmit = async (data: CreatePublicationRequest) => {
-    if (publicationsModalMode === 'edit' && editingPublication) {
-      await updatePublicationMutation.mutateAsync({ 
-        id: editingPublication.id!, 
-        data 
-      })
-    } else {
-      await createPublicationMutation.mutateAsync(data)
-    }
+  const handlePublicationSuccess = async () => {
+    // Just invalidate queries to refresh the data - the form already handled the API call
+    queryClient.invalidateQueries({ queryKey: ['publications'] })
+    setIsPublicationsModalOpen(false)
+    setEditingPublication(null)
   }
 
   // Education handlers
@@ -676,7 +455,6 @@ const ExperienceSkillsView: React.FC = () => {
     ;(window as any).__savedScrollPosition = scrollY
     
     setEditingEducation(education)
-    setEducationModalMode('edit')
     setIsEducationModalOpen(true)
   }
 
@@ -695,15 +473,11 @@ const ExperienceSkillsView: React.FC = () => {
     }
   }
 
-  const handleEducationSubmit = async (data: any) => {
-    if (educationModalMode === 'edit' && editingEducation) {
-      await updateEducationMutation.mutateAsync({ 
-        id: editingEducation.id!, 
-        data 
-      })
-    } else {
-      await createEducationMutation.mutateAsync(data)
-    }
+  const handleEducationSuccess = async () => {
+    // Just invalidate queries to refresh the data - the form already handled the API call
+    queryClient.invalidateQueries({ queryKey: ['education'] })
+    setIsEducationModalOpen(false)
+    setEditingEducation(null)
   }
 
   // Website handlers
@@ -713,7 +487,6 @@ const ExperienceSkillsView: React.FC = () => {
     ;(window as any).__savedScrollPosition = scrollY
     
     setEditingWebsite(website)
-    setWebsiteModalMode('edit')
     setIsWebsiteModalOpen(true)
   }
 
@@ -732,15 +505,11 @@ const ExperienceSkillsView: React.FC = () => {
     }
   }
 
-  const handleWebsiteSubmit = async (data: any) => {
-    if (websiteModalMode === 'edit' && editingWebsite) {
-      await updateWebsiteMutation.mutateAsync({ 
-        id: editingWebsite.id!, 
-        data 
-      })
-    } else {
-      await createWebsiteMutation.mutateAsync(data)
-    }
+  const handleWebsiteSuccess = () => {
+    // Just invalidate queries to refresh the data - the form already handled the API call
+    queryClient.invalidateQueries({ queryKey: ['websites'] })
+    setIsWebsiteModalOpen(false)
+    setEditingWebsite(null)
   }
 
   // Project handlers
@@ -769,15 +538,11 @@ const ExperienceSkillsView: React.FC = () => {
     }
   }
 
-  const handleProjectSubmit = async (data: CreateProjectRequest) => {
-    if (projectModalMode === 'edit' && editingProject) {
-      await updateProjectMutation.mutateAsync({ 
-        id: editingProject.id!, 
-        data 
-      })
-    } else {
-      await createProjectMutation.mutateAsync(data)
-    }
+  const handleProjectSuccess = async () => {
+    // Just invalidate queries to refresh the data - the form already handled the API call
+    queryClient.invalidateQueries({ queryKey: ['projects'] })
+    setIsProjectModalOpen(false)
+    setEditingProject(null)
   }
 
   const formatDate = (dateString: string) => {
@@ -1183,8 +948,8 @@ const ExperienceSkillsView: React.FC = () => {
           setIsExperienceModalOpen(false)
           setEditingExperience(null)
         }}
-        onSubmit={handleExperienceSubmit}
-        isLoading={createExperienceMutation.isPending || updateExperienceMutation.isPending}
+        onSubmit={handleExperienceSuccess}
+        isLoading={false}
         initialData={editingExperience ? {
           company: editingExperience.company,
           location: editingExperience.location || '',
@@ -1197,7 +962,7 @@ const ExperienceSkillsView: React.FC = () => {
             is_primary: t.is_primary
           })),
         } : undefined}
-        mode={modalMode}
+        mode={experienceModalMode}
       />
 
       {/* Delete Confirmation Modal */}
@@ -1219,8 +984,8 @@ const ExperienceSkillsView: React.FC = () => {
           setIsSkillsModalOpen(false)
           setEditingSkill(null)
         }}
-        onSubmit={handleSkillSubmit}
-        isLoading={createSkillMutation.isPending || updateSkillMutation.isPending}
+        onSubmit={handleSkillSuccess}
+        isLoading={false}
         initialData={editingSkill || undefined}
         mode={skillsModalMode}
       />
@@ -1232,8 +997,8 @@ const ExperienceSkillsView: React.FC = () => {
           setIsCertificationsModalOpen(false)
           setEditingCertification(null)
         }}
-        onSubmit={handleCertificationSubmit}
-        isLoading={createCertificationMutation.isPending || updateCertificationMutation.isPending}
+        onSubmit={handleCertificationSuccess}
+        isLoading={false}
         initialData={editingCertification || undefined}
         mode={certificationsModalMode}
       />
@@ -1257,8 +1022,8 @@ const ExperienceSkillsView: React.FC = () => {
           setIsPublicationsModalOpen(false)
           setEditingPublication(null)
         }}
-        onSubmit={handlePublicationSubmit}
-        isLoading={createPublicationMutation.isPending || updatePublicationMutation.isPending}
+        onSubmit={handlePublicationSuccess}
+        isLoading={false}
         initialData={editingPublication || undefined}
         mode={publicationsModalMode}
       />
@@ -1282,7 +1047,7 @@ const ExperienceSkillsView: React.FC = () => {
           setIsEducationModalOpen(false)
           setEditingEducation(null)
         }}
-        onSuccess={handleEducationSubmit}
+        onSuccess={handleEducationSuccess}
         initialData={editingEducation}
       />
 
@@ -1342,7 +1107,7 @@ const ExperienceSkillsView: React.FC = () => {
           setIsWebsiteModalOpen(false)
           setEditingWebsite(null)
         }}
-        onSuccess={handleWebsiteSubmit}
+        onSuccess={handleWebsiteSuccess}
         initialData={editingWebsite}
       />
 
@@ -1401,22 +1166,9 @@ const ExperienceSkillsView: React.FC = () => {
           setIsProjectModalOpen(false)
           setEditingProject(null)
         }}
-        onSubmit={handleProjectSubmit}
-        isLoading={createProjectMutation.isPending || updateProjectMutation.isPending}
-        initialData={editingProject ? {
-          name: editingProject.name,
-          description: editingProject.description || '',
-          start_date: editingProject.start_date,
-          end_date: editingProject.end_date || '',
-          url: editingProject.url || '',
-          is_current: editingProject.is_current,
-          technologies: editingProject.technologies.map(t => ({
-            technology: t.technology
-          })),
-          achievements: editingProject.achievements.map(a => ({
-            description: a.description
-          }))
-        } : undefined}
+        onSubmit={handleProjectSuccess}
+        isLoading={false}
+        initialData={editingProject}
         mode={projectModalMode}
       />
 

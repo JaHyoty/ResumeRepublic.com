@@ -16,7 +16,7 @@ from app.models.certification import Certification as CertificationModel
 from app.models.publication import Publication as PublicationModel
 from app.models.education import Education as EducationModel
 from app.models.website import Website as WebsiteModel
-from app.models.project import Project as ProjectModel, ProjectTechnology as ProjectTechnologyModel, ProjectAchievement as ProjectAchievementModel
+from app.models.project import Project as ProjectModel
 from app.schemas.experience import Experience, ExperienceCreate, ExperienceUpdate
 from app.schemas.skill import Skill, SkillCreate, SkillUpdate
 from app.schemas.certification import Certification, CertificationCreate, CertificationUpdate
@@ -759,28 +759,11 @@ def create_project(
         start_date=project_data.start_date,
         end_date=project_data.end_date,
         url=project_data.url,
-        is_current=project_data.is_current
+        is_current=project_data.is_current,
+        technologies_used=project_data.technologies_used
     )
     
     db.add(db_project)
-    db.flush()  # Flush to get the ID
-    
-    # Add technologies
-    for tech_data in project_data.technologies:
-        db_tech = ProjectTechnologyModel(
-            project_id=db_project.id,
-            technology=tech_data.technology
-        )
-        db.add(db_tech)
-    
-    # Add achievements
-    for achievement_data in project_data.achievements:
-        db_achievement = ProjectAchievementModel(
-            project_id=db_project.id,
-            description=achievement_data.description
-        )
-        db.add(db_achievement)
-    
     db.commit()
     db.refresh(db_project)
     return db_project
@@ -826,40 +809,10 @@ def update_project(
             detail="Project not found"
         )
     
-    # Update main project fields if provided
-    update_data = project_data.model_dump(exclude_unset=True, exclude={'technologies', 'achievements'})
+    # Update project fields if provided
+    update_data = project_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(project, field, value)
-    
-    # Update technologies if provided
-    if hasattr(project_data, 'technologies') and project_data.technologies is not None:
-        # Delete existing technologies
-        db.query(ProjectTechnologyModel).filter(
-            ProjectTechnologyModel.project_id == project_id
-        ).delete()
-        
-        # Add new technologies
-        for tech_data in project_data.technologies:
-            db_tech = ProjectTechnologyModel(
-                project_id=project_id,
-                technology=tech_data.technology
-            )
-            db.add(db_tech)
-    
-    # Update achievements if provided
-    if hasattr(project_data, 'achievements') and project_data.achievements is not None:
-        # Delete existing achievements
-        db.query(ProjectAchievementModel).filter(
-            ProjectAchievementModel.project_id == project_id
-        ).delete()
-        
-        # Add new achievements
-        for achievement_data in project_data.achievements:
-            db_achievement = ProjectAchievementModel(
-                project_id=project_id,
-                description=achievement_data.description
-            )
-            db.add(db_achievement)
     
     db.commit()
     db.refresh(project)

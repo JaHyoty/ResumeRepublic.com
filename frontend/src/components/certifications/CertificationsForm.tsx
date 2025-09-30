@@ -126,7 +126,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.name ? 'border-red-500' : 'border-gray-300'
             }`}
-            placeholder="e.g., AWS Certified Solutions Architect"
+            placeholder="e.g., Certified Solutions Architect"
             disabled={isLoading}
           />
           {errors.name && (
@@ -147,7 +147,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.issuer ? 'border-red-500' : 'border-gray-300'
             }`}
-            placeholder="e.g., Amazon Web Services"
+            placeholder="e.g., AWS"
             disabled={isLoading}
           />
           {errors.issuer && (

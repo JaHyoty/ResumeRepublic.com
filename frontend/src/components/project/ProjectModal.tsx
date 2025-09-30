@@ -6,7 +6,7 @@ import ProjectForm from './ProjectForm'
 interface ProjectModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: any) => Promise<void>
+  onSubmit: (data: any) => void
   isLoading?: boolean
   initialData?: any
   mode?: 'create' | 'edit'
@@ -54,11 +54,9 @@ const ProjectModal: React.FC<ProjectModalProps> = ({
         
         <div className="p-6">
           <ProjectForm
-            onSubmit={onSubmit}
+            onSuccess={onSubmit}
             onCancel={onClose}
-            isLoading={isLoading}
             initialData={initialData}
-            mode={mode}
           />
         </div>
       </div>
