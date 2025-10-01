@@ -514,7 +514,8 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                 />
               </div>
             </div>
-            <div className="mt-4">
+            {/* Professional Summary - Commented out for now */}
+            {/* <div className="mt-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Professional Summary</label>
               <textarea
                 value={personalInfo.summary || ''}
@@ -526,7 +527,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
               <p className="text-sm text-gray-500 mt-1">
                 The AI will optimize this summary based on the job description.
               </p>
-            </div>
+            </div> */}
           </div>
 
           {/* Template Selection */}

@@ -221,7 +221,8 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     />
                   </div>
-                  <div>
+                  {/* Professional Summary - Commented out for now */}
+                  {/* <div>
                     <label htmlFor="professional_summary" className="block text-sm font-medium text-gray-700 mb-1">
                       Professional Summary
                     </label>
@@ -234,7 +235,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       placeholder="Brief summary of your professional background and expertise..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                     />
-                  </div>
+                  </div> */}
                 </div>
               </div>
 

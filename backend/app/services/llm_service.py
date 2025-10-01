@@ -6,7 +6,11 @@ import os
 import httpx
 import logging
 import ssl
-from typing import Dict, Any
+import tempfile
+import subprocess
+import re
+from pathlib import Path
+from typing import Dict, Any, Tuple
 from app.core.settings import settings
 from app.utils.tls_utils import create_httpx_client, validate_tls_configuration
 
@@ -62,14 +66,35 @@ class LLMService:
             job_title, job_description, applicant_knowledge, template_content, locale
         )
         
-        # Step 2: Verify and correct the resume
-        logger.info("Starting resume generation - Step 2: Fact-checking and correction")
+        # Step 2: Compile and check page count
+        logger.info("Starting resume generation - Step 2: Page count verification")
+        logger.debug(f"Initial resume length: {len(initial_resume)} characters")
+        page_count, compilation_error = await self._compile_latex_and_count_pages(initial_resume)
+        
+        if compilation_error:
+            logger.warning(f"LaTeX compilation warning: {compilation_error}")
+        
+        logger.info(f"Initial resume page count: {page_count}")
+        logger.debug(f"Page count type: {type(page_count)}, value: {page_count}")
+        
+        # Step 3: Verify, correct, and optimize for length if needed
+        logger.info("Starting resume generation - Step 3: Fact-checking and length optimization")
         verified_resume = await self._verify_and_correct_resume(
-            initial_resume, applicant_knowledge, job_title, job_description
+            initial_resume, applicant_knowledge, job_title, job_description, page_count
         )
         
-        # Step 3: Clean up LaTeX formatting issues
-        logger.info("Starting resume generation - Step 3: LaTeX cleanup")
+        # Step 4: If length optimization was applied, check page count again
+        if page_count > 1:
+            logger.info("Starting resume generation - Step 4: Final page count verification")
+            final_page_count, final_error = await self._compile_latex_and_count_pages(verified_resume)
+            
+            if final_error:
+                logger.warning(f"Final LaTeX compilation warning: {final_error}")
+            
+            logger.info(f"Final resume page count: {final_page_count}")
+        
+        # Step 5: Clean up LaTeX formatting issues
+        logger.info("Starting resume generation - Step 5: LaTeX cleanup")
         cleaned_resume = self._clean_latex_content(verified_resume)
         
         return cleaned_resume
@@ -93,8 +118,24 @@ You are a professional resume writer. Generate an optimized resume in LaTeX form
 - Use ONLY the provided LaTeX template structure
 - Replace template content with applicant's information
 - Highlight keywords from the job description
+- **MANDATORY**: Keep resume to exactly ONE PAGE
 - Do NOT add explanations, comments, or markdown formatting
 - Return ONLY valid LaTeX code starting with `\\begin{{document}}` and ending with `\\end{{document}}`
+
+## One-Page Optimization Guidelines
+- **Experiences**: Include maximum 3 most relevant positions
+- **Bullet Points**: Maximum 3-4 impactful bullets per experience
+- **Projects**: Maximum 2 most relevant projects
+- **Skills**: Prioritize job-relevant skills, group efficiently
+- **Education**: Keep concise, include GPA only if strong (>3.5)
+- **Certifications**: Include only recent or highly relevant ones
+
+### Content Selection Priority:
+1. Recent experience (last 3-5 years)
+2. Direct keyword matches with job description
+3. Quantified achievements and impact
+4. Technical skills mentioned in job posting
+5. Leadership and notable accomplishments
 
 ## Formatting Requirements
 
@@ -182,14 +223,51 @@ Generate the optimized resume now."""
         initial_resume: str,
         applicant_knowledge: str,
         job_title: str,
-        job_description: str
+        job_description: str,
+        page_count: int = None
     ) -> str:
         """
         Verify the initial resume against applicant data and correct any inaccuracies
+        Also optimize for length if the resume is longer than one page
         """
-        prompt = f"""# Resume Fact-Checking Task
+        
+        # Add length optimization instructions if needed
+        length_instruction = ""
+        logger.debug(f"Verification method received page_count: {page_count} (type: {type(page_count)})")
+        if page_count and page_count > 1:
+            logger.info(f"Resume is {page_count} pages long - adding length optimization instructions")
+            length_instruction = f"""
 
-You are a fact-checking expert reviewing a resume for accuracy. Your task is to compare the generated resume against the applicant's actual data and correct any inaccuracies, embellishments, or hallucinations.
+## CRITICAL: Length Optimization Required
+The current resume is {page_count} pages long. You MUST reduce it to exactly 1 page by:
+- Selecting only the most relevant experiences (max 3)
+- Limiting bullet points to 3-4 per experience
+- Including only the most relevant projects (max 2)
+- Prioritizing recent and job-relevant content
+- Removing less critical details while maintaining impact
+- Focus on quantified achievements and direct keyword matches
+- Keep only the strongest, most relevant accomplishments
+
+**PRIORITY ORDER for content selection:**
+1. Most recent experience (last 3-5 years)
+2. Direct keyword matches with job description
+3. Quantified achievements with measurable impact
+4. Technical skills explicitly mentioned in job posting
+5. Leadership roles and notable accomplishments
+
+**CONTENT LIMITS:**
+- Maximum 3 work experiences
+- Maximum 3-4 bullet points per experience
+- Maximum 2 projects
+- Concise skills section with job-relevant skills only
+- Brief education section (include GPA only if >3.5)
+"""
+        
+        prompt = f"""# Resume Fact-Checking and Optimization Task
+
+You are a fact-checking expert reviewing a resume for accuracy and length optimization. Your task is to compare the generated resume against the applicant's actual data, correct any inaccuracies, and ensure it fits on one page.
+
+{length_instruction}
 
 ## Critical Task
 - Review the generated resume line by line
@@ -427,6 +505,128 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
                 latex_content = latex_content.strip() + '\n\\end{document}'
         
         return latex_content.strip()
+    
+    def _estimate_pages_from_content(self, latex_content: str) -> int:
+        """
+        Estimate page count based on LaTeX content analysis
+        """
+        # Count different types of content
+        resume_items = latex_content.count('\\resumeItem{')
+        resume_subheadings = latex_content.count('\\resumeSubheading')
+        resume_projects = latex_content.count('\\resumeProjectHeading')
+        
+        # Estimate based on content density
+        # Typical resume: ~15-20 items per page
+        # Each subheading (job) takes ~3-4 lines
+        # Each project takes ~2-3 lines
+        
+        total_content_items = resume_items + (resume_subheadings * 3) + (resume_projects * 2)
+        
+        # Rough estimation: 15-20 content items per page
+        estimated_pages = max(1, round(total_content_items / 17))
+        
+        # Also consider character count as backup
+        char_based_pages = max(1, round(len(latex_content) / 2500))
+        
+        # Use the higher estimate to be conservative
+        final_estimate = max(estimated_pages, char_based_pages)
+        
+        logger.debug(f"Content analysis: {resume_items} items, {resume_subheadings} jobs, {resume_projects} projects")
+        logger.debug(f"Estimated pages: {final_estimate} (content-based: {estimated_pages}, char-based: {char_based_pages})")
+        
+        return final_estimate
+    
+    async def _compile_latex_and_count_pages(self, latex_content: str) -> Tuple[int, str]:
+        """
+        Compile LaTeX content to PDF and return page count using the existing LaTeXService
+        Returns: (page_count, error_message)
+        """
+        logger.debug("Starting LaTeX compilation for page count")
+        logger.debug(f"LaTeX content length: {len(latex_content)} characters")
+        
+        # Import required modules
+        from app.services.latex_service import latex_service, LaTeXCompilationError
+        
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_path = Path(temp_dir)
+                tex_file = temp_path / "resume.tex"
+                
+                # Combine template preamble with content (same as user-facing compilation)
+                from app.utils.template_utils import get_full_template_content
+                from app.api.resume import combine_template_with_content
+                full_template_content = get_full_template_content("ResumeTemplate1.tex")
+                complete_latex = combine_template_with_content(full_template_content, latex_content)
+                
+                logger.debug(f"Complete LaTeX length: {len(complete_latex)} characters")
+                
+                # Write complete LaTeX content to temporary file
+                with open(tex_file, 'w', encoding='utf-8') as f:
+                    f.write(complete_latex)
+                
+                # Use the existing LaTeXService for compilation (same as user-facing PDF generation)
+                pdf_file = latex_service.compile_latex(tex_file, temp_path)
+                
+                logger.debug(f"LaTeX compilation successful, PDF created at: {pdf_file}")
+                
+                # Count pages using PyPDF2 (more reliable than pdfinfo)
+                try:
+                    import PyPDF2
+                    with open(pdf_file, 'rb') as file:
+                        pdf_reader = PyPDF2.PdfReader(file)
+                        page_count = len(pdf_reader.pages)
+                        logger.info(f"LaTeX compilation successful: {page_count} pages")
+                        return page_count, ""
+                        
+                except ImportError:
+                    logger.warning("PyPDF2 not available, trying pdfinfo")
+                    # Fallback to pdfinfo if PyPDF2 is not available
+                    try:
+                        result = subprocess.run([
+                            'pdfinfo', str(pdf_file)
+                        ], capture_output=True, text=True, timeout=10)
+                        
+                        if result.returncode == 0:
+                            # Extract page count from pdfinfo output
+                            for line in result.stdout.split('\n'):
+                                if line.startswith('Pages:'):
+                                    page_count = int(line.split(':')[1].strip())
+                                    logger.info(f"LaTeX compilation successful: {page_count} pages")
+                                    return page_count, ""
+                        
+                        # Fallback: try to count pages using file size estimation
+                        file_size = pdf_file.stat().st_size
+                        # Very rough estimation: typical single page is 20-50KB
+                        estimated_pages = max(1, round(file_size / 35000))
+                        logger.warning(f"Using file size estimation: {estimated_pages} pages (file size: {file_size} bytes)")
+                        return estimated_pages, "Used file size estimation"
+                        
+                    except (subprocess.TimeoutExpired, ValueError, FileNotFoundError) as e:
+                        logger.warning(f"pdfinfo failed, using file size estimation: {e}")
+                        # Final fallback: use content-based estimation
+                        estimated_pages = self._estimate_pages_from_content(latex_content)
+                        logger.warning(f"Using content-based estimation: {estimated_pages} pages")
+                        return estimated_pages, f"Used content estimation due to: {str(e)}"
+                        
+                except Exception as e:
+                    logger.warning(f"PyPDF2 failed, using content estimation: {e}")
+                    # Final fallback: use content-based estimation
+                    estimated_pages = self._estimate_pages_from_content(latex_content)
+                    logger.warning(f"Using content-based estimation: {estimated_pages} pages")
+                    return estimated_pages, f"Used content estimation due to: {str(e)}"
+                
+        except LaTeXCompilationError as e:
+            logger.warning(f"LaTeX compilation failed: {e}")
+            # Use content-based estimation instead of defaulting to 1 page
+            estimated_pages = self._estimate_pages_from_content(latex_content)
+            logger.warning(f"Using content-based estimation: {estimated_pages} pages")
+            return estimated_pages, f"LaTeX compilation failed: {str(e)}"
+        except Exception as e:
+            logger.error(f"Unexpected error during LaTeX compilation: {e}")
+            # Fallback: use content-based estimation
+            estimated_pages = self._estimate_pages_from_content(latex_content)
+            logger.warning(f"Using content-based estimation: {estimated_pages} pages")
+            return estimated_pages, f"Unexpected error, using estimation: {str(e)}"
     
     async def analyze_keywords(self, job_description: str) -> list[str]:
         """

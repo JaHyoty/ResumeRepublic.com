@@ -21,10 +21,11 @@ RUN apt-get update && apt-get install -y \
     texlive-latex-recommended \
     texlive-xetex \
     texlive-science \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Verify LaTeX installation
-RUN pdflatex --version
+# Verify LaTeX and PDF tools installation
+RUN pdflatex --version && pdfinfo -v
 
 # Copy requirements first for better caching
 COPY requirements.txt .
