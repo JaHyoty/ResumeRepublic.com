@@ -46,7 +46,7 @@ class LLMService:
         locale: str = "en-US"
     ) -> str:
         """
-        Generate optimized resume using LLM
+        Generate optimized resume using LLM with fact-checking verification
         """
         
         # Validate API key
@@ -56,80 +56,232 @@ class LLMService:
         # Format applicant data for the prompt
         applicant_knowledge = self._format_applicant_data(applicant_data)
         
-        prompt = f"""You are a professional resume writer. Generate an optimized resume in LaTeX format for a {job_title} position.
+        # Step 1: Generate initial resume
+        logger.info("Starting resume generation - Step 1: Initial generation")
+        initial_resume = await self._generate_initial_resume(
+            job_title, job_description, applicant_knowledge, template_content, locale
+        )
+        
+        # Step 2: Verify and correct the resume
+        logger.info("Starting resume generation - Step 2: Fact-checking and correction")
+        verified_resume = await self._verify_and_correct_resume(
+            initial_resume, applicant_knowledge, job_title, job_description
+        )
+        
+        # Step 3: Clean up LaTeX formatting issues
+        logger.info("Starting resume generation - Step 3: LaTeX cleanup")
+        cleaned_resume = self._clean_latex_content(verified_resume)
+        
+        return cleaned_resume
+    
+    async def _generate_initial_resume(
+        self,
+        job_title: str,
+        job_description: str,
+        applicant_knowledge: str,
+        template_content: str,
+        locale: str
+    ) -> str:
+        """
+        Generate the initial resume draft
+        """
+        prompt = f"""# Resume Generation Task
 
-CRITICAL REQUIREMENTS:
+You are a professional resume writer. Generate an optimized resume in LaTeX format for a **{job_title}** position.
+
+## Critical Requirements
 - Use ONLY the provided LaTeX template structure
 - Replace template content with applicant's information
 - Highlight keywords from the job description
 - Do NOT add explanations, comments, or markdown formatting
-- Return ONLY valid LaTeX code starting with \\begin{{document}} and ending with \\end{{document}}
+- Return ONLY valid LaTeX code starting with `\\begin{{document}}` and ending with `\\end{{document}}`
 
-FORMATTING REQUIREMENTS:
-1. MULTI-POSITION FORMATTING:
-   - If an applicant has multiple positions at the same company, use the multi-position format from the template
-   - First position: Use \\resumeSubheading with company name and location
-   - Additional positions at same company: Use \\resumeSubSubheading (without repeating company name)
-   - Group all positions under the same company together
+## Formatting Requirements
 
-2. KEYWORD INTEGRATION:
-   - You have creative freedom to rephrase and optimize experience descriptions
-   - Integrate relevant keywords from the job description naturally into descriptions
-   - Enhance descriptions while maintaining factual accuracy
-   - Use action verbs and quantifiable results when possible
-   - Make descriptions more compelling and ATS-friendly
+### 1. Multi-Position Formatting
+- If an applicant has multiple positions at the same company, use the multi-position format from the template
+- First position: Use `\\resumeSubheading` with company name and location
+- Additional positions at same company: Use `\\resumeSubSubheading` (without repeating company name)
+- Group all positions under the same company together
 
-3. PHONE NUMBER FORMATTING:
-   - Format phone numbers according to the specified locale: {locale}
-   - Use appropriate regional formatting for professional presentation
-   - Examples by locale:
-     * en-US/en-CA: (555) 123-4567 or +1 (555) 123-4567
-     * en-GB/en-AU: 0123 456 789 or +44 123 456 789
-     * fr-FR: 01 23 45 67 89 or +33 1 23 45 67 89
-     * de-DE: 030 12345678 or +49 30 12345678
-     * es-ES/es-MX: 123 456 789 or +34 123 456 789
-     * For other locales, use international format: +[country code] [number]
-   - Ensure the phone number looks professional and follows regional conventions
+### 2. Keyword Integration
+- You have creative freedom to rephrase and optimize experience descriptions
+- Integrate relevant keywords from the job description naturally into descriptions
+- Enhance descriptions while maintaining factual accuracy
+- Use action verbs and quantifiable results when possible
+- Make descriptions more compelling and ATS-friendly
 
-ACCURACY REQUIREMENTS:
-1. Use ONLY knowledge found from the applicant's history:
-   - Skills section must contain ONLY skills present in the applicant's skills list
-   - Experience section must NOT claim accomplishments the applicant has not claimed
-   - Experience section must use ONLY skills found in the applicant's skills
-   - Certifications section must use EXACT naming from the applicant's certifications
+### 3. Phone Number Formatting
+- Format phone numbers according to the specified locale: **{locale}**
+- Use appropriate regional formatting for professional presentation
+- Examples by locale:
+  - **en-US/en-CA**: (555) 123-4567 or +1 (555) 123-4567
+  - **en-GB/en-AU**: 0123 456 789 or +44 123 456 789
+  - **fr-FR**: 01 23 45 67 89 or +33 1 23 45 67 89
+  - **de-DE**: 030 12345678 or +49 30 12345678
+  - **es-ES/es-MX**: 123 456 789 or +34 123 456 789
+  - **For other locales**: use international format: +[country code] [number]
+- Ensure the phone number looks professional and follows regional conventions
 
-2. Education:
-   - MANDATORY: Use the Graduation Date field EXACTLY as provided in the applicant data
-   - FORBIDDEN: Do NOT use "N/A", "Current", "Present", "In Progress", or any placeholder text
-   - FORBIDDEN: Do NOT modify, abbreviate, or change the Graduation Date format in any way
-   - EXAMPLE: If Graduation Date shows "Expected May 2025", you MUST display "Expected May 2025" exactly
-   - EXAMPLE: If Graduation Date shows "June 2023", you MUST display "June 2023" exactly
-   - If Graduation Date is null/empty, leave the date field empty - do NOT add placeholder text
-   - Do not display the location for education
-   - GPA FORMATTING: If GPA is a number, display it with exactly 2 decimal places (e.g., "3.85", "4.00"). If GPA is text (e.g., "First Class", "Magna Cum Laude"), display as-is.
+## Accuracy Requirements
 
-3. Experience:
-   - MANDATORY: display the location of every experience, even if Remote
-   - MANDATORY: Select only one job title for an experience. Choose the most relevant title.
-   - FORBIDDEN: Do NOT repeat job titles for an experience. One experience can have only one job title.
+### 1. Use ONLY knowledge found from the applicant's history
+- **Skills section** must contain ONLY skills present in the applicant's skills list
+- **Experience section** must NOT claim accomplishments the applicant has not claimed
+- **Experience section** must use ONLY skills found in the applicant's skills
+- **Certifications section** must use EXACT naming from the applicant's certifications
 
-4. Project dates:
-   - Do NOT show any dates for projects
-   - Use a blank space ' ' for the date parameter
-   
-5. Avoid vague adjectives - use only hard truths and specific facts
+### 2. Education
+- **MANDATORY**: Use the Graduation Date field EXACTLY as provided in the applicant data
+- **FORBIDDEN**: Do NOT use "N/A", "Current", "Present", "In Progress", or any placeholder text
+- **FORBIDDEN**: Do NOT modify, abbreviate, or change the Graduation Date format in any way
+- **EXAMPLE**: If Graduation Date shows "Expected May 2025", you MUST display "Expected May 2025" exactly
+- **EXAMPLE**: If Graduation Date shows "June 2023", you MUST display "June 2023" exactly
+- If Graduation Date is null/empty, leave the date field empty - do NOT add placeholder text
+- Do not display the location for education
+- **GPA FORMATTING**: If GPA is a number, display it with exactly 2 decimal places (e.g., "3.85", "4.00"). If GPA is text (e.g., "First Class", "Magna Cum Laude"), display as-is.
 
-JOB DESCRIPTION:
+### 3. Experience
+- **MANDATORY**: display the location of every experience, even if Remote
+- **MANDATORY**: Select only one job title for an experience. Choose the most relevant title.
+- **FORBIDDEN**: Do NOT repeat job titles for an experience. One experience can have only one job title.
+
+### 4. Projects
+- **MANDATORY**: Do NOT show any dates for projects
+- **MANDATORY**: Use empty braces {{}} for the date parameter in project entries (NOT {{' '}} or {{""}})
+- **CRITICAL**: Never use quotes around empty spaces - use {{}} instead of {{' '}} or {{""}} 
+- **DESCRIPTION HANDLING**: Projects may include both general descriptions and specific achievements within the same description field
+- **TECHNOLOGY INTEGRATION**: If technologies are listed in the `Technologies Used` field, naturally incorporate them into the project description
+- **ACHIEVEMENT EXTRACTION**: Look for achievement-like statements within project descriptions and highlight them appropriately
+- **NO DATE INFERENCE**: Even if project descriptions mention timeframes, do NOT add dates to the LaTeX date field
+- **EXAMPLE**: \\resumeProjectHeading{{\\textbf{{Project Name}}}}{{}}
+
+### 5. General Accuracy
+- Avoid vague adjectives - use only hard truths and specific facts
+- Maintain factual accuracy while optimizing for keywords
+
+## Job Description
+```
 {job_description}
+```
 
-APPLICANT INFORMATION:
+## Applicant Information
 {applicant_knowledge}
 
-LATEX TEMPLATE:
+## LaTeX Template
+```latex
 {template_content}
+```
 
 Generate the optimized resume now."""
 
+        return await self._make_llm_request(prompt)
+    
+    async def _verify_and_correct_resume(
+        self,
+        initial_resume: str,
+        applicant_knowledge: str,
+        job_title: str,
+        job_description: str
+    ) -> str:
+        """
+        Verify the initial resume against applicant data and correct any inaccuracies
+        """
+        prompt = f"""# Resume Fact-Checking Task
+
+You are a fact-checking expert reviewing a resume for accuracy. Your task is to compare the generated resume against the applicant's actual data and correct any inaccuracies, embellishments, or hallucinations.
+
+## Critical Task
+- Review the generated resume line by line
+- Compare every statement against the applicant's actual data
+- Identify and correct any false, exaggerated, or hallucinated information
+- Ensure all skills, experiences, achievements, and details are factually accurate
+- Maintain the LaTeX formatting and structure
+- Return ONLY the corrected LaTeX code
+
+## Verification Rules
+
+### 1. Skills Verification
+- Remove any skills NOT explicitly listed in the applicant's skills section
+- Do NOT add skills that are implied but not stated
+- Do NOT add skills mentioned in job descriptions but not in applicant data
+- **Cross-reference**: Every skill must appear in the applicant's actual skills list
+
+### 2. Experience Verification
+- Remove any accomplishments or achievements NOT claimed by the applicant
+- Do NOT embellish or exaggerate existing accomplishments
+- Do NOT add quantified results unless explicitly provided by the applicant
+- Ensure all job responsibilities match what the applicant actually described
+- **Fact-check**: Compare each bullet point against the applicant's actual experience descriptions
+
+### 3. Education Verification
+- Use EXACT graduation dates, GPAs, and details as provided
+- Do NOT modify or improve upon the applicant's educational achievements
+- Remove any honors, awards, or distinctions not mentioned by the applicant
+- **Accuracy check**: Verify every educational detail matches the source data exactly
+
+### 4. Project Verification
+- Ensure project descriptions match the applicant's actual descriptions
+- Remove any technologies or achievements not mentioned by the applicant
+- Do NOT enhance or embellish project outcomes
+- **Technology check**: Only include technologies explicitly listed in the applicant's project data
+- **Achievement check**: Only include accomplishments explicitly stated by the applicant
+- **Date formatting**: Ensure project dates use empty braces {{}} not {{' '}} or {{""}} or quoted spaces
+
+### 5. General Accuracy
+- Remove vague adjectives or superlatives not supported by facts
+- Ensure all dates, locations, and company names are accurate
+- Remove any industry buzzwords not used by the applicant
+- **Consistency check**: Verify all factual details match the source data
+
+## Applicant's Actual Data
+{applicant_knowledge}
+
+## Job Description (for context only - do NOT add information from here)
+```
+{job_description}
+```
+
+## Generated Resume to Verify
+```latex
+{initial_resume}
+```
+
+Please return the corrected resume with all inaccuracies removed, maintaining the LaTeX format."""
+
+        return await self._make_llm_request(prompt)
+    
+    def _clean_latex_content(self, latex_content: str) -> str:
+        """
+        Clean up common LaTeX formatting issues in the generated resume
+        """
+        logger.debug("Cleaning LaTeX content for formatting issues")
+        
+        # Fix project date issues - remove quotes around empty spaces or single spaces
+        # This handles cases like: {' '} or {""} or {"  "} in project dates
+        import re
+        
+        # Pattern to match project heading with quoted empty/space dates
+        # Matches: }{' '} or }{"  "} or }{""} at the end of resumeProjectHeading lines
+        project_date_pattern = r'(\})\{[\'\"]\s*[\'\"]\}'
+        latex_content = re.sub(project_date_pattern, r'\1{}', latex_content)
+        
+        # Also handle cases where there might be just quotes with spaces
+        project_date_pattern2 = r'(\})\{[\'\"][\s]*[\'\"]?\}'
+        latex_content = re.sub(project_date_pattern2, r'\1{}', latex_content)
+        
+        # Handle any remaining quoted single spaces or empty strings in project contexts
+        # This is more specific to avoid affecting other parts of the resume
+        project_context_pattern = r'(\\resumeProjectHeading.*?\{.*?\})\{[\'\"]\s*[\'\"]\}'
+        latex_content = re.sub(project_context_pattern, r'\1{}', latex_content, flags=re.DOTALL)
+        
+        logger.debug(f"LaTeX content cleaned, length: {len(latex_content)}")
+        return latex_content
+    
+    async def _make_llm_request(self, prompt: str) -> str:
+        """
+        Make a request to the LLM API and return the cleaned response
+        """
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
