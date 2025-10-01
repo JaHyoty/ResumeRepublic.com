@@ -7,7 +7,7 @@ import { useEnhancedClickOutside } from '../../hooks/useEnhancedClickOutside'
 interface SkillsModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: CreateSkillRequest) => void
+  onSuccess: (data: CreateSkillRequest) => void
   isLoading?: boolean
   initialData?: Skill
   mode?: 'create' | 'edit'
@@ -16,7 +16,7 @@ interface SkillsModalProps {
 const SkillsModal: React.FC<SkillsModalProps> = ({
   isOpen,
   onClose,
-  onSubmit,
+  onSuccess,
   isLoading = false,
   initialData,
   mode = 'create'
@@ -53,9 +53,8 @@ const SkillsModal: React.FC<SkillsModalProps> = ({
           </div>
 
           <SkillsForm
-            onSubmit={onSubmit}
+            onSuccess={onSuccess}
             onCancel={onClose}
-            isLoading={isLoading}
             initialData={initialData}
             mode={mode}
           />

@@ -6,7 +6,7 @@ import ExperienceForm from './ExperienceForm'
 interface ExperienceModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: any) => Promise<void>
+  onSuccess: (data: any) => Promise<void>
   isLoading?: boolean
   initialData?: any
   mode?: 'create' | 'edit'
@@ -15,7 +15,7 @@ interface ExperienceModalProps {
 const ExperienceModal: React.FC<ExperienceModalProps> = ({
   isOpen,
   onClose,
-  onSubmit,
+  onSuccess,
   isLoading = false,
   initialData,
   mode = 'create'
@@ -54,9 +54,8 @@ const ExperienceModal: React.FC<ExperienceModalProps> = ({
         
         <div className="p-6">
           <ExperienceForm
-            onSubmit={onSubmit}
+            onSuccess={onSuccess}
             onCancel={onClose}
-            isLoading={isLoading}
             initialData={initialData}
             mode={mode}
           />

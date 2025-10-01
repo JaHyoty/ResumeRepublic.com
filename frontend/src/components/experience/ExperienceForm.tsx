@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { experienceService } from '../../services/experienceService'
 
 interface ExperienceTitle {
   title: string
@@ -16,17 +17,15 @@ interface ExperienceFormData {
 }
 
 interface ExperienceFormProps {
-  onSubmit: (data: ExperienceFormData) => Promise<void>
+  onSuccess: (data: any) => void
   onCancel: () => void
-  isLoading?: boolean
   initialData?: ExperienceFormData
   mode?: 'create' | 'edit'
 }
 
 const ExperienceForm: React.FC<ExperienceFormProps> = ({
-  onSubmit,
+  onSuccess,
   onCancel,
-  isLoading = false,
   initialData,
   mode = 'create'
 }) => {
@@ -45,6 +44,7 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
   )
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Auto-focus the first input field when component mounts
   useEffect(() => {
@@ -121,22 +121,41 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
       return
     }
 
-    // Prepare data
-    const cleanedData = {
-      ...formData,
-      // Ensure dates are in YYYY-MM-DD format
-      start_date: formData.start_date,
-      end_date: formData.is_current ? null : formData.end_date || null,
-      // Ensure location is not empty string
-      location: formData.location?.trim() || null,
-      // Ensure description is not empty string  
-      description: formData.description?.trim() || null
-    }
+    setIsSubmitting(true)
 
     try {
-      await onSubmit(cleanedData)
+      // Prepare data
+      const cleanedData = {
+        ...formData,
+        // Ensure dates are in YYYY-MM-DD format
+        start_date: formData.start_date,
+        end_date: formData.is_current ? null : formData.end_date || null,
+        // Ensure location is not empty string
+        location: formData.location?.trim() || null,
+        // Ensure description is not empty string  
+        description: formData.description?.trim() || null
+      }
+
+      // Handle API calls internally
+      if (mode === 'edit' && initialData) {
+        // For edit mode, we need the experience ID - this should be passed from parent
+        // For now, we'll assume the parent provides the ID in initialData
+        const experienceId = (initialData as any).id
+        if (experienceId) {
+          await experienceService.updateExperience(experienceId, cleanedData)
+        } else {
+          throw new Error('Experience ID is required for editing')
+        }
+      } else {
+        await experienceService.createExperience(cleanedData)
+      }
+
+      onSuccess(cleanedData)
     } catch (error) {
-      console.error('Failed to submit experience:', error)
+      console.error('Failed to save experience:', error)
+      alert('Failed to save experience. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -312,17 +331,17 @@ const ExperienceForm: React.FC<ExperienceFormProps> = ({
         <button
           type="button"
           onClick={onCancel}
-          disabled={isLoading}
+          disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {isLoading ? (mode === 'edit' ? 'Updating...' : 'Saving...') : (mode === 'edit' ? 'Update Experience' : 'Save Experience')}
+          {isSubmitting ? (mode === 'edit' ? 'Updating...' : 'Saving...') : (mode === 'edit' ? 'Update Experience' : 'Save Experience')}
         </button>
       </div>
     </form>

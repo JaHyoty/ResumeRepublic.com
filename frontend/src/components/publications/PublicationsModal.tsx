@@ -7,7 +7,7 @@ import { type Publication, type CreatePublicationRequest } from '../../services/
 interface PublicationsModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: CreatePublicationRequest) => void
+  onSuccess: (data: CreatePublicationRequest) => void
   isLoading?: boolean
   initialData?: Publication
   mode?: 'create' | 'edit'
@@ -16,7 +16,7 @@ interface PublicationsModalProps {
 const PublicationsModal: React.FC<PublicationsModalProps> = ({
   isOpen,
   onClose,
-  onSubmit,
+  onSuccess,
   isLoading = false,
   initialData,
   mode = 'create'
@@ -55,9 +55,8 @@ const PublicationsModal: React.FC<PublicationsModalProps> = ({
           </div>
 
           <PublicationsForm
-            onSubmit={onSubmit}
+            onSuccess={onSuccess}
             onCancel={onClose}
-            isLoading={isLoading}
             initialData={initialData}
             mode={mode}
           />

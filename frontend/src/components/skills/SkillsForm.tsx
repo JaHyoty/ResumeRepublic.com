@@ -1,22 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { type Skill, type CreateSkillRequest } from '../../services/skillService'
+import { skillService, type Skill, type CreateSkillRequest } from '../../services/skillService'
 
 interface SkillsFormData {
   name: string
 }
 
 interface SkillsFormProps {
-  onSubmit: (data: CreateSkillRequest) => void
+  onSuccess: (data: any) => void
   onCancel: () => void
-  isLoading?: boolean
   initialData?: Skill
   mode?: 'create' | 'edit'
 }
 
 const SkillsForm: React.FC<SkillsFormProps> = ({
-  onSubmit,
+  onSuccess,
   onCancel,
-  isLoading = false,
   initialData,
   mode = 'create'
 }) => {
@@ -27,6 +25,7 @@ const SkillsForm: React.FC<SkillsFormProps> = ({
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof SkillsFormData, string>>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Auto-focus the first input field when component mounts
   useEffect(() => {
@@ -46,18 +45,34 @@ const SkillsForm: React.FC<SkillsFormProps> = ({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!validateForm()) {
       return
     }
 
-    const submitData: CreateSkillRequest = {
-      name: formData.name.trim()
-    }
+    setIsSubmitting(true)
 
-    onSubmit(submitData)
+    try {
+      const submitData: CreateSkillRequest = {
+        name: formData.name.trim()
+      }
+
+      // Handle API calls internally
+      if (mode === 'edit' && initialData?.id) {
+        await skillService.updateSkill(initialData.id, submitData)
+      } else {
+        await skillService.createSkill(submitData)
+      }
+
+      onSuccess(submitData)
+    } catch (error) {
+      console.error('Failed to save skill:', error)
+      alert('Failed to save skill. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleInputChange = (field: keyof SkillsFormData, value: string | number | undefined) => {
@@ -92,7 +107,7 @@ const SkillsForm: React.FC<SkillsFormProps> = ({
             errors.name ? 'border-red-500' : 'border-gray-300'
           }`}
           placeholder="e.g., JavaScript, Python, Project Management, React, SQL"
-          disabled={isLoading}
+          disabled={isSubmitting}
         />
         {errors.name && (
           <p className="mt-1 text-sm text-red-600">{errors.name}</p>
@@ -104,17 +119,17 @@ const SkillsForm: React.FC<SkillsFormProps> = ({
         <button
           type="button"
           onClick={onCancel}
-          disabled={isLoading}
+          disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {isLoading ? 'Saving...' : mode === 'edit' ? 'Update Skill' : 'Add Skill'}
+          {isSubmitting ? 'Saving...' : mode === 'edit' ? 'Update Skill' : 'Add Skill'}
         </button>
       </div>
     </form>

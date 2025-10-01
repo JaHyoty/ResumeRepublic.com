@@ -820,9 +820,11 @@ const ExperienceSkillsView: React.FC = () => {
               {isSkillsSection && hasData && (
                 <div className="mb-4 w-full">
                   <div className="flex flex-wrap">
-                    {skills.map((skill) => (
-                      <SkillCard key={skill.id} skill={skill} />
-                    ))}
+                    {skills
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((skill) => (
+                        <SkillCard key={skill.id} skill={skill} />
+                      ))}
                   </div>
                 </div>
               )}
@@ -948,9 +950,10 @@ const ExperienceSkillsView: React.FC = () => {
           setIsExperienceModalOpen(false)
           setEditingExperience(null)
         }}
-        onSubmit={handleExperienceSuccess}
+        onSuccess={handleExperienceSuccess}
         isLoading={false}
         initialData={editingExperience ? {
+          id: editingExperience.id,
           company: editingExperience.company,
           location: editingExperience.location || '',
           start_date: editingExperience.start_date,
@@ -984,7 +987,7 @@ const ExperienceSkillsView: React.FC = () => {
           setIsSkillsModalOpen(false)
           setEditingSkill(null)
         }}
-        onSubmit={handleSkillSuccess}
+        onSuccess={handleSkillSuccess}
         isLoading={false}
         initialData={editingSkill || undefined}
         mode={skillsModalMode}
@@ -997,7 +1000,7 @@ const ExperienceSkillsView: React.FC = () => {
           setIsCertificationsModalOpen(false)
           setEditingCertification(null)
         }}
-        onSubmit={handleCertificationSuccess}
+        onSuccess={handleCertificationSuccess}
         isLoading={false}
         initialData={editingCertification || undefined}
         mode={certificationsModalMode}
@@ -1022,7 +1025,7 @@ const ExperienceSkillsView: React.FC = () => {
           setIsPublicationsModalOpen(false)
           setEditingPublication(null)
         }}
-        onSubmit={handlePublicationSuccess}
+        onSuccess={handlePublicationSuccess}
         isLoading={false}
         initialData={editingPublication || undefined}
         mode={publicationsModalMode}
@@ -1166,7 +1169,7 @@ const ExperienceSkillsView: React.FC = () => {
           setIsProjectModalOpen(false)
           setEditingProject(null)
         }}
-        onSubmit={handleProjectSuccess}
+        onSuccess={handleProjectSuccess}
         isLoading={false}
         initialData={editingProject}
         mode={projectModalMode}

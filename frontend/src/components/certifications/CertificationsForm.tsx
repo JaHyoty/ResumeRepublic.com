@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { type Certification, type CreateCertificationRequest } from '../../services/certificationService'
+import { certificationService, type Certification, type CreateCertificationRequest } from '../../services/certificationService'
 
 interface CertificationsFormData {
   name: string
@@ -11,17 +11,15 @@ interface CertificationsFormData {
 }
 
 interface CertificationsFormProps {
-  onSubmit: (data: CreateCertificationRequest) => void
+  onSuccess: (data: any) => void
   onCancel: () => void
-  isLoading?: boolean
   initialData?: Certification
   mode?: 'create' | 'edit'
 }
 
 const CertificationsForm: React.FC<CertificationsFormProps> = ({
-  onSubmit,
+  onSuccess,
   onCancel,
-  isLoading = false,
   initialData,
   mode = 'create'
 }) => {
@@ -37,6 +35,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
   })
 
   const [errors, setErrors] = useState<Partial<Record<keyof CertificationsFormData, string>>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Auto-focus the first input field when component mounts
   useEffect(() => {
@@ -75,23 +74,39 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!validateForm()) {
       return
     }
 
-    const submitData: CreateCertificationRequest = {
-      name: formData.name.trim(),
-      issuer: formData.issuer.trim(),
-      issue_date: formData.issue_date.trim(),
-      expiry_date: formData.expiry_date?.trim() || null,
-      credential_id: formData.credential_id?.trim() || null,
-      credential_url: formData.credential_url?.trim() || null
-    }
+    setIsSubmitting(true)
 
-    onSubmit(submitData)
+    try {
+      const submitData: CreateCertificationRequest = {
+        name: formData.name.trim(),
+        issuer: formData.issuer.trim(),
+        issue_date: formData.issue_date.trim(),
+        expiry_date: formData.expiry_date?.trim() || null,
+        credential_id: formData.credential_id?.trim() || null,
+        credential_url: formData.credential_url?.trim() || null
+      }
+
+      // Handle API calls internally
+      if (mode === 'edit' && initialData?.id) {
+        await certificationService.updateCertification(initialData.id, submitData)
+      } else {
+        await certificationService.createCertification(submitData)
+      }
+
+      onSuccess(submitData)
+    } catch (error) {
+      console.error('Failed to save certification:', error)
+      alert('Failed to save certification. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleInputChange = (field: keyof CertificationsFormData, value: string) => {
@@ -127,7 +142,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
               errors.name ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="e.g., Certified Solutions Architect"
-            disabled={isLoading}
+            disabled={isSubmitting}
           />
           {errors.name && (
             <p className="mt-1 text-sm text-red-600">{errors.name}</p>
@@ -148,7 +163,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
               errors.issuer ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="e.g., AWS"
-            disabled={isLoading}
+            disabled={isSubmitting}
           />
           {errors.issuer && (
             <p className="mt-1 text-sm text-red-600">{errors.issuer}</p>
@@ -168,7 +183,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.issue_date ? 'border-red-500' : 'border-gray-300'
             }`}
-            disabled={isLoading}
+            disabled={isSubmitting}
           />
           {errors.issue_date && (
             <p className="mt-1 text-sm text-red-600">{errors.issue_date}</p>
@@ -188,7 +203,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
               errors.expiry_date ? 'border-red-500' : 'border-gray-300'
             }`}
-            disabled={isLoading}
+            disabled={isSubmitting}
           />
           {errors.expiry_date && (
             <p className="mt-1 text-sm text-red-600">{errors.expiry_date}</p>
@@ -208,7 +223,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
             onChange={(e) => handleInputChange('credential_id', e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="e.g., AWS123456789"
-            disabled={isLoading}
+            disabled={isSubmitting}
           />
         </div>
 
@@ -226,7 +241,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
               errors.credential_url ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="https://www.credly.com/badges/..."
-            disabled={isLoading}
+            disabled={isSubmitting}
           />
           {errors.credential_url && (
             <p className="mt-1 text-sm text-red-600">{errors.credential_url}</p>
@@ -239,17 +254,17 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
         <button
           type="button"
           onClick={onCancel}
-          disabled={isLoading}
+          disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isSubmitting}
           className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
-          {isLoading ? 'Saving...' : mode === 'edit' ? 'Update Certification' : 'Add Certification'}
+          {isSubmitting ? 'Saving...' : mode === 'edit' ? 'Update Certification' : 'Add Certification'}
         </button>
       </div>
     </form>

@@ -7,7 +7,7 @@ import { type Certification, type CreateCertificationRequest } from '../../servi
 interface CertificationsModalProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (data: CreateCertificationRequest) => void
+  onSuccess: (data: CreateCertificationRequest) => void
   isLoading?: boolean
   initialData?: Certification
   mode?: 'create' | 'edit'
@@ -16,7 +16,7 @@ interface CertificationsModalProps {
 const CertificationsModal: React.FC<CertificationsModalProps> = ({
   isOpen,
   onClose,
-  onSubmit,
+  onSuccess,
   isLoading = false,
   initialData,
   mode = 'create'
@@ -53,9 +53,8 @@ const CertificationsModal: React.FC<CertificationsModalProps> = ({
           </div>
 
           <CertificationsForm
-            onSubmit={onSubmit}
+            onSuccess={onSuccess}
             onCancel={onClose}
-            isLoading={isLoading}
             initialData={initialData}
             mode={mode}
           />
