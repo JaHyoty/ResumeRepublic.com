@@ -6,7 +6,7 @@ import type {
   AuthContextType, 
   LoginCredentials, 
   RegisterCredentials, 
-  OAuthCredentials 
+  OAuthCredentials
 } from '../types/auth';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +21,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const isAuthenticated = !!user && !!token;
+  const needsAgreement = user ? (!user.terms_accepted_at || !user.privacy_policy_accepted_at) : false;
 
   // Initialize auth state on app load
   useEffect(() => {
@@ -77,14 +78,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // OAuth methods
-  const loginWithGoogle = async (idToken: string): Promise<void> => {
+  const loginWithGoogle = async (idToken: string): Promise<any> => {
     try {
-      const authToken = await authService.loginWithGoogle(idToken);
-      authService.setToken(authToken.access_token);
-      setToken(authToken.access_token);
+      const authResponse = await authService.loginWithGoogle(idToken);
+      authService.setToken(authResponse.access_token);
+      setToken(authResponse.access_token);
       
       const userData = await authService.getCurrentUser();
       setUser(userData);
+      
+      return authResponse;
     } catch (error) {
       console.error('Google login failed:', error);
       throw error;
@@ -106,17 +109,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     throw new Error('Token refresh not implemented yet');
   };
 
+  const refreshUser = async (): Promise<void> => {
+    try {
+      const userData = await authService.getCurrentUser();
+      setUser(userData);
+    } catch (error) {
+      console.error('Failed to refresh user data:', error);
+      throw error;
+    }
+  };
+
   const value: AuthContextType = {
     user,
     token,
     isLoading,
     isAuthenticated,
+    needsAgreement,
     login,
     register,
     loginWithGoogle,
     loginWithGitHub,
     logout,
     refreshToken,
+    refreshUser,
   };
 
   return (

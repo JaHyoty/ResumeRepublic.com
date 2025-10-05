@@ -50,6 +50,7 @@ class Token(BaseModel):
     access_token: str
     token_type: str
     expires_in: int
+    needs_agreement: Optional[bool] = False
 
 
 class UserResponse(BaseModel):
@@ -66,11 +67,19 @@ class UserResponse(BaseModel):
     professional_summary: Optional[str] = None
     is_active: bool
     is_verified: bool
+    terms_accepted_at: Optional[datetime] = None
+    privacy_policy_accepted_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+
+class TermsAgreementRequest(BaseModel):
+    """Schema for terms and privacy policy agreement"""
+    terms_accepted: bool
+    privacy_policy_accepted: bool
 
 
 # Profile-specific schemas (aliases for backward compatibility)

@@ -6,6 +6,7 @@ import Layout from './components/layout/Layout'
 import LandingPage from './pages/LandingPage'
 import AuthPage from './pages/AuthPage'
 import Dashboard from './pages/Dashboard'
+import TermsAgreementPage from './pages/TermsAgreementPage'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import { AuthProvider } from './contexts/AuthContext'
 
@@ -23,9 +24,17 @@ function App() {
               <Route path="/auth" element={<Navigate to="/login" replace />} />
               <Route path="/login" element={<AuthPage />} />
               <Route 
-                path="/dashboard" 
+                path="/terms-agreement" 
                 element={
                   <ProtectedRoute>
+                    <TermsAgreementPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <ProtectedRoute requireTermsAgreement={true}>
                     <Dashboard />
                   </ProtectedRoute>
                 } 

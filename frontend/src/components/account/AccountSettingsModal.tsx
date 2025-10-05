@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react'
 import { useScrollPosition } from '../../hooks/useScrollPosition'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { userService, type UserInfo } from '../../services/userService'
+import DeleteAccountModal from './DeleteAccountModal'
 
 interface AccountSettingsModalProps {
   isOpen: boolean
@@ -23,6 +24,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
     website_url: '',
     professional_summary: ''
   })
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   const queryClient = useQueryClient()
 
@@ -240,27 +242,50 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
               </div>
 
               {/* Form Actions */}
-              <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+              <div className="flex justify-between items-center pt-6 border-t border-gray-200">
+                {/* Delete Account Button - Bottom Left */}
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => setShowDeleteModal(true)}
                   disabled={updateUserMutation.isPending}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
                 >
-                  Cancel
+                  Delete Account
                 </button>
-                <button
-                  type="submit"
-                  disabled={updateUserMutation.isPending}
-                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
-                >
-                  {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
-                </button>
+
+                {/* Save/Cancel Buttons - Bottom Right */}
+                <div className="flex space-x-3">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={updateUserMutation.isPending}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updateUserMutation.isPending}
+                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                  >
+                    {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
               </div>
             </form>
           )}
         </div>
       </div>
+
+      {/* Delete Account Confirmation Modal */}
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onAccountDeleted={() => {
+          setShowDeleteModal(false)
+          onClose()
+        }}
+      />
     </div>
   )
 }

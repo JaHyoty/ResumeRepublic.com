@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAuthStateMachine } from '../hooks/useAuthStateMachine';
 import LoginForm from '../components/auth/LoginForm';
 import SignupForm from '../components/auth/SignupForm';
 import OAuthButtons from '../components/auth/OAuthButtons';
@@ -11,18 +11,12 @@ const AuthPage: React.FC = () => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-
-  // Redirect if already authenticated
-  React.useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard');
-    }
-  }, [isAuthenticated, navigate]);
+  const { refreshUser } = useAuth();
+  const authStateMachine = useAuthStateMachine();
 
   const handleAuthSuccess = () => {
-    navigate('/dashboard');
+    // Let the state machine handle the redirect logic
+    authStateMachine.handleAuthSuccess();
   };
 
   const handleError = (error: string) => {
@@ -34,15 +28,19 @@ const AuthPage: React.FC = () => {
     setError(null);
   };
 
-  if (isAuthenticated) {
-    return null; // Will redirect
+  if (authStateMachine.isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 w-screen left-0 right-0 relative" style={{ marginLeft: 'calc(50% - 50vw)' }}>
       {/* Close Button */}
       <button
-        onClick={() => navigate('/')}
+        onClick={() => authStateMachine.navigate('/')}
         className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
         aria-label="Close and return to home"
       >
@@ -88,7 +86,7 @@ const AuthPage: React.FC = () => {
             </div>
           )}
 
-          <OAuthButtons 
+          <OAuthButtons
             onSuccess={handleAuthSuccess}
             onError={handleError}
           />
@@ -114,11 +112,11 @@ const AuthPage: React.FC = () => {
             />
           ) : (
             <SignupForm
-              onSuccess={handleAuthSuccess}
               onError={handleError}
               isLoading={isLoading}
               setIsLoading={setIsLoading}
               clearError={clearError}
+              onSuccess={refreshUser}
             />
           )}
         </div>

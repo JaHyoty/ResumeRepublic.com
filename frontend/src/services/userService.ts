@@ -28,6 +28,11 @@ export interface UpdateUserRequest {
   professional_summary?: string
 }
 
+export interface TermsAgreementRequest {
+  terms_accepted: boolean
+  privacy_policy_accepted: boolean
+}
+
 export const userService = {
   async getUserInfo(): Promise<UserInfo> {
     const response = await api.get('/api/user/')
@@ -36,6 +41,16 @@ export const userService = {
 
   async updateUser(userData: UpdateUserRequest): Promise<UserInfo> {
     const response = await api.put('/api/user/', userData)
+    return response.data
+  },
+
+  async deleteUser(): Promise<{ message: string }> {
+    const response = await api.delete('/api/user/')
+    return response.data
+  },
+
+  async acceptTerms(agreementData: TermsAgreementRequest): Promise<UserInfo> {
+    const response = await api.post('/api/user/accept-terms', agreementData)
     return response.data
   }
 }

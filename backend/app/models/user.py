@@ -26,6 +26,11 @@ class User(Base):
     password_hash = Column(String(255), nullable=True)  # Nullable for OAuth users
     is_active = Column(Boolean, default=True)
     is_verified = Column(Boolean, default=False)
+    
+    # Terms and Privacy Policy Agreement
+    terms_accepted_at = Column(DateTime(timezone=True), nullable=True)
+    privacy_policy_accepted_at = Column(DateTime(timezone=True), nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

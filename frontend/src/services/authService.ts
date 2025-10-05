@@ -8,6 +8,8 @@ export interface User {
   preferred_first_name?: string
   is_active: boolean
   is_verified: boolean
+  terms_accepted_at?: string
+  privacy_policy_accepted_at?: string
   created_at: string
   updated_at?: string
 }
@@ -29,6 +31,7 @@ export interface AuthResponse {
   access_token: string
   token_type: string
   expires_in: number
+  needs_agreement?: boolean
 }
 
 export interface GoogleOAuthRequest {

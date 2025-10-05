@@ -59,9 +59,10 @@ const OAuthButtons: React.FC<OAuthButtonsProps> = ({
             try {
               console.log('Calling loginWithGoogle...');
               await loginWithGoogle(response.credential);
-              console.log('loginWithGoogle successful, calling onSuccess...');
+              console.log('loginWithGoogle successful');
+              
+              // Simply call onSuccess - terms protection will handle redirect if needed
               onSuccess();
-              console.log('onSuccess called');
             } catch (error: any) {
               console.error('Google login error:', error);
               const errorMessage = error.response?.data?.detail || 'Google login failed. Please try again.';
@@ -87,6 +88,13 @@ const OAuthButtons: React.FC<OAuthButtonsProps> = ({
         // Get the container width to make the button responsive
         const container = document.getElementById('google-signin-button');
         const containerWidth = container ? Math.min(container.offsetWidth, 420) : 400;
+        
+        // Add click listener to detect OAuth start
+        if (container) {
+          container.addEventListener('click', () => {
+            console.log('Google OAuth button clicked - starting OAuth flow');
+          });
+        }
         
         // Use renderButton to create a proper button that won't be suppressed
         window.google.accounts.id.renderButton(

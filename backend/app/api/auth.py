@@ -217,8 +217,15 @@ async def google_oauth_login(
         data={"sub": str(user.id)}
     )
     
+    # Check if user needs to agree to terms
+    needs_agreement = not user.terms_accepted_at or not user.privacy_policy_accepted_at
+    
+    logger.info("Google OAuth login successful", 
+               user_id=user.id, email=email, needs_agreement=needs_agreement)
+    
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "needs_agreement": needs_agreement
     }

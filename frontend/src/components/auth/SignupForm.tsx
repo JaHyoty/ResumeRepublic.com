@@ -1,21 +1,23 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useAuthStateMachine } from '../../hooks/useAuthStateMachine';
 import type { RegisterCredentials } from '../../types/auth';
+import { userService } from '../../services/userService';
 
 interface SignupFormProps {
-  onSuccess: () => void;
   onError: (error: string) => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
   clearError: () => void;
+  onSuccess: () => Promise<void>;
 }
 
 const SignupForm: React.FC<SignupFormProps> = ({
-  onSuccess,
   onError,
   isLoading,
   setIsLoading,
   clearError,
+  onSuccess,
 }) => {
   const [formData, setFormData] = useState<RegisterCredentials>({
     email: '',
@@ -27,6 +29,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const { register } = useAuth();
+  const authStateMachine = useAuthStateMachine();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -53,6 +56,10 @@ const SignupForm: React.FC<SignupFormProps> = ({
       setPasswordError('Password must be at least 8 characters long');
       return false;
     }
+    if (formData.password.length > 72) {
+      setPasswordError('Password must be no more than 72 characters long');
+      return false;
+    }
     return true;
   };
 
@@ -68,7 +75,18 @@ const SignupForm: React.FC<SignupFormProps> = ({
 
     try {
       await register(formData);
-      onSuccess();
+      
+      // Automatically accept terms for manual registration since they checked the box
+      await userService.acceptTerms({
+        terms_accepted: true,
+        privacy_policy_accepted: true
+      });
+      
+      // Call onSuccess to refresh user data
+      await onSuccess();
+      
+      // Let the state machine handle navigation (wait for it to complete)
+      await authStateMachine.handleAuthSuccess();
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || 'Registration failed. Please try again.';
       onError(errorMessage);

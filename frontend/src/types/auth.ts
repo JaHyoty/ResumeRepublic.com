@@ -5,6 +5,8 @@ export interface User {
   last_name: string;
   preferred_first_name?: string;
   is_verified: boolean;
+  terms_accepted_at?: string;
+  privacy_policy_accepted_at?: string;
   created_at: string;
 }
 
@@ -32,15 +34,22 @@ export interface OAuthCredentials {
   token_type?: string;
 }
 
+export interface TermsAgreementRequest {
+  terms_accepted: boolean;
+  privacy_policy_accepted: boolean;
+}
+
 export interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  needsAgreement: boolean;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
-  loginWithGoogle: (idToken: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<any>;
   loginWithGitHub: (credentials: OAuthCredentials) => Promise<void>;
   logout: () => void;
   refreshToken: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
