@@ -10,7 +10,7 @@ class PersonalInfo(BaseModel):
     name: str
     email: str
     phone: str
-    location: str
+    location: Optional[str] = None
     linkedin: Optional[str] = None
     website: Optional[str] = None
     summary: Optional[str] = None

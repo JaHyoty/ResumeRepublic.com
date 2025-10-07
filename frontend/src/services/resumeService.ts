@@ -24,7 +24,7 @@ export interface ResumeDesignRequest {
     name: string
     email: string
     phone: string
-    location: string
+    location?: string
     linkedin?: string
     website?: string
     summary?: string

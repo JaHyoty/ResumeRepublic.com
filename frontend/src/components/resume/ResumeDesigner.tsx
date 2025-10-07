@@ -11,7 +11,7 @@ interface PersonalInfo {
   name: string
   email: string
   phone: string
-  location: string
+  location?: string
   linkedin?: string
   website?: string
   summary?: string
@@ -484,13 +484,13 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Location *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                 <input
                   type="text"
-                  value={personalInfo.location}
+                  value={personalInfo.location || ''}
                   onChange={(e) => handlePersonalInfoChange('location', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="City, State"
+                  placeholder="City, State (optional)"
                 />
               </div>
               <div>
@@ -553,7 +553,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
             <div className="bg-white rounded-lg shadow-md p-6">
               <button
                 onClick={startResumeGeneration}
-                disabled={isGenerating || !personalInfo.name || !personalInfo.email || !personalInfo.phone || !personalInfo.location || !jobTitle.trim() || !company.trim() || !jobDescription.trim()}
+                disabled={isGenerating || !personalInfo.name || !personalInfo.email || !personalInfo.phone || !jobTitle.trim() || !company.trim() || !jobDescription.trim()}
                 className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Continue
