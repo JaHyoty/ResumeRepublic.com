@@ -13,14 +13,12 @@ from urllib.parse import urlparse, urlunparse, parse_qs
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.models.user import User
-from app.models.job_posting import JobPosting, DomainSelector, JobPostingFetchAttempt
+from app.models.job_posting import JobPosting, JobPostingFetchAttempt
 from app.schemas.job_posting import (
     JobPostingFetchRequest,
     JobPostingFetchResponse,
     JobPostingResponse,
     JobPostingListResponse,
-    DomainSelectorResponse,
-    FetchAttemptResponse,
     JobPostingCreateRequest
 )
 from app.services.job_posting_parser import JobPostingParserService
@@ -243,64 +241,4 @@ async def get_job_posting(
         )
 
 
-@router.get("/{job_posting_id}/attempts", response_model=List[FetchAttemptResponse])
-async def get_job_posting_attempts(
-    job_posting_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Get fetch attempts for a specific job posting
-    """
-    try:
-        # Verify job posting exists
-        job_posting = db.query(JobPosting).filter(JobPosting.id == job_posting_id).first()
-        if not job_posting:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job posting not found"
-            )
-        
-        attempts = db.query(JobPostingFetchAttempt).filter(
-            JobPostingFetchAttempt.job_posting_id == job_posting_id
-        ).order_by(desc(JobPostingFetchAttempt.created_at)).all()
-        
-        return [FetchAttemptResponse.from_orm(attempt) for attempt in attempts]
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            "Failed to get job posting attempts",
-            error=str(e),
-            job_posting_id=job_posting_id,
-            user_id=current_user.id
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve job posting attempts"
-        )
 
-
-@router.get("/domains/selectors", response_model=List[DomainSelectorResponse])
-async def list_domain_selectors(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    List domain selectors for debugging and management
-    """
-    try:
-        selectors = db.query(DomainSelector).order_by(desc(DomainSelector.success_count)).all()
-        return [DomainSelectorResponse.from_orm(selector) for selector in selectors]
-        
-    except Exception as e:
-        logger.error(
-            "Failed to list domain selectors",
-            error=str(e),
-            user_id=current_user.id
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve domain selectors"
-        )

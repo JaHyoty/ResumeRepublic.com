@@ -57,25 +57,6 @@ class JobPosting(Base):
         return f"<JobPosting(id={self.id}, url='{self.url}', status='{self.status}')>"
 
 
-class DomainSelector(Base):
-    """Domain-specific CSS/XPath selectors for job posting extraction"""
-    __tablename__ = "domain_selectors"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    domain = Column(String(255), unique=True, nullable=False, index=True)
-    selectors = Column(JSON, nullable=False)  # Array of selector objects
-    last_success = Column(DateTime(timezone=True), nullable=True)
-    success_count = Column(Integer, default=0)
-    failure_count = Column(Integer, default=0)
-    
-    # Timestamps
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    def __repr__(self):
-        return f"<DomainSelector(domain='{self.domain}', success_count={self.success_count})>"
-
-
 class JobPostingFetchAttempt(Base):
     """Audit log for job posting fetch attempts"""
     __tablename__ = "job_posting_fetch_attempts"

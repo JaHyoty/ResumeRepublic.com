@@ -48,29 +48,6 @@ export interface JobPostingListResponse {
   page_size: number
 }
 
-export interface DomainSelectorResponse {
-  id: string
-  domain: string
-  selectors: {
-    title?: string
-    company?: string
-    description?: string
-  }
-  last_success?: string
-  created_at: string
-  updated_at: string
-}
-
-export interface FetchAttemptResponse {
-  id: string
-  job_posting_id: string
-  method: string
-  response_code?: number
-  duration_ms?: number
-  note?: string
-  created_at: string
-}
-
 export const jobPostingService = {
   // Fetch job posting from URL
   async fetchJobPosting(data: JobPostingFetchRequest): Promise<JobPostingFetchResponse> {
@@ -101,28 +78,6 @@ export const jobPostingService = {
       return response.data
     } catch (error) {
       console.error('Failed to get job posting:', error)
-      throw error
-    }
-  },
-
-  // Get job posting fetch attempts
-  async getJobPostingAttempts(id: string): Promise<FetchAttemptResponse[]> {
-    try {
-      const response = await api.get(`/api/job-postings/${id}/attempts`)
-      return response.data
-    } catch (error) {
-      console.error('Failed to get job posting attempts:', error)
-      throw error
-    }
-  },
-
-  // Get domain selectors (admin endpoint)
-  async getDomainSelectors(): Promise<DomainSelectorResponse[]> {
-    try {
-      const response = await api.get('/api/job-postings/domains/selectors')
-      return response.data
-    } catch (error) {
-      console.error('Failed to get domain selectors:', error)
       throw error
     }
   }

@@ -19,7 +19,7 @@ class JobPostingHeuristicExtractor:
     def __init__(self):
         self.web_scraper = JobPostingWebScraper()
     
-    async def extract_job_data(self, url: str, domain_selectors: Optional[List[Dict]] = None) -> Optional[Dict[str, Any]]:
+    async def extract_job_data(self, url: str) -> Optional[Dict[str, Any]]:
         """
         Extract job data using heuristic DOM analysis
         """
@@ -31,56 +31,11 @@ class JobPostingHeuristicExtractor:
             
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Try domain-specific selectors first
-            if domain_selectors:
-                result = self._extract_with_domain_selectors(soup, domain_selectors)
-                if result:
-                    return result
-            
-            # Fall back to general heuristics
+            # Use general heuristics
             return self._extract_with_heuristics(soup, url)
             
         except Exception as e:
             logger.error("Heuristic extraction failed", url=url, error=str(e))
-            return None
-    
-    def _extract_with_domain_selectors(self, soup: BeautifulSoup, selectors: List[Dict]) -> Optional[Dict[str, Any]]:
-        """Extract using domain-specific selectors"""
-        try:
-            result = {}
-            
-            for selector_info in selectors:
-                field = selector_info.get('field')
-                selector = selector_info.get('selector')
-                selector_type = selector_info.get('type', 'css')
-                
-                if not field or not selector:
-                    continue
-                
-                # Apply selector
-                elements = self._apply_selector(soup, selector, selector_type)
-                if elements:
-                    text = self._extract_text_from_elements(elements)
-                    if text and len(text.strip()) > 2:
-                        result[field] = text.strip()
-            
-            # Validate result
-            if self._is_valid_heuristic_result(result):
-                return {
-                    **result,
-                    'confidence': 0.8,
-                    'excerpt': result.get('description', '')[:200] + '...' if result.get('description') else '',
-                    'provenance': {
-                        'method': 'heuristic',
-                        'extractor': 'domain_selectors',
-                        'source': 'cached_selectors'
-                    }
-                }
-            
-            return None
-            
-        except Exception as e:
-            logger.error("Domain selector extraction failed", error=str(e))
             return None
     
     def _extract_with_heuristics(self, soup: BeautifulSoup, url: str) -> Optional[Dict[str, Any]]:
@@ -311,17 +266,6 @@ class JobPostingHeuristicExtractor:
             return True
         
         return False
-    
-    def _apply_selector(self, soup: BeautifulSoup, selector: str, selector_type: str) -> List:
-        """Apply CSS or XPath selector to soup"""
-        if selector_type == 'css':
-            return soup.select(selector)
-        elif selector_type == 'xpath':
-            # For XPath, we'd need lxml
-            # For now, return empty list
-            return []
-        else:
-            return []
     
     def _extract_and_clean_text(self, elements: List) -> str:
         """Extract and clean text from elements while preserving paragraph structure and formatting lists"""

@@ -46,16 +46,6 @@ class ProvenanceInfo(BaseModel):
     timestamp: datetime = Field(..., description="When extraction occurred")
 
 
-class SelectorInfo(BaseModel):
-    """Schema for CSS/XPath selector information"""
-    type: str = Field(..., pattern=r'^(css|xpath)$', description="Selector type")
-    selector: str = Field(..., min_length=1, description="The actual selector")
-    field: str = Field(..., pattern=r'^(title|company|description)$', description="Field this selector extracts")
-    discovered_at: datetime = Field(..., description="When this selector was discovered")
-    provenance: str = Field(..., pattern=r'^(llm|manual|heuristic)$', description="How selector was discovered")
-    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence in this selector")
-
-
 class JobPostingResponse(BaseModel):
     """Response schema for job posting data"""
     id: UUID = Field(..., description="Unique identifier")
@@ -80,21 +70,6 @@ class JobPostingListResponse(BaseModel):
     total: int = Field(..., description="Total number of job postings")
     page: int = Field(..., description="Current page number")
     per_page: int = Field(..., description="Number of items per page")
-
-
-class DomainSelectorResponse(BaseModel):
-    """Response schema for domain selector data"""
-    id: UUID = Field(..., description="Unique identifier")
-    domain: str = Field(..., description="Domain name")
-    selectors: List[SelectorInfo] = Field(..., description="List of selectors for this domain")
-    last_success: Optional[datetime] = Field(None, description="Last successful extraction")
-    success_count: int = Field(..., description="Number of successful extractions")
-    failure_count: int = Field(..., description="Number of failed extractions")
-    created_at: datetime = Field(..., description="When selector was created")
-    updated_at: datetime = Field(..., description="When selector was last updated")
-
-    class Config:
-        from_attributes = True
 
 
 class FetchAttemptResponse(BaseModel):

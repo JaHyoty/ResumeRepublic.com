@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 import structlog
 
-from app.models.job_posting import JobPosting, JobPostingFetchAttempt, DomainSelector
+from app.models.job_posting import JobPosting, JobPostingFetchAttempt
 from app.services.job_posting_schema_extractor import JobPostingSchemaExtractor
 from app.services.job_posting_heuristic_extractor import JobPostingHeuristicExtractor
 from app.services.job_posting_web_scraper import JobPostingWebScraper
@@ -176,17 +176,8 @@ class JobPostingParserService:
             db.commit()
             
             # Check for existing domain selectors first (only if domain exists)
-            domain_selector = None
-            if job_posting.domain:
-                domain_selector = db.query(DomainSelector).filter(
-                    DomainSelector.domain == job_posting.domain
-                ).first()
-            
             # Fetch and parse with heuristic extraction
-            result = await self.heuristic_extractor.extract_job_data(
-                job_posting.url, 
-                domain_selector.selectors if domain_selector else None
-            )
+            result = await self.heuristic_extractor.extract_job_data(job_posting.url)
             
             # Update attempt record
             attempt.success = result is not None
@@ -274,26 +265,6 @@ class JobPostingParserService:
                 }
             )
         
-        # Update domain selector success count if applicable
-        if method == 'heuristic' and job_posting.domain:
-            domain_selector = db.query(DomainSelector).filter(
-                DomainSelector.domain == job_posting.domain
-            ).first()
-            
-            if domain_selector:
-                domain_selector.success_count += 1
-                domain_selector.last_success = job_posting.updated_at
-            else:
-                # Create new domain selector record
-                domain_selector = DomainSelector(
-                    domain=job_posting.domain,
-                    selectors=result.get('selectors', []),
-                    success_count=1,
-                    last_success=job_posting.updated_at
-                )
-                db.add(domain_selector)
-            
-            db.commit()
     
     async def _mark_job_posting_failed(
         self, 
@@ -320,12 +291,3 @@ class JobPostingParserService:
                 error_message
             )
         
-        # Update domain selector failure count (only if domain exists)
-        if job_posting.domain:
-            domain_selector = db.query(DomainSelector).filter(
-                DomainSelector.domain == job_posting.domain
-            ).first()
-            
-            if domain_selector:
-                domain_selector.failure_count += 1
-                db.commit()

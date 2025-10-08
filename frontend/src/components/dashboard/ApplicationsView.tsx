@@ -24,7 +24,6 @@ const ApplicationsView: React.FC = () => {
   const [isFetchingJobPosting, setIsFetchingJobPosting] = useState(false)
   const [jobPostingStatus, setJobPostingStatus] = useState<string | null>(null)
   const [currentJobPostingId, setCurrentJobPostingId] = useState<string | null>(null)
-  const [jobPostingError, setJobPostingError] = useState<string | null>(null)
   const [isFormDisabled, setIsFormDisabled] = useState(false)
   // State for applications data
   const [recentApplications, setRecentApplications] = useState<Application[]>([])
@@ -100,16 +99,17 @@ const ApplicationsView: React.FC = () => {
           if (event.data.description) setNewJobDescription(event.data.description)
         }
         
-        // Clear error state
-        setJobPostingError(null)
+        // Disconnect webhook on completion since we're done with this job posting
+        unsubscribe()
       } else if (event.status === 'failed') {
         setJobPostingStatus('failed')
         setIsFormDisabled(false)
-        setJobPostingError(event.data?.error || 'Failed to parse job posting')
+        
+        // Disconnect webhook on failure since we're done with this job posting
+        unsubscribe()
       }
     })
 
-    return unsubscribe
   }, [currentJobPostingId, jobPostingStatus])
 
   const loadData = async () => {
@@ -326,14 +326,12 @@ const ApplicationsView: React.FC = () => {
 
   const handleFetchJobPosting = async () => {
     if (!jobPostingUrl.trim()) {
-      setJobPostingError('Please enter a job posting URL')
       return
     }
 
     console.log('Starting job posting fetch for URL:', jobPostingUrl.trim())
     try {
       setIsFetchingJobPosting(true)
-      setJobPostingError(null)
       setJobPostingStatus(null)
       setIsFormDisabled(true) // Disable form fields immediately when parsing starts
       
@@ -367,7 +365,6 @@ const ApplicationsView: React.FC = () => {
           console.log('Job posting data populated successfully')
         } catch (err) {
           console.error('Error fetching complete job posting data:', err)
-          setJobPostingError('Failed to fetch job posting data')
           setIsFormDisabled(false)
           setIsFetchingJobPosting(false) // Stop loading state on error
         }
@@ -376,14 +373,13 @@ const ApplicationsView: React.FC = () => {
         console.log('Job posting is being parsed, setting up webhook subscription')
         setCurrentJobPostingId(response.job_posting_id)
         setJobPostingStatus('pending')
-q        setIsFetchingJobPosting(false) // Stop loading state, webhook will handle completion
+        setIsFetchingJobPosting(false) // Stop loading state, webhook will handle completion
       }
       
       console.log('Set currentJobPostingId to:', response.job_posting_id)
       
     } catch (err: any) {
       console.error('Error fetching job posting:', err)
-      setJobPostingError(err.response?.data?.detail || 'Failed to fetch job posting')
       setIsFetchingJobPosting(false)
       setIsFormDisabled(false) // Re-enable form fields on error
     }
@@ -393,7 +389,6 @@ q        setIsFetchingJobPosting(false) // Stop loading state, webhook will hand
     setJobPostingUrl('')
     setJobPostingStatus(null)
     setCurrentJobPostingId(null)
-    setJobPostingError(null)
     setIsFormDisabled(false)
     setIsFetchingJobPosting(false)
     
@@ -788,20 +783,9 @@ q        setIsFetchingJobPosting(false) // Stop loading state, webhook will hand
                             <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                             </svg>
-                            <span className="text-red-700">Failed to parse job posting</span>
+                            <span className="text-red-700">Failed to parse job posting. Please input data manually.</span>
                           </>
                         )}
-                      </div>
-                    )}
-                    
-                    {jobPostingError && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                        <div className="flex items-center gap-2 text-sm text-red-700">
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                          </svg>
-                          <span>{jobPostingError}</span>
-                        </div>
                       </div>
                     )}
                     
