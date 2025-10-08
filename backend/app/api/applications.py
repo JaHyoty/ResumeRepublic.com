@@ -42,7 +42,6 @@ async def get_applications(
     for app in applications:
         app_data = {
             "id": app.id,
-            "user_id": app.user_id,
             "applied_date": app.applied_date,
             "created_at": app.created_at,
             "updated_at": app.updated_at,
@@ -130,7 +129,6 @@ async def get_application(
     # Return application with job posting data
     return ApplicationResponse(
         id=application.id,
-        user_id=application.user_id,
         applied_date=application.applied_date,
         created_at=application.created_at,
         updated_at=application.updated_at,
@@ -281,7 +279,6 @@ async def create_application_from_job_posting(
         # Return application with job posting data
         return ApplicationResponse(
             id=application.id,
-            user_id=application.user_id,
             applied_date=application.applied_date,
             created_at=application.created_at,
             updated_at=application.updated_at,

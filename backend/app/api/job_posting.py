@@ -36,8 +36,8 @@ def clean_utm_parameters(url: str) -> str:
     parsed = urlparse(url)
     query_params = parse_qs(parsed.query)
     
-    # Remove UTM parameters
-    utm_params = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id']
+    # Remove UTM parameters and other tracking parameters
+    utm_params = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id', '_atxsrc']
     for param in utm_params:
         query_params.pop(param, None)
     

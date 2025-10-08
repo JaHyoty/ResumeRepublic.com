@@ -412,12 +412,15 @@ class JobPostingHeuristicExtractor:
         lines = text.split('\n')
         cleaned_lines = []
         
-        for line in lines:
+        for i, line in enumerate(lines):
             cleaned_line = line.strip()
             if cleaned_line:  # Only keep non-empty lines
                 cleaned_lines.append(cleaned_line)
             elif cleaned_lines and cleaned_lines[-1] != '':  # Keep one empty line between paragraphs
-                cleaned_lines.append('')
+                # Check if the previous line is a list item (starts with -)
+                # If so, don't add empty line to avoid blank rows between list items
+                if not cleaned_lines[-1].startswith('- '):
+                    cleaned_lines.append('')
         
         # Join lines back together
         text = '\n'.join(cleaned_lines)

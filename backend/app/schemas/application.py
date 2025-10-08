@@ -37,7 +37,6 @@ class ApplicationUpdate(BaseModel):
 class ApplicationResponse(ApplicationBase):
     """Schema for application response"""
     id: int
-    user_id: int
     applied_date: datetime
     created_at: datetime
     updated_at: Optional[datetime] = None

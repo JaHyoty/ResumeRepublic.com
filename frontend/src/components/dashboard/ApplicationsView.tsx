@@ -90,7 +90,7 @@ const ApplicationsView: React.FC = () => {
         setIsFormDisabled(true)
       } else if (event.status === 'complete') {
         setJobPostingStatus('complete')
-        setIsFormDisabled(false)
+        setIsFormDisabled(true) // Disable form fields since data came from URL parsing
         
         // Populate form fields with parsed data
         if (event.data) {
@@ -356,9 +356,9 @@ const ApplicationsView: React.FC = () => {
           if (jobPostingData.company) setNewCompany(jobPostingData.company)
           if (jobPostingData.description) setNewJobDescription(jobPostingData.description)
           
-          // Set status and enable form
+          // Set status and disable form fields (since data was fetched from URL)
           setJobPostingStatus('complete')
-          setIsFormDisabled(false)
+          setIsFormDisabled(true) // Disable form fields since data came from URL
           setCurrentJobPostingId(response.job_posting_id)
           setIsFetchingJobPosting(false) // Stop loading state
           

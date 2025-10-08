@@ -50,7 +50,6 @@ class JobPostingResponse(BaseModel):
     id: UUID = Field(..., description="Unique identifier")
     url: Optional[str] = Field(None, description="Original URL")
     domain: Optional[str] = Field(None, description="Domain of the URL")
-    created_by_user_id: Optional[int] = Field(None, description="User who created this job posting")
     title: Optional[str] = Field(None, description="Extracted job title")
     company: Optional[str] = Field(None, description="Extracted company name")
     description: Optional[str] = Field(None, description="Extracted job description")
