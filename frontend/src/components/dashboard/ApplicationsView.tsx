@@ -362,18 +362,21 @@ const ApplicationsView: React.FC = () => {
           setJobPostingStatus('complete')
           setIsFormDisabled(false)
           setCurrentJobPostingId(response.job_posting_id)
+          setIsFetchingJobPosting(false) // Stop loading state
           
           console.log('Job posting data populated successfully')
         } catch (err) {
           console.error('Error fetching complete job posting data:', err)
           setJobPostingError('Failed to fetch job posting data')
           setIsFormDisabled(false)
+          setIsFetchingJobPosting(false) // Stop loading state on error
         }
       } else {
         // Job posting is being parsed, set up webhook subscription
         console.log('Job posting is being parsed, setting up webhook subscription')
         setCurrentJobPostingId(response.job_posting_id)
         setJobPostingStatus('pending')
+q        setIsFetchingJobPosting(false) // Stop loading state, webhook will handle completion
       }
       
       console.log('Set currentJobPostingId to:', response.job_posting_id)
@@ -726,7 +729,11 @@ const ApplicationsView: React.FC = () => {
                         <button
                           onClick={handleFetchJobPosting}
                           disabled={!jobPostingUrl.trim() || isFetchingJobPosting || isFormDisabled}
-                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg transition-colors duration-200 flex items-center gap-2"
+                          className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors duration-200 flex items-center gap-2 ${
+                            jobPostingStatus === 'complete' 
+                              ? 'bg-green-600 hover:bg-green-700' 
+                              : 'bg-blue-600 hover:bg-blue-700'
+                          } disabled:bg-gray-300 disabled:cursor-not-allowed`}
                         >
                           {isFetchingJobPosting ? (
                             <>
@@ -734,6 +741,13 @@ const ApplicationsView: React.FC = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
                               Fetching...
+                            </>
+                          ) : jobPostingStatus === 'complete' ? (
+                            <>
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Done
                             </>
                           ) : (
                             'Fetch Job Details'

@@ -21,11 +21,6 @@ class ApplicationBase(BaseModel):
     job_posting_id: Optional[UUID] = None
 
 
-class ApplicationCreate(ApplicationBase):
-    """Schema for creating a new application"""
-    pass
-
-
 class ApplicationUpdate(BaseModel):
     """Schema for updating an application"""
     online_assessment: Optional[bool] = None

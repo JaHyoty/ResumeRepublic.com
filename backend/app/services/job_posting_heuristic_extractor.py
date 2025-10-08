@@ -208,14 +208,109 @@ class JobPostingHeuristicExtractor:
         for selector in description_selectors:
             elements = soup.select(selector)
             for element in elements:
-                text = element.get_text().strip()
-                score = self._score_description(text)
+                # Clean text while preserving paragraph structure
+                cleaned_text = self._extract_and_clean_text([element])
                 
-                if score > best_score and self._is_valid_description(text):
-                    best_description = text
+                # Filter out navigation content from the cleaned text
+                if self._contains_navigation_patterns(cleaned_text):
+                    continue
+                score = self._score_description(cleaned_text)
+                
+                if score > best_score and self._is_valid_description(cleaned_text):
+                    best_description = cleaned_text
                     best_score = score
         
         return best_description
+    
+    def _filter_navigation_content(self, element) -> Optional[str]:
+        """Filter out navigation and UI elements from job description content"""
+        if not element:
+            return None
+        
+        # Create a copy to avoid modifying the original
+        from copy import deepcopy
+        filtered_element = deepcopy(element)
+        
+        # Remove common navigation elements
+        navigation_selectors = [
+            'nav', 'header', 'footer', 'aside',
+            '.nav', '.navigation', '.menu', '.breadcrumb',
+            '.header', '.footer', '.sidebar',
+            '.back-to', '.search-results', '.apply-button',
+            '.job-actions', '.job-meta', '.job-location',
+            'button', '.btn', '.button',
+            'script', 'style', 'noscript'
+        ]
+        
+        for selector in navigation_selectors:
+            for nav_element in filtered_element.select(selector):
+                nav_element.decompose()
+        
+        # Remove elements with navigation-related classes or IDs
+        for elem in filtered_element.find_all():
+            classes = elem.get('class', [])
+            elem_id = elem.get('id', '')
+            
+            # Check for navigation-related class names
+            nav_keywords = [
+                'nav', 'menu', 'breadcrumb', 'header', 'footer',
+                'sidebar', 'back', 'search', 'apply', 'button',
+                'action', 'meta', 'location', 'breadcrumb'
+            ]
+            
+            if any(keyword in ' '.join(classes).lower() for keyword in nav_keywords):
+                elem.decompose()
+            elif any(keyword in elem_id.lower() for keyword in nav_keywords):
+                elem.decompose()
+        
+        # Get the remaining text
+        remaining_text = filtered_element.get_text().strip()
+        
+        # Additional filtering based on content patterns
+        if self._contains_navigation_patterns(remaining_text):
+            return None
+        
+        return remaining_text
+    
+    def _contains_navigation_patterns(self, text: str) -> bool:
+        """Check if text contains navigation patterns"""
+        if not text:
+            return True
+        
+        # Common navigation patterns
+        nav_patterns = [
+            'back to search results',
+            'additional locations',
+            'see less',
+            'apply',
+            'acknowledge',
+            'refer a friend',
+            'to proceed with your application',
+            'you must be at least 18 years of age',
+            'job id:',
+            'multiple locations'
+        ]
+        
+        text_lower = text.lower()
+        
+        # If more than 30% of the text matches navigation patterns, it's likely navigation
+        nav_matches = sum(1 for pattern in nav_patterns if pattern in text_lower)
+        if nav_matches > len(nav_patterns) * 0.3:
+            return True
+        
+        # Check if the text is too short (likely navigation)
+        if len(text.strip()) < 200:
+            return True
+        
+        # Check if it contains mostly navigation elements
+        nav_words = ['apply', 'back', 'search', 'results', 'acknowledge', 'refer']
+        words = text_lower.split()
+        nav_word_count = sum(1 for word in words if word in nav_words)
+        
+        if len(words) > 0 and nav_word_count / len(words) > 0.1:
+            return True
+        
+        return False
     
     def _apply_selector(self, soup: BeautifulSoup, selector: str, selector_type: str) -> List:
         """Apply CSS or XPath selector to soup"""
@@ -228,16 +323,81 @@ class JobPostingHeuristicExtractor:
         else:
             return []
     
-    def _extract_text_from_elements(self, elements: List) -> str:
-        """Extract and clean text from elements"""
+    def _extract_and_clean_text(self, elements: List) -> str:
+        """Extract and clean text from elements while preserving paragraph structure and formatting lists"""
         if not elements:
             return ""
         
-        # Get text from first element
-        text = elements[0].get_text()
+        # Get the HTML content of the element before converting to text
+        element = elements[0]
+        html_content = str(element)
         
-        # Clean up text
-        text = re.sub(r'\s+', ' ', text).strip()
+        # First, handle specific HTML elements to preserve structure
+        # Convert </p> tags to double line breaks (paragraph breaks)
+        html_content = re.sub(r'</p>', '\n\n', html_content, flags=re.IGNORECASE)
+        
+        # Convert <br> and <br/> tags to single line breaks
+        html_content = re.sub(r'<br\s*/?>', '\n', html_content, flags=re.IGNORECASE)
+        
+        # Handle list items - convert <li> to bullet points
+        # First, handle unordered lists <ul> and <ol> - add spacing around them
+        html_content = re.sub(r'<(ul|ol)[^>]*>', '\n', html_content, flags=re.IGNORECASE)
+        html_content = re.sub(r'</(ul|ol)>', '\n', html_content, flags=re.IGNORECASE)
+        
+        # Convert <li> tags to bullet points with proper formatting
+        html_content = re.sub(r'<li[^>]*>', '\n- ', html_content, flags=re.IGNORECASE)
+        html_content = re.sub(r'</li>', '', html_content, flags=re.IGNORECASE)
+        
+        # Handle other block elements that should have line breaks
+        block_elements = ['div', 'section', 'article', 'header', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+        for element_name in block_elements:
+            # Add line break after opening tags
+            html_content = re.sub(f'<{element_name}[^>]*>', f'\n', html_content, flags=re.IGNORECASE)
+            # Add line break before closing tags
+            html_content = re.sub(f'</{element_name}>', '\n', html_content, flags=re.IGNORECASE)
+        
+        # Remove all remaining HTML tags
+        text = re.sub(r'<[^>]+>', '', html_content)
+        
+        # Decode common HTML entities
+        html_entities = {
+            '&amp;': '&',
+            '&lt;': '<',
+            '&gt;': '>',
+            '&quot;': '"',
+            '&#39;': "'",
+            '&nbsp;': ' ',
+            '&ndash;': '-',
+            '&mdash;': '—',
+            '&hellip;': '...',
+        }
+        
+        for entity, char in html_entities.items():
+            text = text.replace(entity, char)
+        
+        # Clean whitespace while preserving paragraph structure
+        # Replace multiple consecutive line breaks with double line breaks (paragraph breaks)
+        text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
+        
+        # Replace multiple spaces/tabs with single space within lines
+        text = re.sub(r'[ \t]+', ' ', text)
+        
+        # Remove leading/trailing whitespace from each line
+        lines = text.split('\n')
+        cleaned_lines = []
+        
+        for line in lines:
+            cleaned_line = line.strip()
+            if cleaned_line:  # Only keep non-empty lines
+                cleaned_lines.append(cleaned_line)
+            elif cleaned_lines and cleaned_lines[-1] != '':  # Keep one empty line between paragraphs
+                cleaned_lines.append('')
+        
+        # Join lines back together
+        text = '\n'.join(cleaned_lines)
+        
+        # Final cleanup - remove excessive leading/trailing whitespace
+        text = text.strip()
         
         return text
     

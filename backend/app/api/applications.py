@@ -12,7 +12,6 @@ from app.core.database import get_db
 from app.models.application import Application
 from app.models.job_posting import JobPosting
 from app.schemas.application import (
-    ApplicationCreate, 
     ApplicationUpdate, 
     ApplicationResponse, 
     ApplicationStats
@@ -108,26 +107,6 @@ async def get_application_stats(
     )
 
 
-@router.post("/", response_model=ApplicationResponse)
-async def create_application(
-    application: ApplicationCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create a new application"""
-    db_application = Application(
-        user_id=current_user.id,
-        **application.dict()
-    )
-    
-    db.add(db_application)
-    db.commit()
-    db.refresh(db_application)
-    
-    logger.info("Application created", application_id=db_application.id, user_id=current_user.id)
-    return db_application
-
-
 @router.get("/{application_id}", response_model=ApplicationResponse)
 async def get_application(
     application_id: int,
@@ -135,7 +114,9 @@ async def get_application(
     db: Session = Depends(get_db)
 ):
     """Get a specific application by ID"""
-    application = db.query(Application).filter(
+    application = db.query(Application).options(
+        joinedload(Application.job_posting)
+    ).filter(
         Application.id == application_id,
         Application.user_id == current_user.id
     ).first()
@@ -146,7 +127,17 @@ async def get_application(
             detail="Application not found"
         )
     
-    return application
+    # Return application with job posting data
+    return ApplicationResponse(
+        id=application.id,
+        user_id=application.user_id,
+        applied_date=application.applied_date,
+        created_at=application.created_at,
+        updated_at=application.updated_at,
+        job_title=application.job_posting.title if application.job_posting else None,
+        company=application.job_posting.company if application.job_posting else None,
+        job_description=application.job_posting.description if application.job_posting else None
+    )
 
 
 @router.put("/{application_id}", response_model=ApplicationResponse)
@@ -270,7 +261,7 @@ async def create_application_from_job_posting(
             applied_date=job_posting.created_at,
             job_posting_id=job_posting.id,
             application_metadata={
-                "source": "job_posting_parsing",
+                "source": "web-ui",
                 "original_url": job_posting.url,
                 "parsing_method": job_posting.provenance.get('method', 'unknown') if job_posting.provenance else 'unknown'
             }
@@ -287,7 +278,17 @@ async def create_application_from_job_posting(
             user_id=current_user.id
         )
         
-        return application
+        # Return application with job posting data
+        return ApplicationResponse(
+            id=application.id,
+            user_id=application.user_id,
+            applied_date=application.applied_date,
+            created_at=application.created_at,
+            updated_at=application.updated_at,
+            job_title=job_posting.title,
+            company=job_posting.company,
+            job_description=job_posting.description
+        )
         
     except HTTPException:
         raise

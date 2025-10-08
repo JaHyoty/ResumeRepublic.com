@@ -269,7 +269,7 @@ class JobPostingParserService:
                 {
                     "title": job_posting.title,
                     "company": job_posting.company,
-                    "description": job_posting.description[:200] + "..." if len(job_posting.description) > 200 else job_posting.description,
+                    "description": job_posting.description,
                     "method": method
                 }
             )

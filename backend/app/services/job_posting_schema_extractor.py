@@ -50,14 +50,17 @@ class JobPostingSchemaExtractor:
     def _extract_from_json_ld(self, html_content: str) -> Optional[Dict[str, Any]]:
         """Extract job data from JSON-LD structured data"""
         try:
-            # Find all JSON-LD script tags
+            # Find all JSON-LD script tags - use non-greedy matching to get complete blocks
             json_ld_pattern = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
             matches = re.findall(json_ld_pattern, html_content, re.DOTALL | re.IGNORECASE)
             
             for match in matches:
                 try:
+                    # Clean up the JSON-LD content before parsing
+                    cleaned_json = self._clean_json_ld_content(match.strip())
+                    
                     # Parse JSON-LD
-                    data = json.loads(match.strip())
+                    data = json.loads(cleaned_json)
                     
                     # Handle both single objects and arrays
                     if isinstance(data, list):
@@ -71,13 +74,85 @@ class JobPostingSchemaExtractor:
                             return result
                             
                 except json.JSONDecodeError:
-                    continue
+                    # Try to fix common JSON issues and retry
+                    try:
+                        fixed_json = self._fix_json_ld_issues(match.strip())
+                        data = json.loads(fixed_json)
+                        
+                        if isinstance(data, list):
+                            for item in data:
+                                result = self._process_json_ld_item(item)
+                                if result:
+                                    return result
+                        else:
+                            result = self._process_json_ld_item(data)
+                            if result:
+                                return result
+                    except json.JSONDecodeError:
+                        continue
             
             return None
             
         except Exception as e:
             logger.error("JSON-LD extraction failed", error=str(e))
             return None
+    
+    def _clean_json_ld_content(self, json_content: str) -> str:
+        """Clean JSON-LD content for better parsing"""
+        # Remove any leading/trailing whitespace
+        json_content = json_content.strip()
+        
+        # Remove any BOM or invisible characters
+        json_content = json_content.encode('utf-8').decode('utf-8-sig')
+        
+        return json_content
+    
+    def _fix_json_ld_issues(self, json_content: str) -> str:
+        """Attempt to fix common JSON-LD parsing issues"""
+        try:
+            # Check if JSON appears to be truncated
+            if json_content.count('{') > json_content.count('}'):
+                # JSON appears to be truncated, try to close it
+                # Find the last complete object/array and close it
+                brace_count = 0
+                last_complete_pos = -1
+                
+                for i, char in enumerate(json_content):
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            last_complete_pos = i
+                
+                if last_complete_pos > 0:
+                    # Truncate at the last complete position
+                    json_content = json_content[:last_complete_pos + 1]
+            
+            # Fix unescaped quotes in HTML attributes within JSON strings
+            # This handles cases like: "description": "<p style="text-align: left;">"
+            
+            # Find all string values that contain HTML
+            def fix_html_in_string(match):
+                key = match.group(1)
+                value = match.group(2)
+                
+                # If the value contains HTML, escape quotes in HTML attributes
+                if '<' in value and '>' in value:
+                    # Escape quotes in HTML attributes
+                    # Pattern: attribute="value" -> attribute=\"value\"
+                    value = re.sub(r'(\w+)="([^"]*)"', r'\1=\\"\\2\\"', value)
+                
+                return f'"{key}": "{value}"'
+            
+            # Match JSON string pairs that contain HTML
+            json_content = re.sub(r'"([^"]+)":\s*"([^"]*<[^>]*>[^"]*)"', fix_html_in_string, json_content)
+            
+            return json_content
+            
+        except Exception:
+            # If fixing fails, return original content
+            return json_content
     
     def _process_json_ld_item(self, item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Process a single JSON-LD item for job posting data"""
@@ -248,8 +323,32 @@ class JobPostingSchemaExtractor:
         return None
     
     def _clean_html_from_text(self, text: str) -> str:
-        """Clean HTML tags and entities from text"""
-        # Remove HTML tags
+        """Clean HTML tags and entities from text while preserving paragraph structure and formatting lists"""
+        # First, handle specific HTML elements to preserve structure
+        # Convert </p> tags to double line breaks (paragraph breaks)
+        text = re.sub(r'</p>', '\n\n', text, flags=re.IGNORECASE)
+        
+        # Convert <br> and <br/> tags to single line breaks
+        text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+        
+        # Handle list items - convert <li> to bullet points
+        # First, handle unordered lists <ul> and <ol> - add spacing around them
+        text = re.sub(r'<(ul|ol)[^>]*>', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'</(ul|ol)>', '\n', text, flags=re.IGNORECASE)
+        
+        # Convert <li> tags to bullet points with proper formatting
+        text = re.sub(r'<li[^>]*>', '\n- ', text, flags=re.IGNORECASE)
+        text = re.sub(r'</li>', '', text, flags=re.IGNORECASE)
+        
+        # Handle other block elements that should have line breaks
+        block_elements = ['div', 'section', 'article', 'header', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+        for element in block_elements:
+            # Add line break after opening tags
+            text = re.sub(f'<{element}[^>]*>', f'\n', text, flags=re.IGNORECASE)
+            # Add line break before closing tags
+            text = re.sub(f'</{element}>', '\n', text, flags=re.IGNORECASE)
+        
+        # Remove all remaining HTML tags
         text = re.sub(r'<[^>]+>', '', text)
         
         # Decode common HTML entities
@@ -268,8 +367,29 @@ class JobPostingSchemaExtractor:
         for entity, char in html_entities.items():
             text = text.replace(entity, char)
         
-        # Clean up whitespace
-        text = re.sub(r'\s+', ' ', text).strip()
+        # Clean whitespace while preserving paragraph structure
+        # Replace multiple consecutive line breaks with double line breaks (paragraph breaks)
+        text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
+        
+        # Replace multiple spaces/tabs with single space within lines
+        text = re.sub(r'[ \t]+', ' ', text)
+        
+        # Remove leading/trailing whitespace from each line
+        lines = text.split('\n')
+        cleaned_lines = []
+        
+        for line in lines:
+            cleaned_line = line.strip()
+            if cleaned_line:  # Only keep non-empty lines
+                cleaned_lines.append(cleaned_line)
+            elif cleaned_lines and cleaned_lines[-1] != '':  # Keep one empty line between paragraphs
+                cleaned_lines.append('')
+        
+        # Join lines back together
+        text = '\n'.join(cleaned_lines)
+        
+        # Final cleanup - remove excessive leading/trailing whitespace
+        text = text.strip()
         
         return text
     
