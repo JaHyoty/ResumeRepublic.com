@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { applicationService } from '../../services/applicationService'
 import { resumeService } from '../../services/resumeService'
+import { jobPostingService } from '../../services/jobPostingService'
+import { webhookService } from '../../services/webhookService'
 import type { Application, ApplicationStats } from '../../services/applicationService'
 import type { ResumeVersion } from '../../services/resumeService'
+import type { JobPostingResponse, JobPostingFetchResponse } from '../../services/jobPostingService'
+import type { WebhookEvent } from '../../services/webhookService'
 
 const ApplicationsView: React.FC = () => {
   const navigate = useNavigate()
@@ -14,6 +18,14 @@ const ApplicationsView: React.FC = () => {
   const [newJobTitle, setNewJobTitle] = useState('')
   const [newCompany, setNewCompany] = useState('')
   const [newJobDescription, setNewJobDescription] = useState('')
+  
+  // State for job posting URL parsing
+  const [jobPostingUrl, setJobPostingUrl] = useState('')
+  const [isFetchingJobPosting, setIsFetchingJobPosting] = useState(false)
+  const [jobPostingStatus, setJobPostingStatus] = useState<string | null>(null)
+  const [currentJobPostingId, setCurrentJobPostingId] = useState<string | null>(null)
+  const [jobPostingError, setJobPostingError] = useState<string | null>(null)
+  const [isFormDisabled, setIsFormDisabled] = useState(false)
   // State for applications data
   const [recentApplications, setRecentApplications] = useState<Application[]>([])
   const [stats, setStats] = useState<ApplicationStats | null>(null)
@@ -54,6 +66,39 @@ const ApplicationsView: React.FC = () => {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Webhook subscription for job posting updates
+  useEffect(() => {
+    if (!currentJobPostingId) return
+
+    const unsubscribe = webhookService.subscribeToEntity('job_posting', currentJobPostingId, (event: WebhookEvent) => {
+      console.log('Received job posting webhook:', event)
+      
+      if (event.status === 'fetching') {
+        setJobPostingStatus('fetching')
+        setIsFormDisabled(true)
+      } else if (event.status === 'complete') {
+        setJobPostingStatus('complete')
+        setIsFormDisabled(false)
+        
+        // Populate form fields with parsed data
+        if (event.data) {
+          if (event.data.title) setNewJobTitle(event.data.title)
+          if (event.data.company) setNewCompany(event.data.company)
+          if (event.data.description) setNewJobDescription(event.data.description)
+        }
+        
+        // Clear error state
+        setJobPostingError(null)
+      } else if (event.status === 'failed') {
+        setJobPostingStatus('failed')
+        setIsFormDisabled(false)
+        setJobPostingError(event.data?.error || 'Failed to parse job posting')
+      }
+    })
+
+    return unsubscribe
+  }, [currentJobPostingId])
 
   const loadData = async () => {
     try {
@@ -113,6 +158,9 @@ const ApplicationsView: React.FC = () => {
     setNewJobTitle('')
     setNewCompany('')
     setNewJobDescription('')
+    
+    // Reset job posting state
+    handleClearJobPosting()
   }
 
   // Delete application handlers
@@ -194,17 +242,23 @@ const ApplicationsView: React.FC = () => {
 
   const handleCreateOptimizedResume = async () => {
     try {
-      // First, create the application
-      const newApplicationData = {
-        job_title: newJobTitle || 'New Position',
-        company: newCompany || 'Target Company',
-        job_description: newJobDescription,
-        application_date: new Date().toISOString().split('T')[0],
-        status: 'applied',
-        notes: 'Created for resume optimization'
+      let createdApplication: Application
+
+      if (currentJobPostingId && jobPostingStatus === 'complete') {
+        // Create application from existing job posting
+        createdApplication = await applicationService.createApplicationFromJobPosting(currentJobPostingId)
+      } else {
+        // Create job posting first, then application
+        const jobPostingData = {
+          title: newJobTitle || 'New Position',
+          company: newCompany || 'Target Company',
+          description: newJobDescription
+        }
+
+        const jobPosting = await jobPostingService.createJobPosting(jobPostingData)
+        createdApplication = await applicationService.createApplicationFromJobPosting(jobPosting.id)
       }
 
-      const createdApplication = await applicationService.createApplication(newApplicationData)
       setCreatedApplicationId(createdApplication.id)
       
       // Close the modal
@@ -226,17 +280,22 @@ const ApplicationsView: React.FC = () => {
 
   const handleAddToApplications = async () => {
     try {
-      // Create a new application with the job description
-      const newApplicationData = {
-        job_title: newJobTitle || 'New Job Application',
-        company: newCompany || 'Unknown Company',
-        job_description: newJobDescription,
-        online_assessment: false,
-        interview: false,
-        rejected: false
-      }
+      let newApplication: Application
 
-      const newApplication = await applicationService.createApplication(newApplicationData)
+      if (currentJobPostingId && jobPostingStatus === 'complete') {
+        // Create application from existing job posting
+        newApplication = await applicationService.createApplicationFromJobPosting(currentJobPostingId)
+      } else {
+        // Create job posting first, then application
+        const jobPostingData = {
+          title: newJobTitle || 'New Job Application',
+          company: newCompany || 'Unknown Company',
+          description: newJobDescription
+        }
+
+        const jobPosting = await jobPostingService.createJobPosting(jobPostingData)
+        newApplication = await applicationService.createApplicationFromJobPosting(jobPosting.id)
+      }
       
       // Add the new application to the list
       setRecentApplications(prevApplications => [newApplication, ...prevApplications])
@@ -251,6 +310,58 @@ const ApplicationsView: React.FC = () => {
       console.error('Error creating application:', err)
       setError('Failed to create application')
     }
+  }
+
+  const handleFetchJobPosting = async () => {
+    if (!jobPostingUrl.trim()) {
+      setJobPostingError('Please enter a job posting URL')
+      return
+    }
+
+    try {
+      setIsFetchingJobPosting(true)
+      setJobPostingError(null)
+      setJobPostingStatus(null)
+      
+      // Call the job posting fetch API
+      const response: JobPostingFetchResponse = await jobPostingService.fetchJobPosting({
+        url: jobPostingUrl.trim(),
+        source: 'web_ui'
+      })
+      
+      // Set the job posting ID for webhook subscription
+      setCurrentJobPostingId(response.job_id)
+      setJobPostingStatus('pending')
+      
+    } catch (err: any) {
+      console.error('Error fetching job posting:', err)
+      setJobPostingError(err.response?.data?.detail || 'Failed to fetch job posting')
+      setIsFetchingJobPosting(false)
+    }
+  }
+
+  const handleClearJobPosting = () => {
+    setJobPostingUrl('')
+    setJobPostingStatus(null)
+    setCurrentJobPostingId(null)
+    setJobPostingError(null)
+    setIsFormDisabled(false)
+    setIsFetchingJobPosting(false)
+    
+    // Clear form fields
+    setNewJobTitle('')
+    setNewCompany('')
+    setNewJobDescription('')
+  }
+
+  const canCreateApplication = (): boolean => {
+    // Can create if job posting parsing is complete
+    if (currentJobPostingId && jobPostingStatus === 'complete') {
+      return true
+    }
+    
+    // Can create if manual data is provided
+    return newJobTitle.trim() !== '' && newCompany.trim() !== '' && newJobDescription.trim() !== ''
   }
 
   // Use API stats or fallback to calculated stats
@@ -542,6 +653,117 @@ const ApplicationsView: React.FC = () => {
             {/* Modal Body */}
             <div className="px-6 py-4 flex-1 overflow-y-auto">
               <div className="space-y-4">
+                {/* Job Posting URL Input */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    <h4 className="text-sm font-semibold text-blue-900">Parse Job Posting from URL</h4>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <label htmlFor="jobPostingUrl" className="block text-sm font-medium text-gray-700 mb-2">
+                        Job Posting URL
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          id="jobPostingUrl"
+                          value={jobPostingUrl}
+                          onChange={(e) => setJobPostingUrl(e.target.value)}
+                          placeholder="https://company.com/job-posting"
+                          disabled={isFetchingJobPosting || isFormDisabled}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        />
+                        <button
+                          onClick={handleFetchJobPosting}
+                          disabled={!jobPostingUrl.trim() || isFetchingJobPosting || isFormDisabled}
+                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg transition-colors duration-200 flex items-center gap-2"
+                        >
+                          {isFetchingJobPosting ? (
+                            <>
+                              <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Fetching...
+                            </>
+                          ) : (
+                            'Fetch Job Details'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Status and Error Display */}
+                    {jobPostingStatus && (
+                      <div className="flex items-center gap-2 text-sm">
+                        {jobPostingStatus === 'pending' && (
+                          <>
+                            <svg className="w-4 h-4 text-yellow-600 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-yellow-700">Parsing job posting...</span>
+                          </>
+                        )}
+                        {jobPostingStatus === 'fetching' && (
+                          <>
+                            <svg className="w-4 h-4 text-blue-600 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span className="text-blue-700">Extracting job details...</span>
+                          </>
+                        )}
+                        {jobPostingStatus === 'complete' && (
+                          <>
+                            <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-green-700">Job details extracted successfully!</span>
+                          </>
+                        )}
+                        {jobPostingStatus === 'failed' && (
+                          <>
+                            <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-red-700">Failed to parse job posting</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    
+                    {jobPostingError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-sm text-red-700">
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                          </svg>
+                          <span>{jobPostingError}</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {(jobPostingStatus === 'complete' || jobPostingStatus === 'failed') && (
+                      <button
+                        onClick={handleClearJobPosting}
+                        className="text-sm text-gray-600 hover:text-gray-800 underline"
+                      >
+                        Clear and start over
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Divider */}
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 border-t border-gray-200"></div>
+                  <span className="text-sm text-gray-500 font-medium">OR</span>
+                  <div className="flex-1 border-t border-gray-200"></div>
+                </div>
+                
+                {/* Manual Input Section */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="jobTitle" className="block text-sm font-medium text-gray-700 mb-2">
@@ -553,7 +775,8 @@ const ApplicationsView: React.FC = () => {
                       value={newJobTitle}
                       onChange={(e) => setNewJobTitle(e.target.value)}
                       placeholder="e.g., Software Engineer"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      disabled={isFormDisabled}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
                   <div>
@@ -566,7 +789,8 @@ const ApplicationsView: React.FC = () => {
                       value={newCompany}
                       onChange={(e) => setNewCompany(e.target.value)}
                       placeholder="e.g., Google"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                      disabled={isFormDisabled}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -579,7 +803,8 @@ const ApplicationsView: React.FC = () => {
                     value={newJobDescription}
                     onChange={(e) => setNewJobDescription(e.target.value)}
                     placeholder="Paste the job description here..."
-                    className="w-full h-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                    disabled={isFormDisabled}
+                    className="w-full h-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -596,14 +821,14 @@ const ApplicationsView: React.FC = () => {
               <div className="flex gap-3">
                 <button
                   onClick={handleAddToApplications}
-                  disabled={!newJobTitle.trim() || !newCompany.trim() || !newJobDescription.trim()}
+                  disabled={!canCreateApplication()}
                   className="px-4 py-2 text-sm font-medium text-purple-600 bg-purple-50 border border-purple-200 hover:bg-purple-100 disabled:bg-gray-100 disabled:text-gray-400 disabled:border-gray-200 disabled:cursor-not-allowed rounded-lg transition-colors duration-200"
                 >
                   Add to Applications
                 </button>
                 <button
                   onClick={handleCreateOptimizedResume}
-                  disabled={!newJobTitle.trim() || !newCompany.trim() || !newJobDescription.trim()}
+                  disabled={!canCreateApplication()}
                   className="px-4 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed rounded-lg transition-colors duration-200"
                 >
                   Create Optimized Resume

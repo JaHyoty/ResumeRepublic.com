@@ -3,9 +3,7 @@ import { api } from './api'
 export interface Application {
   id: number
   user_id: number
-  job_title: string
-  company: string
-  job_description?: string
+  job_posting_id?: string
   applied_date: string
   online_assessment: boolean
   interview: boolean
@@ -17,6 +15,10 @@ export interface Application {
   application_metadata?: any
   created_at: string
   updated_at?: string
+  // Job data fetched from linked job posting
+  job_title?: string
+  company?: string
+  job_description?: string
 }
 
 export interface ApplicationStats {
@@ -30,9 +32,7 @@ export interface ApplicationStats {
 }
 
 export interface CreateApplicationRequest {
-  job_title: string
-  company: string
-  job_description?: string
+  job_posting_id?: string
   online_assessment?: boolean
   interview?: boolean
   rejected?: boolean
@@ -44,9 +44,6 @@ export interface CreateApplicationRequest {
 }
 
 export interface UpdateApplicationRequest {
-  job_title?: string
-  company?: string
-  job_description?: string
   online_assessment?: boolean
   interview?: boolean
   rejected?: boolean
@@ -79,6 +76,12 @@ export const applicationService = {
   // Create a new application
   async createApplication(data: CreateApplicationRequest): Promise<Application> {
     const response = await api.post('/api/applications/', data)
+    return response.data
+  },
+
+  // Create an application from a job posting
+  async createApplicationFromJobPosting(jobPostingId: string): Promise<Application> {
+    const response = await api.post(`/api/applications/${jobPostingId}`)
     return response.data
   },
 
