@@ -17,7 +17,6 @@ from app.models.job_posting import JobPosting, DomainSelector, JobPostingFetchAt
 from app.schemas.job_posting import (
     JobPostingFetchRequest,
     JobPostingFetchResponse,
-    JobPostingUpdateRequest,
     JobPostingResponse,
     JobPostingListResponse,
     DomainSelectorResponse,
@@ -243,66 +242,6 @@ async def get_job_posting(
             detail="Failed to retrieve job posting"
         )
 
-
-@router.put("/{job_posting_id}", response_model=JobPostingResponse)
-async def update_job_posting(
-    job_posting_id: str,
-    request: JobPostingUpdateRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Manually update job posting data (override parsing results)
-    Sets status to 'manual' to indicate manual override
-    """
-    try:
-        job_posting = db.query(JobPosting).filter(JobPosting.id == job_posting_id).first()
-        
-        if not job_posting:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job posting not found"
-            )
-        
-        # Update fields if provided
-        update_data = request.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(job_posting, field, value)
-        
-        # Set status to manual and update provenance
-        job_posting.status = 'manual'
-        job_posting.provenance = {
-            "method": "manual",
-            "extractor": "user_override",
-            "confidence": 1.0,
-            "timestamp": job_posting.updated_at.isoformat() if job_posting.updated_at else None
-        }
-        
-        db.commit()
-        db.refresh(job_posting)
-        
-        logger.info(
-            "Job posting manually updated",
-            job_posting_id=job_posting.id,
-            user_id=current_user.id,
-            updated_fields=list(update_data.keys())
-        )
-        
-        return JobPostingResponse.from_orm(job_posting)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(
-            "Failed to update job posting",
-            error=str(e),
-            job_posting_id=job_posting_id,
-            user_id=current_user.id
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update job posting"
-        )
 
 @router.get("/{job_posting_id}/attempts", response_model=List[FetchAttemptResponse])
 async def get_job_posting_attempts(

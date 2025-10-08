@@ -37,20 +37,6 @@ class JobPostingCreateRequest(BaseModel):
     url: Optional[HttpUrl] = Field(None, description="Optional URL for the job posting")
 
 
-class JobPostingUpdateRequest(BaseModel):
-    """Request schema for manually updating job posting data"""
-    title: Optional[str] = Field(None, min_length=1, max_length=500, description="Job title")
-    company: Optional[str] = Field(None, min_length=1, max_length=255, description="Company name")
-    description: Optional[str] = Field(None, min_length=10, description="Job description")
-
-    @validator('title', 'company', 'description')
-    def validate_not_empty(cls, v):
-        """Ensure fields are not just whitespace"""
-        if v is not None and not v.strip():
-            raise ValueError('Field cannot be empty or just whitespace')
-        return v.strip() if v else v
-
-
 class ProvenanceInfo(BaseModel):
     """Schema for extraction provenance information"""
     method: str = Field(..., description="Extraction method used")
