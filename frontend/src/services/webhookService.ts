@@ -222,8 +222,11 @@ class WebhookService extends EventEmitter {
   
   // Subscribe to specific entity updates
   subscribeToEntity(entityType: string, entityId: string, callback: (event: WebhookEvent) => void): () => void {
+    console.log(`Subscribing to ${entityType}:${entityId}, current connection status: ${this.isConnected}`)
+    
     // Connect lazily if not already connected
     if (!this.isConnected) {
+      console.log('Webhook not connected, attempting to connect...')
       this.connect()
     }
 

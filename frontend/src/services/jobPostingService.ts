@@ -7,7 +7,7 @@ export interface JobPostingFetchRequest {
 }
 
 export interface JobPostingFetchResponse {
-  job_id: string
+  job_posting_id: string
   status: string
   message: string
 }

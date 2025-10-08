@@ -69,8 +69,20 @@ const ApplicationsView: React.FC = () => {
 
   // Webhook subscription for job posting updates
   useEffect(() => {
-    if (!currentJobPostingId) return
+    console.log('Webhook useEffect triggered, currentJobPostingId:', currentJobPostingId, 'status:', jobPostingStatus)
+    
+    if (!currentJobPostingId) {
+      console.log('No currentJobPostingId, skipping webhook subscription')
+      return
+    }
 
+    // Only set up webhook subscription if job posting is not already complete
+    if (jobPostingStatus === 'complete') {
+      console.log('Job posting already complete, skipping webhook subscription')
+      return
+    }
+
+    console.log(`Setting up webhook subscription for job posting: ${currentJobPostingId}`)
     const unsubscribe = webhookService.subscribeToEntity('job_posting', currentJobPostingId, (event: WebhookEvent) => {
       console.log('Received job posting webhook:', event)
       
@@ -98,7 +110,7 @@ const ApplicationsView: React.FC = () => {
     })
 
     return unsubscribe
-  }, [currentJobPostingId])
+  }, [currentJobPostingId, jobPostingStatus])
 
   const loadData = async () => {
     try {
@@ -318,10 +330,12 @@ const ApplicationsView: React.FC = () => {
       return
     }
 
+    console.log('Starting job posting fetch for URL:', jobPostingUrl.trim())
     try {
       setIsFetchingJobPosting(true)
       setJobPostingError(null)
       setJobPostingStatus(null)
+      setIsFormDisabled(true) // Disable form fields immediately when parsing starts
       
       // Call the job posting fetch API
       const response: JobPostingFetchResponse = await jobPostingService.fetchJobPosting({
@@ -329,14 +343,46 @@ const ApplicationsView: React.FC = () => {
         source: 'web-ui'
       })
       
-      // Set the job posting ID for webhook subscription
-      setCurrentJobPostingId(response.job_id)
-      setJobPostingStatus('pending')
+      console.log('Job posting fetch response:', response)
+      
+      // Handle different response statuses
+      if (response.status === 'complete') {
+        // Job posting is already complete, fetch the full data immediately
+        console.log('Job posting already complete, fetching full data...')
+        try {
+          const jobPostingData = await jobPostingService.getJobPosting(response.job_posting_id)
+          console.log('Fetched complete job posting data:', jobPostingData)
+          
+          // Populate form fields with parsed data
+          if (jobPostingData.title) setNewJobTitle(jobPostingData.title)
+          if (jobPostingData.company) setNewCompany(jobPostingData.company)
+          if (jobPostingData.description) setNewJobDescription(jobPostingData.description)
+          
+          // Set status and enable form
+          setJobPostingStatus('complete')
+          setIsFormDisabled(false)
+          setCurrentJobPostingId(response.job_posting_id)
+          
+          console.log('Job posting data populated successfully')
+        } catch (err) {
+          console.error('Error fetching complete job posting data:', err)
+          setJobPostingError('Failed to fetch job posting data')
+          setIsFormDisabled(false)
+        }
+      } else {
+        // Job posting is being parsed, set up webhook subscription
+        console.log('Job posting is being parsed, setting up webhook subscription')
+        setCurrentJobPostingId(response.job_posting_id)
+        setJobPostingStatus('pending')
+      }
+      
+      console.log('Set currentJobPostingId to:', response.job_posting_id)
       
     } catch (err: any) {
       console.error('Error fetching job posting:', err)
       setJobPostingError(err.response?.data?.detail || 'Failed to fetch job posting')
       setIsFetchingJobPosting(false)
+      setIsFormDisabled(false) // Re-enable form fields on error
     }
   }
 
