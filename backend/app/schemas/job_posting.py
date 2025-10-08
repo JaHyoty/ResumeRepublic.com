@@ -29,6 +29,14 @@ class JobPostingFetchResponse(BaseModel):
     message: str = Field(default="Job posting parsing initiated", description="Status message")
 
 
+class JobPostingCreateRequest(BaseModel):
+    """Request schema for manually creating job posting data"""
+    title: str = Field(..., min_length=1, max_length=500, description="Job title")
+    company: str = Field(..., min_length=1, max_length=255, description="Company name")
+    description: str = Field(..., min_length=10, description="Job description")
+    url: Optional[HttpUrl] = Field(None, description="Optional URL for the job posting")
+
+
 class JobPostingUpdateRequest(BaseModel):
     """Request schema for manually updating job posting data"""
     title: Optional[str] = Field(None, min_length=1, max_length=500, description="Job title")
@@ -65,8 +73,9 @@ class SelectorInfo(BaseModel):
 class JobPostingResponse(BaseModel):
     """Response schema for job posting data"""
     id: UUID = Field(..., description="Unique identifier")
-    url: str = Field(..., description="Original URL")
-    domain: str = Field(..., description="Domain of the URL")
+    url: Optional[str] = Field(None, description="Original URL")
+    domain: Optional[str] = Field(None, description="Domain of the URL")
+    created_by_user_id: Optional[int] = Field(None, description="User who created this job posting")
     title: Optional[str] = Field(None, description="Extracted job title")
     company: Optional[str] = Field(None, description="Extracted company name")
     description: Optional[str] = Field(None, description="Extracted job description")

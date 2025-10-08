@@ -16,8 +16,11 @@ class JobPosting(Base):
     __tablename__ = "job_postings"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-    url = Column(String(2048), unique=True, nullable=False, index=True)
-    domain = Column(String(255), nullable=False, index=True)
+    url = Column(String(2048), unique=True, nullable=True, index=True)
+    domain = Column(String(255), nullable=True, index=True)
+    
+    # User who created this job posting
+    created_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     
     # Extracted job data
     title = Column(String(500), nullable=True)
@@ -39,6 +42,7 @@ class JobPosting(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
+    created_by_user = relationship("User", foreign_keys=[created_by_user_id])
     fetch_attempts = relationship("JobPostingFetchAttempt", back_populates="job_posting", cascade="all, delete-orphan")
 
     # Constraints

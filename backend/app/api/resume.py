@@ -3,7 +3,7 @@ Resume generation API endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, Optional
 import logging
 import tempfile
@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.models.user import User
 from app.models.application import Application
+from app.models.job_posting import JobPosting
 from app.models.resume import ResumeVersion
 from app.models.experience import Experience, ExperienceTitle
 from app.models.education import Education
@@ -269,12 +270,27 @@ async def design_resume(
         # Get or create application
         application_id = resume_data.linked_application_id
         if not application_id:
-            # Create new application from job description
+            # Create job posting first
+            job_posting = JobPosting(
+                title=resume_data.job_title,
+                company=resume_data.company,
+                description=resume_data.job_description,
+                status='manual',
+                created_by_user_id=current_user.id,
+                provenance={
+                    "method": "manual",
+                    "extractor": "resume_designer",
+                    "confidence": 1.0
+                }
+            )
+            db.add(job_posting)
+            db.commit()
+            db.refresh(job_posting)
+            
+            # Create new application linked to job posting
             application = Application(
                 user_id=current_user.id,
-                job_title=resume_data.job_title,
-                company=resume_data.company,
-                job_description=resume_data.job_description,
+                job_posting_id=job_posting.id,
                 applied_date=datetime.now()
             )
             db.add(application)
@@ -283,7 +299,9 @@ async def design_resume(
             application_id = application.id
         else:
             # Verify application belongs to user
-            application = db.query(Application).filter(
+            application = db.query(Application).options(
+                db.joinedload(Application.job_posting)
+            ).filter(
                 Application.id == application_id,
                 Application.user_id == current_user.id
             ).first()
@@ -311,7 +329,7 @@ async def design_resume(
         resume_version = ResumeVersion(
             user_id=current_user.id,
             application_id=application_id,
-            title=f"{resume_data.personal_info.name} - {application.company}",
+            title=f"{resume_data.personal_info.name} - {application.job_posting.company if application.job_posting else 'Unknown Company'}",
             template_used='Detailed Resume',
             pdf_url=None,  # Will be set after S3 upload
             s3_key=None,  # Will be set after S3 upload
@@ -338,12 +356,12 @@ async def design_resume(
         filename_parts.append(clean_name.replace(" ", "_"))
         
         # Get job title and company from application
-        if application:
-            if application.job_title:
-                clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in application.job_title.strip())
+        if application and application.job_posting:
+            if application.job_posting.title:
+                clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in application.job_posting.title.strip())
                 filename_parts.append(clean_title.replace(" ", "_"))
-            if application.company:
-                clean_company = "".join(c if c.isalnum() or c in " -" else "" for c in application.company.strip())
+            if application.job_posting.company:
+                clean_company = "".join(c if c.isalnum() or c in " -" else "" for c in application.job_posting.company.strip())
                 filename_parts.append(clean_company.replace(" ", "_"))
         
         # Fallback to title if no application data
@@ -497,13 +515,15 @@ async def get_resume_pdf_url(
                 filename_parts.append(clean_name.replace(" ", "_"))
                 
                 # Get job title and company from application
-                application = db.query(Application).filter(Application.id == resume_version.application_id).first()
-                if application:
-                    if application.job_title:
-                        clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in application.job_title.strip())
+                application = db.query(Application).options(
+                    db.joinedload(Application.job_posting)
+                ).filter(Application.id == resume_version.application_id).first()
+                if application and application.job_posting:
+                    if application.job_posting.title:
+                        clean_title = "".join(c if c.isalnum() or c in " -" else "" for c in application.job_posting.title.strip())
                         filename_parts.append(clean_title.replace(" ", "_"))
-                    if application.company:
-                        clean_company = "".join(c if c.isalnum() or c in " -" else "" for c in application.company.strip())
+                    if application.job_posting.company:
+                        clean_company = "".join(c if c.isalnum() or c in " -" else "" for c in application.job_posting.company.strip())
                         filename_parts.append(clean_company.replace(" ", "_"))
                 
                 # Fallback to title if no application data

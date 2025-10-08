@@ -12,7 +12,6 @@ import structlog
 from app.models.job_posting import JobPosting, JobPostingFetchAttempt, DomainSelector
 from app.services.job_posting_schema_extractor import JobPostingSchemaExtractor
 from app.services.job_posting_heuristic_extractor import JobPostingHeuristicExtractor
-from app.services.job_posting_llm_extractor import JobPostingLLMExtractor
 from app.services.job_posting_web_scraper import JobPostingWebScraper
 
 logger = structlog.get_logger()
@@ -24,14 +23,27 @@ class JobPostingParserService:
     def __init__(self):
         self.schema_extractor = JobPostingSchemaExtractor()
         self.heuristic_extractor = JobPostingHeuristicExtractor()
-        self.llm_extractor = JobPostingLLMExtractor()
         self.web_scraper = JobPostingWebScraper()
+    
+    @staticmethod
+    async def process_job_posting_async(job_posting_id: str):
+        """
+        Async background task for FastAPI BackgroundTasks
+        Creates its own database session
+        """
+        from app.core.database import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            await JobPostingParserService.process_job_posting(job_posting_id, db)
+        finally:
+            db.close()
     
     @staticmethod
     async def process_job_posting(job_posting_id: str, db: Session):
         """
         Background task to process job posting parsing
-        Implements the three-stage pipeline: schema -> heuristic -> LLM
+        Implements two-stage pipeline: schema -> heuristic
         """
         logger.info("Starting job posting parsing", job_posting_id=job_posting_id)
         
@@ -67,20 +79,11 @@ class JobPostingParserService:
                 logger.info("Heuristic extraction successful", job_posting_id=job_posting_id)
                 return
             
-            # Stage 3: Try LLM extraction
-            llm_result = await parser_service._try_llm_extraction(job_posting, db)
-            if llm_result and parser_service._is_valid_result(llm_result):
-                await parser_service._update_job_posting_success(
-                    job_posting, llm_result, 'llm', db
-                )
-                logger.info("LLM extraction successful", job_posting_id=job_posting_id)
-                return
-            
-            # All methods failed
+            # Both methods failed
             await parser_service._mark_job_posting_failed(
-                job_posting, "All extraction methods failed", db
+                job_posting, "Both extraction methods failed", db
             )
-            logger.warning("All extraction methods failed", job_posting_id=job_posting_id)
+            logger.warning("Both extraction methods failed", job_posting_id=job_posting_id)
             
         except Exception as e:
             logger.error(
@@ -158,10 +161,12 @@ class JobPostingParserService:
             db.add(attempt)
             db.commit()
             
-            # Check for existing domain selectors first
-            domain_selector = db.query(DomainSelector).filter(
-                DomainSelector.domain == job_posting.domain
-            ).first()
+            # Check for existing domain selectors first (only if domain exists)
+            domain_selector = None
+            if job_posting.domain:
+                domain_selector = db.query(DomainSelector).filter(
+                    DomainSelector.domain == job_posting.domain
+                ).first()
             
             # Fetch and parse with heuristic extraction
             result = await self.heuristic_extractor.extract_job_data(
@@ -195,48 +200,6 @@ class JobPostingParserService:
             
             return None
     
-    async def _try_llm_extraction(self, job_posting: JobPosting, db: Session) -> Optional[Dict[str, Any]]:
-        """Try LLM-assisted extraction"""
-        start_time = time.time()
-        
-        try:
-            # Record attempt
-            attempt = JobPostingFetchAttempt(
-                job_posting_id=job_posting.id,
-                method='llm',
-                success=False
-            )
-            db.add(attempt)
-            db.commit()
-            
-            # Fetch and parse with LLM extraction
-            result = await self.llm_extractor.extract_job_data(job_posting.url)
-            
-            # Update attempt record
-            attempt.success = result is not None
-            attempt.duration_ms = int((time.time() - start_time) * 1000)
-            if result:
-                attempt.note = f"Extracted: {result.get('title', 'N/A')} at {result.get('company', 'N/A')}"
-            else:
-                attempt.note = "LLM extraction failed to find job data"
-            
-            db.commit()
-            return result
-            
-        except Exception as e:
-            logger.error(
-                "LLM extraction failed",
-                job_posting_id=job_posting.id,
-                error=str(e)
-            )
-            
-            # Update attempt record
-            attempt.success = False
-            attempt.duration_ms = int((time.time() - start_time) * 1000)
-            attempt.error_message = str(e)
-            db.commit()
-            
-            return None
     
     def _is_valid_result(self, result: Dict[str, Any]) -> bool:
         """Validate that extraction result contains required fields"""
@@ -284,7 +247,7 @@ class JobPostingParserService:
         db.commit()
         
         # Update domain selector success count if applicable
-        if method in ['heuristic', 'llm']:
+        if method == 'heuristic' and job_posting.domain:
             domain_selector = db.query(DomainSelector).filter(
                 DomainSelector.domain == job_posting.domain
             ).first()
@@ -320,11 +283,12 @@ class JobPostingParserService:
         
         db.commit()
         
-        # Update domain selector failure count
-        domain_selector = db.query(DomainSelector).filter(
-            DomainSelector.domain == job_posting.domain
-        ).first()
-        
-        if domain_selector:
-            domain_selector.failure_count += 1
-            db.commit()
+        # Update domain selector failure count (only if domain exists)
+        if job_posting.domain:
+            domain_selector = db.query(DomainSelector).filter(
+                DomainSelector.domain == job_posting.domain
+            ).first()
+            
+            if domain_selector:
+                domain_selector.failure_count += 1
+                db.commit()

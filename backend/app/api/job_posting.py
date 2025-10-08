@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List, Optional
 import structlog
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse, parse_qs
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
@@ -21,13 +21,43 @@ from app.schemas.job_posting import (
     JobPostingResponse,
     JobPostingListResponse,
     DomainSelectorResponse,
-    FetchAttemptResponse
+    FetchAttemptResponse,
+    JobPostingCreateRequest
 )
 from app.services.job_posting_parser import JobPostingParserService
 
 logger = structlog.get_logger()
 
 router = APIRouter()
+
+
+def clean_utm_parameters(url: str) -> str:
+    """
+    Remove UTM parameters from URL while preserving other necessary parameters
+    """
+    parsed = urlparse(url)
+    query_params = parse_qs(parsed.query)
+    
+    # Remove UTM parameters
+    utm_params = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id']
+    for param in utm_params:
+        query_params.pop(param, None)
+    
+    # Rebuild query string
+    if query_params:
+        # Flatten the query parameters (parse_qs returns lists)
+        clean_query = '&'.join([f"{k}={v[0]}" for k, v in query_params.items()])
+        clean_url = urlunparse((
+            parsed.scheme, parsed.netloc, parsed.path, 
+            parsed.params, clean_query, parsed.fragment
+        ))
+    else:
+        clean_url = urlunparse((
+            parsed.scheme, parsed.netloc, parsed.path, 
+            parsed.params, '', parsed.fragment
+        ))
+    
+    return clean_url
 
 
 @router.post("/fetch", response_model=JobPostingFetchResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -42,12 +72,19 @@ async def fetch_job_posting(
     Returns immediately with job ID, processing happens in background
     """
     try:
-        # Extract domain from URL
-        parsed_url = urlparse(str(request.url))
+        # Clean UTM parameters from URL
+        clean_url = clean_utm_parameters(str(request.url))
+        
+        # Extract domain from cleaned URL
+        parsed_url = urlparse(clean_url)
         domain = parsed_url.netloc.lower()
         
-        # Check if job posting already exists
-        existing_job = db.query(JobPosting).filter(JobPosting.url == str(request.url)).first()
+        # Check if job posting already exists (using cleaned URL)
+        # Exclude manual postings to prevent users from seeing potentially false data
+        existing_job = db.query(JobPosting).filter(
+            JobPosting.url == clean_url,
+            JobPosting.status != 'manual'
+        ).first()
         if existing_job:
             if existing_job.status == 'complete':
                 return JobPostingFetchResponse(
@@ -64,8 +101,9 @@ async def fetch_job_posting(
         
         # Create new job posting record
         job_posting = JobPosting(
-            url=str(request.url),
+            url=clean_url,
             domain=domain,
+            created_by_user_id=current_user.id,
             status='pending'
         )
         
@@ -73,17 +111,16 @@ async def fetch_job_posting(
         db.commit()
         db.refresh(job_posting)
         
-        # Enqueue background task for parsing
+        # Add background task for parsing
         background_tasks.add_task(
-            JobPostingParserService.process_job_posting,
-            job_posting.id,
-            db
+            JobPostingParserService.process_job_posting_async,
+            str(job_posting.id)
         )
         
         logger.info(
             "Job posting parsing initiated",
             job_posting_id=job_posting.id,
-            url=str(request.url),
+            url=clean_url,
             domain=domain,
             user_id=current_user.id,
             source=request.source
@@ -105,6 +142,70 @@ async def fetch_job_posting(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to initiate job posting parsing"
+        )
+
+
+@router.post("/create", response_model=JobPostingResponse, status_code=status.HTTP_201_CREATED)
+async def create_job_posting(
+    request: JobPostingCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Manually create a job posting with provided data
+    Used when user provides job data manually instead of parsing from URL
+    """
+    try:
+        # Clean URL if provided
+        clean_url = None
+        domain = None
+        if request.url:
+            clean_url = clean_utm_parameters(str(request.url))
+            parsed_url = urlparse(clean_url)
+            domain = parsed_url.netloc.lower()
+        
+        # Create job posting record
+        job_posting = JobPosting(
+            url=clean_url,
+            domain=domain,
+            created_by_user_id=current_user.id,
+            title=request.title,
+            company=request.company,
+            description=request.description,
+            status='manual',
+            provenance={
+                "method": "manual",
+                "extractor": "user_input",
+                "confidence": 1.0,
+                "timestamp": None  # Will be set by database
+            }
+        )
+        
+        db.add(job_posting)
+        db.commit()
+        db.refresh(job_posting)
+        
+        logger.info(
+            "Job posting created manually",
+            job_posting_id=job_posting.id,
+            title=request.title,
+            company=request.company,
+            user_id=current_user.id
+        )
+        
+        return JobPostingResponse.from_orm(job_posting)
+        
+    except Exception as e:
+        logger.error(
+            "Failed to create job posting manually",
+            error=str(e),
+            title=request.title,
+            company=request.company,
+            user_id=current_user.id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create job posting"
         )
 
 
@@ -202,51 +303,6 @@ async def update_job_posting(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update job posting"
         )
-
-
-@router.get("/", response_model=JobPostingListResponse)
-async def list_job_postings(
-    page: int = 1,
-    per_page: int = 20,
-    status_filter: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    List job postings with pagination and filtering
-    """
-    try:
-        query = db.query(JobPosting)
-        
-        # Apply status filter if provided
-        if status_filter:
-            query = query.filter(JobPosting.status == status_filter)
-        
-        # Get total count
-        total = query.count()
-        
-        # Apply pagination
-        offset = (page - 1) * per_page
-        job_postings = query.order_by(desc(JobPosting.created_at)).offset(offset).limit(per_page).all()
-        
-        return JobPostingListResponse(
-            job_postings=[JobPostingResponse.from_orm(jp) for jp in job_postings],
-            total=total,
-            page=page,
-            per_page=per_page
-        )
-        
-    except Exception as e:
-        logger.error(
-            "Failed to list job postings",
-            error=str(e),
-            user_id=current_user.id
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve job postings"
-        )
-
 
 @router.get("/{job_posting_id}/attempts", response_model=List[FetchAttemptResponse])
 async def get_job_posting_attempts(
