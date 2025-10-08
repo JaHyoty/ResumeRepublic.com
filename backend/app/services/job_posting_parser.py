@@ -13,6 +13,11 @@ from app.models.job_posting import JobPosting, JobPostingFetchAttempt, DomainSel
 from app.services.job_posting_schema_extractor import JobPostingSchemaExtractor
 from app.services.job_posting_heuristic_extractor import JobPostingHeuristicExtractor
 from app.services.job_posting_web_scraper import JobPostingWebScraper
+from app.api.webhooks import (
+    send_job_posting_update,
+    send_job_posting_completed,
+    send_job_posting_failed
+)
 
 logger = structlog.get_logger()
 
@@ -57,6 +62,14 @@ class JobPostingParserService:
             # Update status to fetching
             job_posting.status = 'fetching'
             db.commit()
+            
+            # Send webhook notification
+            if job_posting.created_by_user_id:
+                await send_job_posting_update(
+                    job_posting.created_by_user_id,
+                    str(job_posting.id),
+                    'fetching'
+                )
             
             # Initialize parser service
             parser_service = JobPostingParserService()
@@ -246,6 +259,19 @@ class JobPostingParserService:
         
         db.commit()
         
+        # Send webhook notification for successful completion
+        if job_posting.created_by_user_id:
+            await send_job_posting_completed(
+                job_posting.created_by_user_id,
+                str(job_posting.id),
+                {
+                    "title": job_posting.title,
+                    "company": job_posting.company,
+                    "description": job_posting.description[:200] + "..." if len(job_posting.description) > 200 else job_posting.description,
+                    "method": method
+                }
+            )
+        
         # Update domain selector success count if applicable
         if method == 'heuristic' and job_posting.domain:
             domain_selector = db.query(DomainSelector).filter(
@@ -282,6 +308,14 @@ class JobPostingParserService:
         }
         
         db.commit()
+        
+        # Send webhook notification for failure
+        if job_posting.created_by_user_id:
+            await send_job_posting_failed(
+                job_posting.created_by_user_id,
+                str(job_posting.id),
+                error_message
+            )
         
         # Update domain selector failure count (only if domain exists)
         if job_posting.domain:
