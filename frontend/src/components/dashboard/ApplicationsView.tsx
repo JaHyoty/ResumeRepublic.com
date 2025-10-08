@@ -6,7 +6,7 @@ import { jobPostingService } from '../../services/jobPostingService'
 import { webhookService } from '../../services/webhookService'
 import type { Application, ApplicationStats } from '../../services/applicationService'
 import type { ResumeVersion } from '../../services/resumeService'
-import type { JobPostingResponse, JobPostingFetchResponse } from '../../services/jobPostingService'
+import type { JobPostingFetchResponse } from '../../services/jobPostingService'
 import type { WebhookEvent } from '../../services/webhookService'
 
 const ApplicationsView: React.FC = () => {
@@ -326,7 +326,7 @@ const ApplicationsView: React.FC = () => {
       // Call the job posting fetch API
       const response: JobPostingFetchResponse = await jobPostingService.fetchJobPosting({
         url: jobPostingUrl.trim(),
-        source: 'web_ui'
+        source: 'web-ui'
       })
       
       // Set the job posting ID for webhook subscription

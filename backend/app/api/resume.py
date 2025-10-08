@@ -300,7 +300,7 @@ async def design_resume(
         else:
             # Verify application belongs to user
             application = db.query(Application).options(
-                db.joinedload(Application.job_posting)
+                joinedload(Application.job_posting)
             ).filter(
                 Application.id == application_id,
                 Application.user_id == current_user.id
@@ -516,7 +516,7 @@ async def get_resume_pdf_url(
                 
                 # Get job title and company from application
                 application = db.query(Application).options(
-                    db.joinedload(Application.job_posting)
+                    joinedload(Application.job_posting)
                 ).filter(Application.id == resume_version.application_id).first()
                 if application and application.job_posting:
                     if application.job_posting.title:

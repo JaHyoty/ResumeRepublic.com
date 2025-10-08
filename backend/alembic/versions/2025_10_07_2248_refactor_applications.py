@@ -1,6 +1,6 @@
 """Remove job data columns from applications table
 
-Revision ID: remove_job_data_from_applications
+Revision ID: refactor_applications
 Revises: add_job_posting_parsing
 Create Date: 2025-10-07 22:48:00.000000
 
@@ -9,7 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
-revision = 'remove_job_data_from_applications'
+revision = 'refactor_applications'
 down_revision = 'add_job_posting_parsing'
 branch_labels = None
 depends_on = None

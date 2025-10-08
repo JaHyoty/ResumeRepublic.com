@@ -33,7 +33,7 @@ async def get_applications(
 ):
     """Get all applications for the current user, ordered by ID (newest first)"""
     applications = db.query(Application).options(
-        db.joinedload(Application.job_posting)
+        joinedload(Application.job_posting)
     ).filter(
         Application.user_id == current_user.id
     ).order_by(Application.id.desc()).offset(skip).limit(limit).all()

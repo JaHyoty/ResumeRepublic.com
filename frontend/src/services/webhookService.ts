@@ -1,4 +1,52 @@
-import { EventEmitter } from 'events'
+// Simple browser-compatible event emitter
+class EventEmitter {
+  private listeners: { [key: string]: Function[] } = {}
+
+  setMaxListeners(_n: number) {
+    // Browser doesn't need max listeners limit, but keeping API compatibility
+    return this
+  }
+
+  on(event: string, listener: Function) {
+    if (!this.listeners[event]) {
+      this.listeners[event] = []
+    }
+    this.listeners[event].push(listener)
+    return this
+  }
+
+  off(event: string, listener: Function) {
+    if (!this.listeners[event]) return this
+    this.listeners[event] = this.listeners[event].filter(l => l !== listener)
+    return this
+  }
+
+  emit(event: string, ...args: any[]) {
+    if (!this.listeners[event]) return false
+    this.listeners[event].forEach(listener => {
+      try {
+        listener(...args)
+      } catch (error) {
+        console.error('Error in event listener:', error)
+      }
+    })
+    return true
+  }
+
+  removeAllListeners(event?: string) {
+    if (event) {
+      delete this.listeners[event]
+    } else {
+      this.listeners = {}
+    }
+    return this
+  }
+
+  // Check if there are any active listeners
+  hasActiveListeners(): boolean {
+    return Object.keys(this.listeners).some(key => this.listeners[key].length > 0)
+  }
+}
 
 // Generic webhook event types
 export type WebhookEventType = 
@@ -36,7 +84,13 @@ class WebhookService extends EventEmitter {
 
   constructor() {
     super()
-    this.setMaxListeners(50) // Allow many listeners
+    
+    // Set up automatic disconnection on page unload
+    if (typeof window !== 'undefined') {
+      window.addEventListener('beforeunload', () => {
+        this.disconnect()
+      })
+    }
   }
 
   // Connect to webhook endpoint
@@ -89,8 +143,22 @@ class WebhookService extends EventEmitter {
     }
   }
 
+  // Force connect (useful for manual connection)
+  forceConnect(): boolean {
+    const token = localStorage.getItem('auth_token')
+    if (!token) {
+      console.warn('No auth token found, cannot connect to webhooks')
+      return false
+    }
+    
+    this.connect()
+    return true
+  }
+
   // Disconnect from webhook endpoint
   disconnect(): void {
+    console.log('Disconnecting webhook service')
+    
     if (this.eventSource) {
       this.eventSource.close()
       this.eventSource = null
@@ -102,6 +170,7 @@ class WebhookService extends EventEmitter {
     }
 
     this.isConnected = false
+    this.reconnectAttempts = 0
     this.emit('disconnected')
   }
 
@@ -153,6 +222,11 @@ class WebhookService extends EventEmitter {
   
   // Subscribe to specific entity updates
   subscribeToEntity(entityType: string, entityId: string, callback: (event: WebhookEvent) => void): () => void {
+    // Connect lazily if not already connected
+    if (!this.isConnected) {
+      this.connect()
+    }
+
     const handler = (event: WebhookEvent) => {
       if (event.entity_type === entityType && event.entity_id === entityId) {
         callback(event)
@@ -164,20 +238,34 @@ class WebhookService extends EventEmitter {
     // Return unsubscribe function
     return () => {
       this.off('webhook_event', handler)
+      // Check if we should disconnect after unsubscribing
+      setTimeout(() => this.disconnectIfNoListeners(), 100)
     }
   }
 
   // Subscribe to specific event types
   subscribeToEventType(eventType: WebhookEventType, callback: (event: WebhookEvent) => void): () => void {
+    // Connect lazily if not already connected
+    if (!this.isConnected) {
+      this.connect()
+    }
+
     this.on(eventType, callback)
     
     return () => {
       this.off(eventType, callback)
+      // Check if we should disconnect after unsubscribing
+      setTimeout(() => this.disconnectIfNoListeners(), 100)
     }
   }
 
   // Subscribe to all events for a specific entity type
   subscribeToEntityType(entityType: string, callback: (event: WebhookEvent) => void): () => void {
+    // Connect lazily if not already connected
+    if (!this.isConnected) {
+      this.connect()
+    }
+
     const handler = (event: WebhookEvent) => {
       if (event.entity_type === entityType) {
         callback(event)
@@ -188,6 +276,8 @@ class WebhookService extends EventEmitter {
     
     return () => {
       this.off('webhook_event', handler)
+      // Check if we should disconnect after unsubscribing
+      setTimeout(() => this.disconnectIfNoListeners(), 100)
     }
   }
 
@@ -195,17 +285,17 @@ class WebhookService extends EventEmitter {
   getConnectionStatus(): boolean {
     return this.isConnected
   }
+
+  // Disconnect if no active listeners (useful for cleanup)
+  disconnectIfNoListeners(): void {
+    if (!this.hasActiveListeners()) {
+      console.log('No active listeners, disconnecting webhook service')
+      this.disconnect()
+    }
+  }
 }
 
 // Create singleton instance
 export const webhookService = new WebhookService()
-
-// Auto-connect when auth token is available
-if (typeof window !== 'undefined') {
-  const token = localStorage.getItem('auth_token')
-  if (token) {
-    webhookService.connect()
-  }
-}
 
 export default webhookService

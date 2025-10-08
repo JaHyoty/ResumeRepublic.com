@@ -11,7 +11,7 @@ from uuid import UUID
 class JobPostingFetchRequest(BaseModel):
     """Request schema for fetching job posting data from URL"""
     url: HttpUrl = Field(..., description="URL of the job posting to parse")
-    source: str = Field(default="web-ui", regex=r'^(web-ui|api)$', description="Source of the request")
+    source: str = Field(default="web-ui", pattern=r'^(web-ui|api)$', description="Source of the request")
 
     @validator('url')
     def validate_url(cls, v):
@@ -48,11 +48,11 @@ class ProvenanceInfo(BaseModel):
 
 class SelectorInfo(BaseModel):
     """Schema for CSS/XPath selector information"""
-    type: str = Field(..., regex=r'^(css|xpath)$', description="Selector type")
+    type: str = Field(..., pattern=r'^(css|xpath)$', description="Selector type")
     selector: str = Field(..., min_length=1, description="The actual selector")
-    field: str = Field(..., regex=r'^(title|company|description)$', description="Field this selector extracts")
+    field: str = Field(..., pattern=r'^(title|company|description)$', description="Field this selector extracts")
     discovered_at: datetime = Field(..., description="When this selector was discovered")
-    provenance: str = Field(..., regex=r'^(llm|manual|heuristic)$', description="How selector was discovered")
+    provenance: str = Field(..., pattern=r'^(llm|manual|heuristic)$', description="How selector was discovered")
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence in this selector")
 
 
