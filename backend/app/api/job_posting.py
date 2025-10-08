@@ -83,7 +83,15 @@ async def fetch_job_posting(
             JobPosting.url == clean_url,
             JobPosting.status != 'manual'
         ).first()
+        
         if existing_job:
+            logger.info(
+                "Found existing job posting",
+                existing_id=str(existing_job.id),
+                existing_status=existing_job.status,
+                url=clean_url
+            )
+            
             if existing_job.status == 'complete':
                 return JobPostingFetchResponse(
                     job_posting_id=existing_job.id,
@@ -95,6 +103,29 @@ async def fetch_job_posting(
                     job_posting_id=existing_job.id,
                     status=existing_job.status,
                     message="Job posting parsing already in progress"
+                )
+            elif existing_job.status == 'failed':
+                # If previous attempt failed, we can try again
+                logger.info(
+                    "Previous attempt failed, allowing retry",
+                    existing_id=str(existing_job.id),
+                    url=clean_url
+                )
+                # Update the existing record instead of creating new one
+                existing_job.status = 'pending'
+                existing_job.created_by_user_id = current_user.id
+                db.commit()
+                
+                # Start background processing
+                background_tasks.add_task(
+                    JobPostingParserService.process_job_posting_async,
+                    str(existing_job.id)
+                )
+                
+                return JobPostingFetchResponse(
+                    job_posting_id=existing_job.id,
+                    status='pending',
+                    message="Job posting parsing initiated"
                 )
         
         # Create new job posting record
@@ -163,9 +194,10 @@ async def create_job_posting(
             domain = parsed_url.netloc.lower()
         
         # Create job posting record
+        # For manual job postings, don't set URL to avoid conflicts with future URL-based parsing
         job_posting = JobPosting(
-            url=clean_url,
-            domain=domain,
+            url=None,  # Don't set URL for manual job postings
+            domain=None,  # Don't set domain for manual job postings
             created_by_user_id=current_user.id,
             title=request.title,
             company=request.company,
@@ -174,7 +206,8 @@ async def create_job_posting(
             provenance={
                 "method": "manual",
                 "extractor": "user_input",
-                "confidence": 1.0
+                "confidence": 1.0,
+                "original_url": clean_url if request.url else None  # Store original URL in provenance for reference
             }
         )
         

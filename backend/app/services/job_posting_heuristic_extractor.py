@@ -90,30 +90,51 @@ class JobPostingHeuristicExtractor:
             '[class*="role"]'
         ]
         
+        logger.info("Starting heuristic title extraction")
+        
         for selector in title_selectors:
             elements = soup.select(selector)
-            for element in elements:
+            logger.info(f"Testing title selector '{selector}': found {len(elements)} elements")
+            
+            for i, element in enumerate(elements):
                 text = element.get_text().strip()
                 if self._is_valid_title(text):
+                    logger.info(f"  Element {i+1}: '{text}' - valid title found")
+                    logger.info(f"Title extraction successful using: {selector} (element {i+1})")
                     return text
+                else:
+                    logger.info(f"  Element {i+1}: '{text}' - not a valid title")
         
         # Try meta tags
+        logger.info("Trying meta tags for title")
         meta_title = soup.find('meta', {'property': 'og:title'})
         if meta_title and meta_title.get('content'):
             title = meta_title['content'].strip()
             if self._is_valid_title(title):
+                logger.info(f"Meta title found: '{title}' - valid title")
+                logger.info("Title extraction successful using: meta og:title")
                 return title
+            else:
+                logger.info(f"Meta title found: '{title}' - not a valid title")
         
+        logger.warning("No valid title found with any method")
         return None
     
     def _extract_company_heuristic(self, soup: BeautifulSoup, url: str) -> Optional[str]:
         """Extract company name using heuristics"""
+        logger.info("Starting heuristic company extraction")
+        
         # Try meta tags first
+        logger.info("Trying meta tags for company")
         meta_company = soup.find('meta', {'property': 'og:site_name'})
         if meta_company and meta_company.get('content'):
             company = meta_company['content'].strip()
             if self._is_valid_company(company):
+                logger.info(f"Meta company found: '{company}' - valid company")
+                logger.info("Company extraction successful using: meta og:site_name")
                 return company
+            else:
+                logger.info(f"Meta company found: '{company}' - not a valid company")
         
         # Try common company selectors
         company_selectors = [
@@ -126,20 +147,32 @@ class JobPostingHeuristicExtractor:
         
         for selector in company_selectors:
             elements = soup.select(selector)
-            for element in elements:
+            logger.info(f"Testing company selector '{selector}': found {len(elements)} elements")
+            
+            for i, element in enumerate(elements):
                 text = element.get_text().strip()
                 if self._is_valid_company(text):
+                    logger.info(f"  Element {i+1}: '{text}' - valid company found")
+                    logger.info(f"Company extraction successful using: {selector} (element {i+1})")
                     return text
+                else:
+                    logger.info(f"  Element {i+1}: '{text}' - not a valid company")
         
         # Fallback to domain name
+        logger.info("Trying URL-based company extraction")
         from urllib.parse import urlparse
         domain = urlparse(url).netloc
         if domain:
             # Remove www. prefix
             company = domain.replace('www.', '').split('.')[0]
             if self._is_valid_company(company):
+                logger.info(f"URL-based company found: '{company}' - valid company")
+                logger.info("Company extraction successful using: URL domain")
                 return company.title()
+            else:
+                logger.info(f"URL-based company found: '{company}' - not a valid company")
         
+        logger.warning("No valid company found with any method")
         return None
     
     def _extract_description_heuristic(self, soup: BeautifulSoup) -> Optional[str]:
@@ -153,27 +186,76 @@ class JobPostingHeuristicExtractor:
             '.responsibilities',
             '[class*="description"]',
             '[class*="details"]',
+            '[class*="job-info"]',
+            '[class*="job-desc"]',
             'article',
             '.content'
         ]
         
         best_description = None
         best_score = 0
+        best_selector = None
+        
+        logger.info("Starting heuristic description extraction")
         
         for selector in description_selectors:
             elements = soup.select(selector)
-            for element in elements:
+            logger.info(f"Testing selector '{selector}': found {len(elements)} elements")
+            
+            for i, element in enumerate(elements):
                 # Clean text while preserving paragraph structure
                 cleaned_text = self._extract_and_clean_text([element])
                 
                 # Filter out navigation content from the cleaned text
                 if self._contains_navigation_patterns(cleaned_text):
+                    logger.info(f"  Element {i+1}: Contains navigation patterns, skipping")
                     continue
-                score = self._score_description(cleaned_text)
                 
-                if score > best_score and self._is_valid_description(cleaned_text):
+                score = self._score_description(cleaned_text)
+                is_valid = self._is_valid_description(cleaned_text)
+                
+                logger.info(f"  Element {i+1}: length={len(cleaned_text)}, score={score:.2f}, valid={is_valid}")
+                
+                if score > best_score and is_valid:
                     best_description = cleaned_text
                     best_score = score
+                    best_selector = f"{selector} (element {i+1})"
+                    logger.info(f"  ✅ New best description found with selector '{selector}' (element {i+1})")
+        
+        # If no description found with specific selectors, try paragraphs as fallback
+        if not best_description:
+            logger.info("No description found with specific selectors, trying paragraph fallback")
+            paragraphs = soup.find_all('p')
+            substantial_paragraphs = []
+            
+            for p in paragraphs:
+                text = p.get_text().strip()
+                if len(text) > 100:  # Look for substantial paragraphs
+                    substantial_paragraphs.append(text)
+            
+            logger.info(f"Found {len(substantial_paragraphs)} substantial paragraphs")
+            
+            if substantial_paragraphs:
+                # Combine substantial paragraphs
+                combined_text = '\n\n'.join(substantial_paragraphs)
+                cleaned_text = self._extract_and_clean_text([soup.new_string(combined_text)])
+                
+                # Check if this looks like a job description
+                has_nav = self._contains_navigation_patterns(cleaned_text)
+                is_valid = self._is_valid_description(cleaned_text)
+                
+                logger.info(f"Paragraph fallback: length={len(cleaned_text)}, has_nav={has_nav}, valid={is_valid}")
+                
+                if not has_nav and is_valid:
+                    best_description = cleaned_text
+                    best_selector = "paragraph fallback"
+                    logger.info("✅ Description found using paragraph fallback")
+        
+        if best_description:
+            logger.info(f"Description extraction successful using: {best_selector}")
+            logger.info(f"Final description length: {len(best_description)} characters")
+        else:
+            logger.warning("No valid description found with any method")
         
         return best_description
     
@@ -380,13 +462,16 @@ class JobPostingHeuristicExtractor:
         job_keywords = [
             'responsibilities', 'requirements', 'qualifications', 'experience',
             'skills', 'education', 'degree', 'years', 'salary', 'benefits',
-            'location', 'remote', 'full-time', 'part-time', 'contract'
+            'location', 'remote', 'full-time', 'part-time', 'contract',
+            'about', 'company', 'team', 'role', 'position', 'engineer',
+            'developer', 'analyst', 'manager', 'specialist', 'coordinator'
         ]
         
         description_lower = description.lower()
         keyword_count = sum(1 for keyword in job_keywords if keyword in description_lower)
         
-        return keyword_count >= 2
+        # Be more flexible - require at least 1 keyword instead of 2
+        return keyword_count >= 1
     
     def _score_description(self, text: str) -> float:
         """Score description text for relevance"""
