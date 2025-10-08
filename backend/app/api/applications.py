@@ -243,7 +243,7 @@ async def create_application_from_job_posting(
                 detail="Job posting not found"
             )
         
-        if job_posting.status != 'complete':
+        if job_posting.status not in ['complete', 'manual']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Job posting parsing not complete"
