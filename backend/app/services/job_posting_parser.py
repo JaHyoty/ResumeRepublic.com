@@ -14,9 +14,9 @@ from app.services.job_posting_schema_extractor import JobPostingSchemaExtractor
 from app.services.job_posting_heuristic_extractor import JobPostingHeuristicExtractor
 from app.services.job_posting_web_scraper import JobPostingWebScraper
 from app.api.webhooks import (
-    send_job_posting_update,
-    send_job_posting_completed,
-    send_job_posting_failed
+    send_entity_update,
+    send_entity_completed,
+    send_entity_failed
 )
 
 logger = structlog.get_logger()
@@ -65,8 +65,9 @@ class JobPostingParserService:
             
             # Send webhook notification
             if job_posting.created_by_user_id:
-                await send_job_posting_update(
+                await send_entity_update(
                     job_posting.created_by_user_id,
+                    'job_posting',
                     str(job_posting.id),
                     'fetching'
                 )
@@ -261,8 +262,9 @@ class JobPostingParserService:
         
         # Send webhook notification for successful completion
         if job_posting.created_by_user_id:
-            await send_job_posting_completed(
+            await send_entity_completed(
                 job_posting.created_by_user_id,
+                'job_posting',
                 str(job_posting.id),
                 {
                     "title": job_posting.title,
@@ -311,8 +313,9 @@ class JobPostingParserService:
         
         # Send webhook notification for failure
         if job_posting.created_by_user_id:
-            await send_job_posting_failed(
+            await send_entity_failed(
                 job_posting.created_by_user_id,
+                'job_posting',
                 str(job_posting.id),
                 error_message
             )

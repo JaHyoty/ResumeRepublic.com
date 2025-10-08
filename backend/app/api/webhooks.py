@@ -8,7 +8,7 @@ from app.models.job_posting import JobPosting
 import json
 import asyncio
 import structlog
-from typing import Dict, Set
+from typing import Dict, Set, Any, Optional
 import uuid
 
 logger = structlog.get_logger()
@@ -18,13 +18,14 @@ router = APIRouter()
 # Store active connections
 active_connections: Dict[str, Set[asyncio.Queue]] = {}
 
-@router.get("/job-postings")
-async def job_posting_webhook(
+@router.get("/events")
+async def webhook_events(
     token: str,
     db: Session = Depends(get_db)
 ):
     """
-    Webhook endpoint for job posting status updates using Server-Sent Events (SSE)
+    Generic webhook endpoint for real-time updates using Server-Sent Events (SSE)
+    Handles all types of webhook events, not just job postings
     """
     try:
         # Verify token (you might want to implement proper token validation)
@@ -56,7 +57,7 @@ async def job_posting_webhook(
         async def event_generator():
             try:
                 # Send initial connection event
-                yield f"data: {json.dumps({'type': 'connected', 'connection_id': connection_id})}\n\n"
+                yield f"data: {json.dumps({'type': 'connected', 'connection_id': connection_id, 'timestamp': asyncio.get_event_loop().time()})}\n\n"
                 
                 while True:
                     try:
@@ -133,24 +134,30 @@ async def verify_webhook_token(token: str, db: Session) -> int | None:
         logger.error("Failed to verify webhook token", error=str(e))
         return None
 
-async def send_job_posting_update(
+# Generic webhook functions
+
+async def send_webhook_event(
     user_id: int,
-    job_posting_id: str,
-    status: str,
-    data: dict = None
+    event_type: str,
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
+    status: Optional[str] = None,
+    data: Optional[Dict[str, Any]] = None
 ):
     """
-    Send job posting update to all active connections for a user
+    Send a generic webhook event to all active connections for a user
     """
     if user_id not in active_connections:
         return
 
     message = {
-        "type": "job_posting_status_update",
-        "job_posting_id": job_posting_id,
+        "type": event_type,
+        "entity_type": entity_type,
+        "entity_id": entity_id,
         "status": status,
         "data": data or {},
-        "timestamp": asyncio.get_event_loop().time()
+        "timestamp": asyncio.get_event_loop().time(),
+        "user_id": user_id
     }
 
     # Send to all active connections for this user
@@ -162,61 +169,107 @@ async def send_job_posting_update(
             # Remove failed connection
             active_connections[user_id].discard(queue)
 
-async def send_job_posting_completed(
+async def send_entity_update(
     user_id: int,
-    job_posting_id: str,
-    job_posting_data: dict
+    entity_type: str,
+    entity_id: str,
+    status: str,
+    data: Optional[Dict[str, Any]] = None
 ):
     """
-    Send job posting completion notification
+    Send an entity update webhook (generic)
     """
-    if user_id not in active_connections:
-        return
+    await send_webhook_event(
+        user_id=user_id,
+        event_type=f"{entity_type}_status_update",
+        entity_type=entity_type,
+        entity_id=entity_id,
+        status=status,
+        data=data
+    )
 
-    message = {
-        "type": "job_posting_completed",
-        "job_posting_id": job_posting_id,
-        "status": "complete",
-        "data": job_posting_data,
-        "timestamp": asyncio.get_event_loop().time()
-    }
-
-    for queue in active_connections[user_id].copy():
-        try:
-            await queue.put(message)
-        except Exception as e:
-            logger.error("Failed to send completion webhook", error=str(e))
-            active_connections[user_id].discard(queue)
-
-async def send_job_posting_failed(
+async def send_entity_completed(
     user_id: int,
-    job_posting_id: str,
+    entity_type: str,
+    entity_id: str,
+    data: Optional[Dict[str, Any]] = None
+):
+    """
+    Send an entity completion webhook (generic)
+    """
+    await send_webhook_event(
+        user_id=user_id,
+        event_type=f"{entity_type}_completed",
+        entity_type=entity_type,
+        entity_id=entity_id,
+        status="complete",
+        data=data
+    )
+
+async def send_entity_failed(
+    user_id: int,
+    entity_type: str,
+    entity_id: str,
     error_message: str
 ):
     """
-    Send job posting failure notification
+    Send an entity failure webhook (generic)
     """
-    if user_id not in active_connections:
-        return
+    await send_webhook_event(
+        user_id=user_id,
+        event_type=f"{entity_type}_failed",
+        entity_type=entity_type,
+        entity_id=entity_id,
+        status="failed",
+        data={"error": error_message}
+    )
 
-    message = {
-        "type": "job_posting_failed",
-        "job_posting_id": job_posting_id,
-        "status": "failed",
-        "data": {"error": error_message},
-        "timestamp": asyncio.get_event_loop().time()
-    }
+async def send_user_notification(
+    user_id: int,
+    notification_type: str,
+    message: str,
+    data: Optional[Dict[str, Any]] = None
+):
+    """
+    Send a user notification webhook
+    """
+    await send_webhook_event(
+        user_id=user_id,
+        event_type="user_notification",
+        data={
+            "notification_type": notification_type,
+            "message": message,
+            **(data or {})
+        }
+    )
 
-    for queue in active_connections[user_id].copy():
-        try:
-            await queue.put(message)
-        except Exception as e:
-            logger.error("Failed to send failure webhook", error=str(e))
-            active_connections[user_id].discard(queue)
+async def send_system_alert(
+    user_id: int,
+    alert_type: str,
+    message: str,
+    severity: str = "info",
+    data: Optional[Dict[str, Any]] = None
+):
+    """
+    Send a system alert webhook
+    """
+    await send_webhook_event(
+        user_id=user_id,
+        event_type="system_alert",
+        data={
+            "alert_type": alert_type,
+            "message": message,
+            "severity": severity,
+            **(data or {})
+        }
+    )
 
 # Export functions for use in other modules
 __all__ = [
-    "send_job_posting_update",
-    "send_job_posting_completed", 
-    "send_job_posting_failed"
+    "send_webhook_event",
+    "send_entity_update",
+    "send_entity_completed",
+    "send_entity_failed",
+    "send_user_notification",
+    "send_system_alert"
 ]

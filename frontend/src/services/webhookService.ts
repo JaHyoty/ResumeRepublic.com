@@ -1,18 +1,28 @@
 import { EventEmitter } from 'events'
 
-// Webhook event types
+// Generic webhook event types
 export type WebhookEventType = 
   | 'job_posting_status_update'
   | 'job_posting_completed'
   | 'job_posting_failed'
+  | 'application_status_update'
+  | 'resume_generation_completed'
+  | 'resume_generation_failed'
+  | 'user_notification'
+  | 'system_alert'
+  | 'heartbeat'
+  | 'connected'
+  | 'disconnected'
 
-// Webhook event data
+// Generic webhook event data
 export interface WebhookEvent {
   type: WebhookEventType
-  job_posting_id: string
-  status: string
-  data?: any
+  entity_type?: string // e.g., 'job_posting', 'application', 'resume'
+  entity_id?: string   // ID of the entity being updated
+  status?: string      // Status update
+  data?: any           // Additional event-specific data
   timestamp: string
+  user_id?: number      // Target user (for user-specific events)
 }
 
 // Webhook service for handling real-time updates
@@ -43,8 +53,8 @@ class WebhookService extends EventEmitter {
         return
       }
 
-      // Create EventSource connection to webhook endpoint
-      const webhookUrl = `${import.meta.env.API_BASE_URL || 'http://localhost:8000'}/api/webhooks/job-postings?token=${token}`
+      // Create EventSource connection to generic webhook endpoint
+      const webhookUrl = `${import.meta.env.API_BASE_URL || 'http://localhost:8000'}/api/webhooks/events?token=${token}`
       this.eventSource = new EventSource(webhookUrl)
 
       this.eventSource.onopen = () => {
@@ -102,6 +112,11 @@ class WebhookService extends EventEmitter {
     // Emit specific event types
     this.emit(event.type, event)
     
+    // Emit entity-specific events
+    if (event.entity_type && event.entity_id) {
+      this.emit(`${event.entity_type}_${event.entity_id}`, event)
+    }
+    
     // Emit general webhook event
     this.emit('webhook_event', event)
   }
@@ -134,10 +149,12 @@ class WebhookService extends EventEmitter {
     }, 30000) // Ping every 30 seconds
   }
 
-  // Subscribe to specific job posting updates
-  subscribeToJobPosting(jobPostingId: string, callback: (event: WebhookEvent) => void): () => void {
+  // Generic subscription methods
+  
+  // Subscribe to specific entity updates
+  subscribeToEntity(entityType: string, entityId: string, callback: (event: WebhookEvent) => void): () => void {
     const handler = (event: WebhookEvent) => {
-      if (event.job_posting_id === jobPostingId) {
+      if (event.entity_type === entityType && event.entity_id === entityId) {
         callback(event)
       }
     }
@@ -150,30 +167,27 @@ class WebhookService extends EventEmitter {
     }
   }
 
-  // Subscribe to job posting status updates
-  subscribeToStatusUpdates(callback: (event: WebhookEvent) => void): () => void {
-    this.on('job_posting_status_update', callback)
+  // Subscribe to specific event types
+  subscribeToEventType(eventType: WebhookEventType, callback: (event: WebhookEvent) => void): () => void {
+    this.on(eventType, callback)
     
     return () => {
-      this.off('job_posting_status_update', callback)
+      this.off(eventType, callback)
     }
   }
 
-  // Subscribe to job posting completion
-  subscribeToCompletion(callback: (event: WebhookEvent) => void): () => void {
-    this.on('job_posting_completed', callback)
-    
-    return () => {
-      this.off('job_posting_completed', callback)
+  // Subscribe to all events for a specific entity type
+  subscribeToEntityType(entityType: string, callback: (event: WebhookEvent) => void): () => void {
+    const handler = (event: WebhookEvent) => {
+      if (event.entity_type === entityType) {
+        callback(event)
+      }
     }
-  }
 
-  // Subscribe to job posting failures
-  subscribeToFailures(callback: (event: WebhookEvent) => void): () => void {
-    this.on('job_posting_failed', callback)
+    this.on('webhook_event', handler)
     
     return () => {
-      this.off('job_posting_failed', callback)
+      this.off('webhook_event', handler)
     }
   }
 
