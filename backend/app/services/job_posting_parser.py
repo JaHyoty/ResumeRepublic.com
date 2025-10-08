@@ -241,8 +241,7 @@ class JobPostingParserService:
             "method": method,
             "extractor": f"{method}_extractor",
             "confidence": result.get('confidence', 0.8),
-            "excerpt": result.get('excerpt', ''),
-            "timestamp": job_posting.updated_at.isoformat() if job_posting.updated_at else None
+            "excerpt": result.get('excerpt', '')
         }
         
         # Store raw snapshot if available
@@ -276,8 +275,7 @@ class JobPostingParserService:
         job_posting.status = 'failed'
         job_posting.provenance = {
             "method": "failed",
-            "error": error_message,
-            "timestamp": job_posting.updated_at.isoformat() if job_posting.updated_at else None
+            "error": error_message
         }
         
         db.commit()

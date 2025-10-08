@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import List, Optional
+from datetime import datetime, timezone
 import structlog
 from urllib.parse import urlparse, urlunparse, parse_qs
 
@@ -173,8 +174,7 @@ async def create_job_posting(
             provenance={
                 "method": "manual",
                 "extractor": "user_input",
-                "confidence": 1.0,
-                "timestamp": None  # Will be set by database
+                "confidence": 1.0
             }
         )
         

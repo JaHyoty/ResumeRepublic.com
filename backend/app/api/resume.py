@@ -685,7 +685,6 @@ async def update_resume_latex(
                 # Update resume version with new S3 keys
                 resume_version.s3_key = pdf_s3_key
                 resume_version.latex_s3_key = latex_s3_key
-                resume_version.updated_at = datetime.now()
                 db.commit()
                 
                 # Return PDF as response

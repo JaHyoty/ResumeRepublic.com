@@ -43,7 +43,6 @@ class ProvenanceInfo(BaseModel):
     extractor: Optional[str] = Field(None, description="Specific extractor used")
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Confidence score")
     excerpt: Optional[str] = Field(None, description="Sample of extracted text")
-    timestamp: datetime = Field(..., description="When extraction occurred")
 
 
 class JobPostingResponse(BaseModel):
@@ -58,7 +57,7 @@ class JobPostingResponse(BaseModel):
     status: str = Field(..., description="Current parsing status")
     provenance: Optional[ProvenanceInfo] = Field(None, description="Extraction provenance")
     created_at: datetime = Field(..., description="When job posting was created")
-    updated_at: datetime = Field(..., description="When job posting was last updated")
+    updated_at: Optional[datetime] = Field(None, description="When job posting was last updated")
 
     class Config:
         from_attributes = True
