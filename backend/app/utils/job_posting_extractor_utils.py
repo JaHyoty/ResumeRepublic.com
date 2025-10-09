@@ -29,6 +29,7 @@ class JobPostingExtractorUtils:
             '&gt;': '>',
             '&quot;': '"',
             '&#x27;': "'",
+            '&#39;': "'",
             '&#x2F;': '/',
             '&nbsp;': ' ',
             '&ndash;': '–',

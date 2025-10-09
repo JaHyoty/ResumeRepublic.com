@@ -147,9 +147,34 @@ const ApplicationsView: React.FC = () => {
         )
       )
 
-      // Reload stats after update
-      const statsData = await applicationService.getApplicationStats()
-      setStats(statsData)
+      // Update stats locally instead of making API call
+      if (stats) {
+        const newStats = { ...stats }
+        
+        // Calculate new stats based on the change
+        const newValue = updatedApplication[statusType]
+        
+        if (statusType === 'online_assessment') {
+          newStats.online_assessments += newValue ? 1 : -1
+        } else if (statusType === 'interview') {
+          newStats.interviews += newValue ? 1 : -1
+        } else if (statusType === 'rejected') {
+          newStats.rejected += newValue ? 1 : -1
+        }
+        
+        // Recalculate rates
+        newStats.online_assessment_rate = newStats.total_applications > 0 
+          ? Math.round((newStats.online_assessments / newStats.total_applications) * 100 * 10) / 10 
+          : 0
+        newStats.interview_rate = newStats.total_applications > 0 
+          ? Math.round((newStats.interviews / newStats.total_applications) * 100 * 10) / 10 
+          : 0
+        newStats.rejection_rate = newStats.total_applications > 0 
+          ? Math.round((newStats.rejected / newStats.total_applications) * 100 * 10) / 10 
+          : 0
+        
+        setStats(newStats)
+      }
     } catch (err) {
       console.error('Error updating application status:', err)
       setError('Failed to update application status')

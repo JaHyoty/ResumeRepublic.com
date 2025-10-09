@@ -165,8 +165,32 @@ async def update_application(
     db.commit()
     db.refresh(application)
     
+    # Reload with job posting data
+    application_with_job = db.query(Application).options(
+        joinedload(Application.job_posting)
+    ).filter(Application.id == application_id).first()
+    
     logger.info("Application updated", application_id=application_id, user_id=current_user.id)
-    return application
+    
+    # Return properly formatted response with job posting data
+    return ApplicationResponse(
+        id=application_with_job.id,
+        applied_date=application_with_job.applied_date,
+        created_at=application_with_job.created_at,
+        updated_at=application_with_job.updated_at,
+        online_assessment=application_with_job.online_assessment,
+        interview=application_with_job.interview,
+        rejected=application_with_job.rejected,
+        salary_range=application_with_job.salary_range,
+        location=application_with_job.location,
+        job_type=application_with_job.job_type,
+        experience_level=application_with_job.experience_level,
+        application_metadata=application_with_job.application_metadata,
+        job_posting_id=application_with_job.job_posting_id,
+        job_title=application_with_job.job_posting.title if application_with_job.job_posting else None,
+        company=application_with_job.job_posting.company if application_with_job.job_posting else None,
+        job_description=application_with_job.job_posting.description if application_with_job.job_posting else None
+    )
 
 
 @router.delete("/{application_id}")

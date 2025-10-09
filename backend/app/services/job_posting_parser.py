@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 import structlog
 
+from app.core.database import SessionLocal
 from app.models.job_posting import JobPosting, JobPostingFetchAttempt
 from app.services.job_posting_schema_extractor import JobPostingSchemaExtractor
 from app.services.job_posting_heuristic_extractor import JobPostingHeuristicExtractor
@@ -36,8 +37,6 @@ class JobPostingParserService:
         Async background task for FastAPI BackgroundTasks
         Creates its own database session
         """
-        from app.core.database import SessionLocal
-        
         db = SessionLocal()
         try:
             await JobPostingParserService.process_job_posting(job_posting_id, db)
@@ -59,11 +58,26 @@ class JobPostingParserService:
                 logger.error("Job posting not found", job_posting_id=job_posting_id)
                 return
             
+            # Check if already being processed or completed
+            if job_posting.status in ['fetching', 'complete']:
+                logger.info("Job posting already processed or being processed", 
+                           job_posting_id=job_posting_id, status=job_posting.status)
+                return
+            
             logger.info("Found job posting, updating status to fetching", 
                        job_posting_id=job_posting_id, url=job_posting.url)
             
-            # Update status to fetching
-            job_posting.status = 'fetching'
+            # Update status to fetching (with optimistic locking to prevent race conditions)
+            rows_updated = db.query(JobPosting).filter(
+                JobPosting.id == job_posting_id,
+                JobPosting.status == 'pending'  # Only update if still pending
+            ).update({'status': 'fetching'})
+            
+            if rows_updated == 0:
+                logger.info("Job posting status changed by another process", 
+                           job_posting_id=job_posting_id)
+                return
+            
             db.commit()
             
             # Send webhook notification
@@ -75,15 +89,15 @@ class JobPostingParserService:
                     'fetching'
                 )
             
-            # Initialize parser service
-            parser_service = JobPostingParserService()
+            # Create web scraper instance
+            web_scraper = JobPostingWebScraper()
             
             # Fetch HTML content once for both extractors
             logger.info("Fetching HTML content", job_posting_id=job_posting_id, url=job_posting.url)
-            html_content = await parser_service.web_scraper.fetch_html(job_posting.url)
+            html_content = await web_scraper.fetch_html(job_posting.url)
             if not html_content:
                 logger.error("Failed to fetch HTML content", job_posting_id=job_posting_id, url=job_posting.url)
-                await parser_service._update_job_posting_failure(job_posting, "Failed to fetch HTML content", db)
+                await JobPostingParserService._mark_job_posting_failed(job_posting, "Failed to fetch HTML content", db)
                 return
             
             logger.info("HTML content fetched successfully", 
@@ -92,25 +106,25 @@ class JobPostingParserService:
             
             logger.info("Starting Stage 1: Schema extraction", job_posting_id=job_posting_id)
             # Stage 1: Try schema extraction first
-            schema_result = await parser_service._try_schema_extraction(job_posting, html_content, db)
+            schema_result = await JobPostingParserService._try_schema_extraction(job_posting, html_content, db)
             
-            if schema_result and parser_service._is_valid_result(schema_result):
-                await parser_service._update_job_posting_success(
+            if schema_result and JobPostingParserService._is_valid_result(schema_result):
+                await JobPostingParserService._update_job_posting_success(
                     job_posting, schema_result, 'schema', db
                 )
                 return
             
             # Stage 2: Try heuristic extraction
-            heuristic_result = await parser_service._try_heuristic_extraction(job_posting, html_content, db)
+            heuristic_result = await JobPostingParserService._try_heuristic_extraction(job_posting, html_content, db)
             
-            if heuristic_result and parser_service._is_valid_result(heuristic_result):
-                await parser_service._update_job_posting_success(
+            if heuristic_result and JobPostingParserService._is_valid_result(heuristic_result):
+                await JobPostingParserService._update_job_posting_success(
                     job_posting, heuristic_result, 'heuristic', db
                 )
                 return
             
             # Both methods failed
-            await parser_service._mark_job_posting_failed(
+            await JobPostingParserService._mark_job_posting_failed(
                 job_posting, "Both extraction methods failed", db
             )
             
@@ -123,7 +137,7 @@ class JobPostingParserService:
             try:
                 job_posting = db.query(JobPosting).filter(JobPosting.id == job_posting_id).first()
                 if job_posting:
-                    await parser_service._mark_job_posting_failed(
+                    await JobPostingParserService._mark_job_posting_failed(
                         job_posting, f"Parsing error: {str(e)}", db
                     )
             except Exception as update_error:
@@ -133,7 +147,8 @@ class JobPostingParserService:
                     error=str(update_error)
                 )
     
-    async def _try_schema_extraction(self, job_posting: JobPosting, html_content: str, db: Session) -> Optional[Dict[str, Any]]:
+    @staticmethod
+    async def _try_schema_extraction(job_posting: JobPosting, html_content: str, db: Session) -> Optional[Dict[str, Any]]:
         """Try schema-based extraction (JSON-LD, microdata)"""
         start_time = time.time()
         
@@ -151,7 +166,8 @@ class JobPostingParserService:
             
             # Fetch and parse with schema extraction
             logger.info("Calling schema extractor", url=job_posting.url)
-            result = await self.schema_extractor.extract_job_data(job_posting.url, html_content)
+            schema_extractor = JobPostingSchemaExtractor()
+            result = await schema_extractor.extract_job_data(job_posting.url, html_content)
             
             logger.info("Schema extractor returned", result_found=result is not None)
             if result:
@@ -192,7 +208,8 @@ class JobPostingParserService:
             
             return None
     
-    async def _try_heuristic_extraction(self, job_posting: JobPosting, html_content: str, db: Session) -> Optional[Dict[str, Any]]:
+    @staticmethod
+    async def _try_heuristic_extraction(job_posting: JobPosting, html_content: str, db: Session) -> Optional[Dict[str, Any]]:
         """Try heuristic DOM-based extraction"""
         start_time = time.time()
         
@@ -208,7 +225,8 @@ class JobPostingParserService:
             
             # Check for existing domain selectors first (only if domain exists)
             # Fetch and parse with heuristic extraction
-            result = await self.heuristic_extractor.extract_job_data(job_posting.url, html_content)
+            heuristic_extractor = JobPostingHeuristicExtractor()
+            result = await heuristic_extractor.extract_job_data(job_posting.url, html_content)
             
             # Update attempt record
             attempt.success = result is not None
@@ -237,7 +255,8 @@ class JobPostingParserService:
             return None
     
     
-    def _is_valid_result(self, result: Dict[str, Any]) -> bool:
+    @staticmethod
+    def _is_valid_result(result: Dict[str, Any]) -> bool:
         """Validate that extraction result contains required fields"""
         logger.info("Starting result validation", result_keys=list(result.keys()) if result else [])
         
@@ -276,8 +295,8 @@ class JobPostingParserService:
         
         return True
     
+    @staticmethod
     async def _update_job_posting_success(
-        self, 
         job_posting: JobPosting, 
         result: Dict[str, Any], 
         method: str, 
@@ -316,8 +335,8 @@ class JobPostingParserService:
             )
         
     
+    @staticmethod
     async def _mark_job_posting_failed(
-        self, 
         job_posting: JobPosting, 
         error_message: str, 
         db: Session
