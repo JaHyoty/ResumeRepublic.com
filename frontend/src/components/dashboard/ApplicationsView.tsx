@@ -43,6 +43,39 @@ const ApplicationsView: React.FC = () => {
   // State for tracking mouse events for modal closing
   const [mouseDownOutside, setMouseDownOutside] = useState(false)
 
+  // Change handlers that reset currentJobPostingId when fields are manually edited
+  const handleJobTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewJobTitle(e.target.value)
+    // If user manually edits the title, reset to manual creation mode
+    if (currentJobPostingId) {
+      setCurrentJobPostingId(null)
+    }
+  }
+
+  const handleCompanyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewCompany(e.target.value)
+    // If user manually edits the company, reset to manual creation mode
+    if (currentJobPostingId) {
+      setCurrentJobPostingId(null)
+    }
+  }
+
+  const handleJobDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewJobDescription(e.target.value)
+    // If user manually edits the description, reset to manual creation mode
+    if (currentJobPostingId) {
+      setCurrentJobPostingId(null)
+    }
+  }
+
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setJobPostingUrl(e.target.value)
+    // If user changes the URL, reset to manual creation mode
+    if (currentJobPostingId) {
+      setCurrentJobPostingId(null)
+    }
+  }
+
   // Helper function to handle enhanced click-outside functionality
   const handleBackdropMouseDown = (e: React.MouseEvent) => {
     // Check if the click is on the backdrop (not on modal content)
@@ -72,6 +105,7 @@ const ApplicationsView: React.FC = () => {
     
     if (!currentJobPostingId) {
       console.log('No currentJobPostingId, skipping webhook subscription')
+      setJobPostingStatus(null)
       return
     }
 
@@ -90,7 +124,7 @@ const ApplicationsView: React.FC = () => {
         setIsFormDisabled(true)
       } else if (event.status === 'complete') {
         setJobPostingStatus('complete')
-        setIsFormDisabled(true) // Disable form fields since data came from URL parsing
+        setIsFormDisabled(false)
         
         // Populate form fields with parsed data
         if (event.data) {
@@ -387,9 +421,9 @@ const ApplicationsView: React.FC = () => {
           if (jobPostingData.company) setNewCompany(jobPostingData.company)
           if (jobPostingData.description) setNewJobDescription(jobPostingData.description)
           
-          // Set status and disable form fields (since data was fetched from URL)
+          // Set status and enable form fields
           setJobPostingStatus('complete')
-          setIsFormDisabled(true) // Disable form fields since data came from URL
+          setIsFormDisabled(false)
           setCurrentJobPostingId(response.job_posting_id)
           setIsFetchingJobPosting(false) // Stop loading state
           
@@ -747,14 +781,14 @@ const ApplicationsView: React.FC = () => {
                           type="url"
                           id="jobPostingUrl"
                           value={jobPostingUrl}
-                          onChange={(e) => setJobPostingUrl(e.target.value)}
+                          onChange={handleUrlChange}
                           placeholder="https://company.com/job-posting"
                           disabled={isFetchingJobPosting || isFormDisabled}
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                         />
                         <button
                           onClick={handleFetchJobPosting}
-                          disabled={!jobPostingUrl.trim() || isFetchingJobPosting || isFormDisabled}
+                          disabled={!jobPostingUrl.trim() || isFetchingJobPosting || jobPostingStatus === 'complete'}
                           className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors duration-200 flex items-center gap-2 ${
                             jobPostingStatus === 'complete' 
                               ? 'bg-green-600 hover:bg-green-700' 
@@ -848,7 +882,7 @@ const ApplicationsView: React.FC = () => {
                       type="text"
                       id="jobTitle"
                       value={newJobTitle}
-                      onChange={(e) => setNewJobTitle(e.target.value)}
+                      onChange={handleJobTitleChange}
                       placeholder="e.g., Software Engineer"
                       disabled={isFormDisabled}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -862,7 +896,7 @@ const ApplicationsView: React.FC = () => {
                       type="text"
                       id="company"
                       value={newCompany}
-                      onChange={(e) => setNewCompany(e.target.value)}
+                      onChange={handleCompanyChange}
                       placeholder="e.g., Google"
                       disabled={isFormDisabled}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -876,7 +910,7 @@ const ApplicationsView: React.FC = () => {
                   <textarea
                     id="jobDescription"
                     value={newJobDescription}
-                    onChange={(e) => setNewJobDescription(e.target.value)}
+                    onChange={handleJobDescriptionChange}
                     placeholder="Paste the job description here..."
                     disabled={isFormDisabled}
                     className="w-full h-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
