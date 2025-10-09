@@ -43,6 +43,17 @@ const ApplicationsView: React.FC = () => {
   // State for tracking mouse events for modal closing
   const [mouseDownOutside, setMouseDownOutside] = useState(false)
 
+  // Auto-clear error messages after 15 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null)
+      }, 15000) // 15 seconds
+      
+      return () => clearTimeout(timer)
+    }
+  }, [error])
+
   // Change handlers that reset currentJobPostingId when fields are manually edited
   const handleJobTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewJobTitle(e.target.value)
@@ -349,9 +360,15 @@ const ApplicationsView: React.FC = () => {
         } 
       })
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create application for resume design:', error)
-      alert('Failed to create application. Please try again.')
+      
+      // Check if it's a duplicate application error
+      if (error?.response?.status === 409) {
+        alert('You have already created an application for this job posting. Please try a different job posting.')
+      } else {
+        alert('Failed to create application. Please try again.')
+      }
     }
   }
 
@@ -383,9 +400,18 @@ const ApplicationsView: React.FC = () => {
       
       // Close the modal
       handleCloseNewApplicationModal()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error creating application:', err)
-      setError('Failed to create application')
+      
+      // Check if it's a duplicate application error
+      if (err?.response?.status === 409) {
+        setError('You have already created an application for this job posting. Please try a different job posting.')
+      } else {
+        setError('Failed to create application. Please try again.')
+      }
+      
+      // Close the modal even on error
+      handleCloseNewApplicationModal()
     }
   }
 
@@ -530,20 +556,27 @@ const ApplicationsView: React.FC = () => {
     )
   }
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Applications</h2>
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
-          {error}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="p-6">
       <h2 className="text-2xl font-bold text-gray-900 mb-6">Applications</h2>
+      
+      {/* Error message display */}
+      {error && (
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md flex justify-between items-center">
+          <div className="flex items-center">
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-400 hover:text-red-600 ml-4"
+            aria-label="Close error message"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
       
       {/* Statistics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

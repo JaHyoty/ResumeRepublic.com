@@ -277,6 +277,18 @@ async def create_application_from_job_posting(
                 detail="Job posting data incomplete"
             )
         
+        # Check if user already has an application for this job posting
+        existing_application = db.query(Application).filter(
+            Application.user_id == current_user.id,
+            Application.job_posting_id == job_posting_id
+        ).first()
+        
+        if existing_application:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You have already created an application for this job posting"
+            )
+        
         # Create application linked to job posting
         application = Application(
             user_id=current_user.id,
