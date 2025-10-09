@@ -5,6 +5,7 @@ Extracts job data using DOM analysis and heuristics
 
 import re
 from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 import structlog
 
@@ -45,13 +46,10 @@ class JobPostingHeuristicExtractor:
         try:
             result = {}
             
-            # Extract title
-            title = self._extract_title_heuristic(soup)
+            # Extract title and company together (more efficient and consistent)
+            title, company = self._extract_title_and_company_heuristic(soup, url)
             if title:
                 result['title'] = title
-            
-            # Extract company
-            company = self._extract_company_heuristic(soup, url)
             if company:
                 result['company'] = company
             
@@ -79,88 +77,112 @@ class JobPostingHeuristicExtractor:
             logger.error("General heuristic extraction failed", error=str(e))
             return None
     
-    def _extract_title_heuristic(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract job title using heuristics"""
-        # Try common title selectors
-        title_selectors = [
-            'h1',
-            'h2',
-            '.job-title',
-            '.position-title',
-            '[class*="title"]',
-            '[class*="position"]',
-            '[class*="role"]'
-        ]
+    def _extract_title_and_company_heuristic(self, soup: BeautifulSoup, url: str) -> tuple[Optional[str], Optional[str]]:
+        """Extract job title and company using heuristics, returning (title, company) tuple"""
+        title = None
+        company = None
         
-        for selector in title_selectors:
-            elements = soup.select(selector)
+        # PRIORITY 1: Try extracting both from page title using combined utility method (most accurate)
+        title, company = JobPostingExtractorUtils.extract_title_and_company_from_page_title(soup, "Heuristic extractor")
+        
+        # PRIORITY 2: Try meta tags for title if not found yet
+        if not title:
+            meta_tags = [
+                {'property': 'og:title'},
+                {'name': 'title'},
+                {'name': 'twitter:title'}
+            ]
             
-            for i, element in enumerate(elements):
-                text = element.get_text().strip()
-                if self._is_valid_title(text):
-                    return JobPostingExtractorUtils.clean_title(text)
+            for meta_attr in meta_tags:
+                meta_element = soup.find('meta', meta_attr)
+                if meta_element and meta_element.get('content'):
+                    title_text = meta_element['content'].strip()
+                    extracted_title = JobPostingExtractorUtils._extract_title_from_page_title(title_text)
+                    if extracted_title:
+                        title = extracted_title
+                        break
         
-        # Try meta tags
-        meta_title = soup.find('meta', {'property': 'og:title'})
-        if meta_title and meta_title.get('content'):
-            title = meta_title['content'].strip()
-            if self._is_valid_title(title):
-                return JobPostingExtractorUtils.clean_title(title)
+        # PRIORITY 3: Try meta tags for company if not found yet
+        if not company:
+            company_meta_tags = [
+                {'property': 'og:site_name'},
+                {'name': 'application-name'},
+                {'name': 'apple-mobile-web-app-title'}
+            ]
+            
+            for meta_attr in company_meta_tags:
+                meta_element = soup.find('meta', meta_attr)
+                if meta_element and meta_element.get('content'):
+                    company_name = meta_element['content'].strip()
+                    if JobPostingExtractorUtils.is_valid_company(company_name):
+                        company = JobPostingExtractorUtils.clean_company(company_name)
+                        break
         
-        return None
+        # PRIORITY 4: Try DOM selectors for title if not found yet
+        if not title:
+            title_selectors = [
+                'h1',
+                'h2',
+                '.job-title',
+                '.position-title',
+                '[class*="title"]',
+                '[class*="position"]',
+                '[class*="role"]'
+            ]
+            
+            for selector in title_selectors:
+                elements = soup.select(selector)
+                
+                for i, element in enumerate(elements):
+                    text = element.get_text().strip()
+                    # Skip generic titles like "job details", "careers", etc.
+                    if text.lower() in ['job details', 'careers', 'jobs', 'search results', 'more about us']:
+                        continue
+                        
+                    if JobPostingExtractorUtils._is_valid_title(text) and len(text) > 10:
+                        title = JobPostingExtractorUtils.clean_title(text)
+                        break
+                
+                if title:
+                    break
+        
+        # PRIORITY 5: Try DOM selectors for company if not found yet
+        if not company:
+            company_selectors = [
+                '.company-name',
+                '.employer',
+                '[class*="company"]',
+                '[class*="employer"]',
+                '.organization'
+            ]
+            
+            for selector in company_selectors:
+                elements = soup.select(selector)
+                
+                for element in elements:
+                    text = element.get_text().strip()
+                    if JobPostingExtractorUtils.is_valid_company(text):
+                        company = JobPostingExtractorUtils.clean_company(text)
+                        break
+                
+                if company:
+                    break
+        
+        # PRIORITY 6: Fallback to URL-based company extraction if still not found
+        if not company:
+            parsed_url = urlparse(url)
+            domain = parsed_url.netloc.lower()
+            
+            # Extract company from domain
+            domain_parts = domain.replace('www.', '').split('.')
+            if len(domain_parts) >= 2:
+                potential_company = domain_parts[0]
+                if JobPostingExtractorUtils.is_valid_company(potential_company):
+                    company = JobPostingExtractorUtils.clean_company(potential_company)
+        
+        return title, company
     
-    def _extract_company_heuristic(self, soup: BeautifulSoup, url: str) -> Optional[str]:
-        """Extract company name using heuristics"""
-        # PRIORITY 1: Try extracting company from page title (most accurate)
-        title_company = JobPostingExtractorUtils.extract_company_from_title(soup, "Heuristic extractor")
-        if title_company:
-            logger.info(f"Company extracted from page title: '{title_company}'")
-            return title_company
-        
-        # PRIORITY 2: Try meta tags (multiple sources)
-        meta_sources = [
-            {'property': 'og:site_name'},
-            {'name': 'application-name'},
-            {'name': 'apple-mobile-web-app-title'},
-            {'property': 'og:title'},
-            {'name': 'title'}
-        ]
-        
-        for meta_attr in meta_sources:
-            meta_company = soup.find('meta', meta_attr)
-            if meta_company and meta_company.get('content'):
-                company = meta_company['content'].strip()
-                if JobPostingExtractorUtils.is_valid_company(company):
-                    logger.info(f"Company extracted from meta tag {meta_attr}: '{company}'")
-                    return JobPostingExtractorUtils.clean_company(company)
-        
-        # Try common company selectors
-        company_selectors = [
-            '.company-name',
-            '.employer',
-            '[class*="company"]',
-            '[class*="employer"]',
-            '.organization'
-        ]
-        
-        for selector in company_selectors:
-            elements = soup.select(selector)
-            
-            for i, element in enumerate(elements):
-                text = element.get_text().strip()
-                if JobPostingExtractorUtils.is_valid_company(text):
-                    return JobPostingExtractorUtils.clean_company(text)
-        
-        # Fallback to domain name
-        from urllib.parse import urlparse
-        domain = urlparse(url).netloc
-        if domain:
-            # Remove www. prefix
-            company = domain.replace('www.', '').split('.')[0]
-            if JobPostingExtractorUtils.is_valid_company(company):
-                return JobPostingExtractorUtils.clean_company(company.title())
-        
-        return None
+    
     
     def _extract_description_heuristic(self, soup: BeautifulSoup) -> Optional[str]:
         """Extract job description using heuristics"""
@@ -176,7 +198,9 @@ class JobPostingHeuristicExtractor:
             '[class*="job-info"]',
             '[class*="job-desc"]',
             'article',
-            '.content'
+            '.content',
+            'main',
+            '[role="main"]'
         ]
         
         best_description = None
@@ -194,35 +218,161 @@ class JobPostingHeuristicExtractor:
                     continue
                 
                 score = self._score_description(cleaned_text)
-                is_valid = self._is_valid_description(cleaned_text)
+                is_valid = JobPostingExtractorUtils.is_valid_description(cleaned_text)
                 
                 if score > best_score and is_valid:
                     best_description = cleaned_text
                     best_score = score
         
-        # If no description found with specific selectors, try paragraphs as fallback
+        # Always try to extract content by looking for job-related sections with headings first
+        # This is often more accurate than generic selectors
+        job_sections = self._extract_job_sections_by_headings(soup)
+        if job_sections:
+            combined_text = '\n\n'.join(job_sections)
+            cleaned_text = self._extract_and_clean_text([soup.new_string(combined_text)])
+            
+            # Check if this looks like a job description
+            has_nav = self._contains_navigation_patterns(cleaned_text)
+            is_valid = JobPostingExtractorUtils.is_valid_description(cleaned_text)
+            score = self._score_description(cleaned_text)
+            
+            if not has_nav and is_valid and len(cleaned_text) > 200 and score > best_score:
+                best_description = cleaned_text
+                best_score = score
+        
+        # If no description found with specific selectors or job sections, try a more intelligent approach
         if not best_description:
-            paragraphs = soup.find_all('p')
-            substantial_paragraphs = []
             
-            for p in paragraphs:
-                text = p.get_text().strip()
-                if len(text) > 100:  # Look for substantial paragraphs
-                    substantial_paragraphs.append(text)
+            # Look for main content areas, avoiding footer/navigation
+            if not best_description:
+                main_content_selectors = [
+                    'main',
+                    '[role="main"]',
+                    '.main-content',
+                    '.content',
+                    '.job-content',
+                    'article'
+                ]
+                
+                main_content = None
+                for selector in main_content_selectors:
+                    elements = soup.select(selector)
+                    if elements:
+                        main_content = elements[0]
+                        break
+                
+                if main_content:
+                    # Extract text from main content, filtering out navigation
+                    filtered_content = self._filter_navigation_content(main_content)
+                    if filtered_content:
+                        cleaned_text = self._extract_and_clean_text([filtered_content])
+                        
+                        # Check if this looks like a job description
+                        has_nav = self._contains_navigation_patterns(cleaned_text)
+                        is_valid = JobPostingExtractorUtils.is_valid_description(cleaned_text)
+                        
+                        if not has_nav and is_valid and len(cleaned_text) > 200:
+                            best_description = cleaned_text
             
-            if substantial_paragraphs:
-                # Combine substantial paragraphs
-                combined_text = '\n\n'.join(substantial_paragraphs)
-                cleaned_text = self._extract_and_clean_text([soup.new_string(combined_text)])
+            # Fallback: try paragraphs but be more selective
+            if not best_description:
+                paragraphs = soup.find_all('p')
+                substantial_paragraphs = []
                 
-                # Check if this looks like a job description
-                has_nav = self._contains_navigation_patterns(cleaned_text)
-                is_valid = self._is_valid_description(cleaned_text)
+                for p in paragraphs:
+                    text = p.get_text().strip()
+                    # More selective: look for paragraphs that seem job-related
+                    if (len(text) > 150 and 
+                        not self._contains_navigation_patterns(text) and
+                        not text.lower().startswith(('privacy', 'terms', 'cookie', 'equal opportunity'))):
+                        substantial_paragraphs.append(text)
                 
-                if not has_nav and is_valid:
-                    best_description = cleaned_text
+                if substantial_paragraphs:
+                    # Combine substantial paragraphs
+                    combined_text = '\n\n'.join(substantial_paragraphs)
+                    cleaned_text = self._extract_and_clean_text([soup.new_string(combined_text)])
+                    
+                    # Check if this looks like a job description
+                    has_nav = self._contains_navigation_patterns(cleaned_text)
+                    is_valid = JobPostingExtractorUtils.is_valid_description(cleaned_text)
+                    
+                    if not has_nav and is_valid:
+                        best_description = cleaned_text
         
         return best_description
+    
+    def _extract_job_sections_by_headings(self, soup: BeautifulSoup) -> List[str]:
+        """Extract job content by looking for sections with job-related headings"""
+        job_sections = []
+        
+        # Look for headings that indicate job content sections
+        job_heading_keywords = [
+            'about the job',
+            'responsibilities', 
+            'minimum qualifications',
+            'preferred qualifications',
+            'qualifications',
+            'requirements',
+            'experience',
+            'education',
+            'skills',
+            'benefits',
+            'salary',
+            'location',
+            'job type',
+            'description'
+        ]
+        
+        # Find all headings (h1-h6)
+        headings = soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+        
+        for heading in headings:
+            heading_text = heading.get_text().strip().lower()
+            
+            # Check if this heading indicates a job section
+            if any(keyword in heading_text for keyword in job_heading_keywords):
+                # Extract content following this heading
+                section_content = self._extract_content_after_heading(heading)
+                if section_content and len(section_content.strip()) > 50:
+                    # Add the heading and its content
+                    full_section = f"{heading.get_text().strip()}\n{section_content}"
+                    job_sections.append(full_section)
+        
+        return job_sections
+    
+    def _extract_content_after_heading(self, heading) -> str:
+        """Extract content that follows a heading until the next heading or end of container"""
+        content_parts = []
+        current = heading.next_sibling
+        
+        # Walk through siblings until we hit another heading or run out
+        while current:
+            if hasattr(current, 'name'):
+                # If we hit another heading, stop
+                if current.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                    break
+                # If it's a paragraph, div, or list, include it
+                if current.name in ['p', 'div', 'ul', 'ol', 'li']:
+                    # Preserve HTML structure for proper list processing
+                    html_content = str(current)
+                    if html_content and len(html_content.strip()) > 10:
+                        content_parts.append(html_content)
+            else:
+                # Text node
+                text = str(current).strip()
+                if text and len(text) > 10:
+                    content_parts.append(text)
+            
+            current = current.next_sibling
+        
+        # Join the HTML content and then process it to preserve list structure
+        combined_html = '\n'.join(content_parts)
+        if combined_html:
+            # Use the _extract_and_clean_text method to properly format lists
+            soup = BeautifulSoup(combined_html, 'html.parser')
+            return self._extract_and_clean_text([soup])
+        
+        return '\n'.join(content_parts)
     
     def _filter_navigation_content(self, element) -> Optional[str]:
         """Filter out navigation and UI elements from job description content"""
@@ -290,14 +440,32 @@ class JobPostingHeuristicExtractor:
             'to proceed with your application',
             'you must be at least 18 years of age',
             'job id:',
-            'multiple locations'
+            'multiple locations',
+            'privacy policy',
+            'terms of service',
+            'cookie policy',
+            'equal opportunity',
+            'affirmative action',
+            'workforce that is representative',
+            'culture of belonging',
+            'basis protected by law',
+            'recruitment agencies',
+            'unsolicited resumes',
+            'accommodation',
+            'english proficiency',
+            'follow life at',
+            'more about us',
+            'related information',
+            'investor relations',
+            'send feedback',
+            'help link'
         ]
         
         text_lower = text.lower()
         
-        # If more than 30% of the text matches navigation patterns, it's likely navigation
+        # If more than 20% of the text matches navigation patterns, it's likely navigation
         nav_matches = sum(1 for pattern in nav_patterns if pattern in text_lower)
-        if nav_matches > len(nav_patterns) * 0.3:
+        if nav_matches > len(nav_patterns) * 0.2:
             return True
         
         # Check if the text is too short (likely navigation)
@@ -305,12 +473,22 @@ class JobPostingHeuristicExtractor:
             return True
         
         # Check if it contains mostly navigation elements
-        nav_words = ['apply', 'back', 'search', 'results', 'acknowledge', 'refer']
+        nav_words = ['apply', 'back', 'search', 'results', 'acknowledge', 'refer', 'privacy', 'terms', 'cookie', 'equal', 'opportunity']
         words = text_lower.split()
         nav_word_count = sum(1 for word in words if word in nav_words)
         
         if len(words) > 0 and nav_word_count / len(words) > 0.1:
             return True
+        
+        # Check if text starts with common footer patterns
+        footer_starters = [
+            'privacy', 'terms', 'cookie', 'equal opportunity', 'google is proud',
+            'follow life at', 'more about us', 'related information', 'investor relations'
+        ]
+        
+        for starter in footer_starters:
+            if text_lower.startswith(starter):
+                return True
         
         return False
     
@@ -356,40 +534,6 @@ class JobPostingHeuristicExtractor:
         
         return text
     
-    def _is_valid_title(self, title: str) -> bool:
-        """Validate job title"""
-        if not title or len(title) < 3:
-            return False
-        
-        # Check for common job title keywords
-        job_keywords = [
-            'engineer', 'developer', 'manager', 'analyst', 'specialist',
-            'coordinator', 'director', 'lead', 'senior', 'junior',
-            'intern', 'consultant', 'architect', 'designer', 'programmer'
-        ]
-        
-        title_lower = title.lower()
-        return any(keyword in title_lower for keyword in job_keywords) or len(title) > 10
-    
-    def _is_valid_description(self, description: str) -> bool:
-        """Validate job description"""
-        if not description or len(description) < 50:
-            return False
-        
-        # Check for job-related keywords
-        job_keywords = [
-            'responsibilities', 'requirements', 'qualifications', 'experience',
-            'skills', 'education', 'degree', 'years', 'salary', 'benefits',
-            'location', 'remote', 'full-time', 'part-time', 'contract',
-            'about', 'company', 'team', 'role', 'position', 'engineer',
-            'developer', 'analyst', 'manager', 'specialist', 'coordinator'
-        ]
-        
-        description_lower = description.lower()
-        keyword_count = sum(1 for keyword in job_keywords if keyword in description_lower)
-        
-        # Be more flexible - require at least 1 keyword instead of 2
-        return keyword_count >= 1
     
     def _score_description(self, text: str) -> float:
         """Score description text for relevance"""
@@ -432,11 +576,11 @@ class JobPostingHeuristicExtractor:
             return False
         
         # Title must be valid
-        if not self._is_valid_title(title):
+        if not JobPostingExtractorUtils._is_valid_title(title):
             return False
         
         # Description must be substantial
-        if not self._is_valid_description(description):
+        if not JobPostingExtractorUtils.is_valid_description(description):
             return False
         
         return True

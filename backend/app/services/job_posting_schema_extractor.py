@@ -8,6 +8,7 @@ import re
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
 import structlog
+from bs4 import BeautifulSoup
 
 from app.services.job_posting_web_scraper import JobPostingWebScraper
 from app.utils.job_posting_extractor_utils import JobPostingExtractorUtils
@@ -164,21 +165,25 @@ class JobPostingSchemaExtractor:
             if not self._is_job_posting_schema(item):
                 return None
             
-            # Extract job title
-            title = self._extract_title_from_json_ld(item)
-            if not title:
-                return None
-            
-            # PRIORITY 1: Extract company name from page title (most accurate)
+            # PRIORITY 1: Extract title and company from page title (most accurate)
+            title = None
             company = None
             if html_content:
-                from bs4 import BeautifulSoup
                 soup = BeautifulSoup(html_content, 'html.parser')
-                company = JobPostingExtractorUtils.extract_company_from_title(soup, "Schema extractor")
+                title, company = JobPostingExtractorUtils.extract_title_and_company_from_page_title(soup, "Schema extractor")
+                if title:
+                    logger.info(f"Schema extractor using title-based title: '{title}'")
                 if company:
                     logger.info(f"Schema extractor using title-based company: '{company}'")
             
-            # PRIORITY 2: Fall back to JSON-LD company extraction
+            # PRIORITY 2: Fall back to JSON-LD extraction if page title extraction failed
+            if not title:
+                title = self._extract_title_from_json_ld(item)
+                if title:
+                    logger.info(f"Schema extractor using JSON-LD title: '{title}'")
+                else:
+                    return None  # No title found, skip this item
+            
             if not company:
                 company = self._extract_company_from_json_ld(item)
                 if company:

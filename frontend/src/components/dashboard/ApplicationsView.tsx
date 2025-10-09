@@ -110,7 +110,13 @@ const ApplicationsView: React.FC = () => {
       }
     })
 
-  }, [currentJobPostingId, jobPostingStatus])
+    // Cleanup function to unsubscribe when component unmounts or job posting ID changes
+    return () => {
+      console.log('Cleaning up webhook subscription for job posting:', currentJobPostingId)
+      unsubscribe()
+    }
+
+  }, [currentJobPostingId])
 
   const loadData = async () => {
     try {
