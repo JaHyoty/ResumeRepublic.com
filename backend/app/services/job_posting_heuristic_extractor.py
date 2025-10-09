@@ -140,9 +140,46 @@ class JobPostingHeuristicExtractor:
         cleaned_company = re.sub(r'\s+', ' ', cleaned_company).strip()
         return cleaned_company
     
+    def _extract_company_from_title(self, soup: BeautifulSoup) -> Optional[str]:
+        """Extract company name from page title using common patterns"""
+        # Get page title
+        title_tag = soup.find('title')
+        if not title_tag or not title_tag.get_text():
+            return None
+        
+        title = title_tag.get_text().strip()
+        
+        # Common patterns for company names in titles
+        patterns = [
+            r'at\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)',  # "Job at Company Name -" or "Job at Company Name"
+            r'@\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)',   # "Job @ Company Name -" or "Job @ Company Name"
+            r'with\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)', # "Job with Company Name -" or "Job with Company Name"
+            r'for\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)',  # "Job for Company Name -" or "Job for Company Name"
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, title, re.IGNORECASE)
+            if match:
+                company = match.group(1).strip()
+                # Clean up common suffixes
+                company = re.sub(r'\s*[-|]\s*.*$', '', company)  # Remove everything after "-" or "|"
+                company = re.sub(r'\s*\(.*\)\s*$', '', company)   # Remove parenthetical content
+                company = re.sub(r'\s*-\s*$', '', company)       # Remove trailing dashes
+                
+                # Validate the extracted company name
+                if self._is_valid_company(company):
+                    return company
+        
+        return None
+    
     def _extract_company_heuristic(self, soup: BeautifulSoup, url: str) -> Optional[str]:
         """Extract company name using heuristics"""
-        # Try meta tags first
+        # Try extracting company from page title first
+        title_company = self._extract_company_from_title(soup)
+        if title_company:
+            return self._clean_company(title_company)
+        
+        # Try meta tags
         meta_company = soup.find('meta', {'property': 'og:site_name'})
         if meta_company and meta_company.get('content'):
             company = meta_company['content'].strip()
