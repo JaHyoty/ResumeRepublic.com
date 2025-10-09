@@ -145,8 +145,8 @@ class JobPostingWebScraper:
                 
                 # Navigate to the page with efficient loading strategy
                 try:
-                    # First, wait for network to be idle
-                    await page.goto(url, wait_until='networkidle', timeout=self.timeout * 1000)
+                    # First, wait for DOM to be ready (more reliable than networkidle)
+                    await page.goto(url, wait_until='domcontentloaded', timeout=self.timeout * 1000)
                     
                     # Then wait specifically for JSON-LD to appear (if it loads dynamically)
                     try:

@@ -51,11 +51,16 @@ class JobPostingParserService:
         Implements two-stage pipeline: schema -> heuristic
         """
         try:
+            logger.info("Starting job posting parsing", job_posting_id=job_posting_id)
+            
             # Get job posting record
             job_posting = db.query(JobPosting).filter(JobPosting.id == job_posting_id).first()
             if not job_posting:
                 logger.error("Job posting not found", job_posting_id=job_posting_id)
                 return
+            
+            logger.info("Found job posting, updating status to fetching", 
+                       job_posting_id=job_posting_id, url=job_posting.url)
             
             # Update status to fetching
             job_posting.status = 'fetching'
@@ -73,6 +78,7 @@ class JobPostingParserService:
             # Initialize parser service
             parser_service = JobPostingParserService()
             
+            logger.info("Starting Stage 1: Schema extraction", job_posting_id=job_posting_id)
             # Stage 1: Try schema extraction first
             schema_result = await parser_service._try_schema_extraction(job_posting, db)
             
