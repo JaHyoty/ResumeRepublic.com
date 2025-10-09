@@ -13,7 +13,7 @@ import logging
 from app.core.settings import settings
 from app.core.secret_manager import clear_credentials_cache
 # Note: engine imported dynamically to get fresh reference after refresh
-from app.api import auth, esc, resume, user, applications
+from app.api import auth, esc, resume, user, applications, job_posting, webhooks
 
 # Configure structured logging
 if settings.ENVIRONMENT == "development":
@@ -73,6 +73,8 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
 )
 
+
+
 # Add middleware
 app.add_middleware(
     CORSMiddleware,
@@ -99,6 +101,8 @@ app.include_router(user.router, prefix="/api/user", tags=["user"])
 app.include_router(esc.router, prefix="/api/esc", tags=["experience-skills-catalog"])
 app.include_router(resume.router, prefix="/api/resume", tags=["resume"])
 app.include_router(applications.router, prefix="/api/applications", tags=["applications"])
+app.include_router(job_posting.router, prefix="/api/job-postings", tags=["job-postings"])
+app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
 
 
 

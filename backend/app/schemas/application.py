@@ -5,13 +5,11 @@ Pydantic schemas for applications
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 from datetime import datetime
+from uuid import UUID
 
 
 class ApplicationBase(BaseModel):
     """Base application schema"""
-    job_title: str = Field(..., min_length=1, max_length=255)
-    company: str = Field(..., min_length=1, max_length=100)
-    job_description: Optional[str] = None
     online_assessment: bool = False
     interview: bool = False
     rejected: bool = False
@@ -20,18 +18,11 @@ class ApplicationBase(BaseModel):
     job_type: Optional[str] = None
     experience_level: Optional[str] = None
     application_metadata: Optional[Dict[str, Any]] = None
-
-
-class ApplicationCreate(ApplicationBase):
-    """Schema for creating a new application"""
-    pass
+    job_posting_id: Optional[UUID] = None
 
 
 class ApplicationUpdate(BaseModel):
     """Schema for updating an application"""
-    job_title: Optional[str] = Field(None, min_length=1, max_length=255)
-    company: Optional[str] = Field(None, min_length=1, max_length=100)
-    job_description: Optional[str] = None
     online_assessment: Optional[bool] = None
     interview: Optional[bool] = None
     rejected: Optional[bool] = None
@@ -40,15 +31,20 @@ class ApplicationUpdate(BaseModel):
     job_type: Optional[str] = None
     experience_level: Optional[str] = None
     application_metadata: Optional[Dict[str, Any]] = None
+    job_posting_id: Optional[UUID] = None
 
 
 class ApplicationResponse(ApplicationBase):
     """Schema for application response"""
     id: int
-    user_id: int
     applied_date: datetime
     created_at: datetime
     updated_at: Optional[datetime] = None
+    
+    # Job data from job_posting relationship
+    job_title: Optional[str] = None
+    company: Optional[str] = None
+    job_description: Optional[str] = None
 
     class Config:
         from_attributes = True

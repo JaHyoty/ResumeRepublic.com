@@ -2,16 +2,16 @@
 Applications API endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import List
 import structlog
 
 from app.core.database import get_db
 from app.models.application import Application
+from app.models.job_posting import JobPosting
 from app.schemas.application import (
-    ApplicationCreate, 
     ApplicationUpdate, 
     ApplicationResponse, 
     ApplicationStats
@@ -31,11 +31,36 @@ async def get_applications(
     db: Session = Depends(get_db)
 ):
     """Get all applications for the current user, ordered by ID (newest first)"""
-    applications = db.query(Application).filter(
+    applications = db.query(Application).options(
+        joinedload(Application.job_posting)
+    ).filter(
         Application.user_id == current_user.id
     ).order_by(Application.id.desc()).offset(skip).limit(limit).all()
     
-    return applications
+    # Convert to response format with job posting data
+    response_data = []
+    for app in applications:
+        app_data = {
+            "id": app.id,
+            "applied_date": app.applied_date,
+            "created_at": app.created_at,
+            "updated_at": app.updated_at,
+            "online_assessment": app.online_assessment,
+            "interview": app.interview,
+            "rejected": app.rejected,
+            "salary_range": app.salary_range,
+            "location": app.location,
+            "job_type": app.job_type,
+            "experience_level": app.experience_level,
+            "application_metadata": app.application_metadata,
+            "job_posting_id": app.job_posting_id,
+            "job_title": app.job_posting.title if app.job_posting else None,
+            "company": app.job_posting.company if app.job_posting else None,
+            "job_description": app.job_posting.description if app.job_posting else None
+        }
+        response_data.append(app_data)
+    
+    return response_data
 
 
 @router.get("/stats", response_model=ApplicationStats)
@@ -81,26 +106,6 @@ async def get_application_stats(
     )
 
 
-@router.post("/", response_model=ApplicationResponse)
-async def create_application(
-    application: ApplicationCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create a new application"""
-    db_application = Application(
-        user_id=current_user.id,
-        **application.dict()
-    )
-    
-    db.add(db_application)
-    db.commit()
-    db.refresh(db_application)
-    
-    logger.info("Application created", application_id=db_application.id, user_id=current_user.id)
-    return db_application
-
-
 @router.get("/{application_id}", response_model=ApplicationResponse)
 async def get_application(
     application_id: int,
@@ -108,7 +113,9 @@ async def get_application(
     db: Session = Depends(get_db)
 ):
     """Get a specific application by ID"""
-    application = db.query(Application).filter(
+    application = db.query(Application).options(
+        joinedload(Application.job_posting)
+    ).filter(
         Application.id == application_id,
         Application.user_id == current_user.id
     ).first()
@@ -119,7 +126,16 @@ async def get_application(
             detail="Application not found"
         )
     
-    return application
+    # Return application with job posting data
+    return ApplicationResponse(
+        id=application.id,
+        applied_date=application.applied_date,
+        created_at=application.created_at,
+        updated_at=application.updated_at,
+        job_title=application.job_posting.title if application.job_posting else None,
+        company=application.job_posting.company if application.job_posting else None,
+        job_description=application.job_posting.description if application.job_posting else None
+    )
 
 
 @router.put("/{application_id}", response_model=ApplicationResponse)
@@ -203,3 +219,84 @@ async def delete_application(
     
     logger.info("Application deleted", application_id=application_id, user_id=current_user.id)
     return {"message": "Application deleted successfully"}
+
+
+# Job Posting Integration
+
+@router.post("/{job_posting_id}", response_model=ApplicationResponse)
+async def create_application_from_job_posting(
+    job_posting_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create an application from a parsed job posting
+    """
+    try:
+        job_posting = db.query(JobPosting).filter(JobPosting.id == job_posting_id).first()
+        
+        if not job_posting:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Job posting not found"
+            )
+        
+        if job_posting.status not in ['complete', 'manual']:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Job posting parsing not complete"
+            )
+        
+        if not job_posting.title or not job_posting.description:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Job posting data incomplete"
+            )
+        
+        # Create application linked to job posting
+        application = Application(
+            user_id=current_user.id,
+            applied_date=job_posting.created_at,
+            job_posting_id=job_posting.id,
+            application_metadata={
+                "source": "web-ui",
+                "original_url": job_posting.url,
+                "parsing_method": job_posting.provenance.get('method', 'unknown') if job_posting.provenance else 'unknown'
+            }
+        )
+        
+        db.add(application)
+        db.commit()
+        db.refresh(application)
+        
+        logger.info(
+            "Application created from job posting",
+            application_id=application.id,
+            job_posting_id=job_posting.id,
+            user_id=current_user.id
+        )
+        
+        # Return application with job posting data
+        return ApplicationResponse(
+            id=application.id,
+            applied_date=application.applied_date,
+            created_at=application.created_at,
+            updated_at=application.updated_at,
+            job_title=job_posting.title,
+            company=job_posting.company,
+            job_description=job_posting.description
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Failed to create application from job posting",
+            error=str(e),
+            job_posting_id=job_posting_id,
+            user_id=current_user.id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create application from job posting"
+        )
