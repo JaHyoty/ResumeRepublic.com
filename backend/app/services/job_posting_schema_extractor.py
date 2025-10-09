@@ -8,8 +8,10 @@ import re
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
 import structlog
+from bs4 import BeautifulSoup
 
 from app.services.job_posting_web_scraper import JobPostingWebScraper
+from app.utils.job_posting_extractor_utils import JobPostingExtractorUtils
 
 logger = structlog.get_logger()
 
@@ -20,16 +22,17 @@ class JobPostingSchemaExtractor:
     def __init__(self):
         self.web_scraper = JobPostingWebScraper()
     
-    async def extract_job_data(self, url: str) -> Optional[Dict[str, Any]]:
+    async def extract_job_data(self, url: str, html_content: str = None) -> Optional[Dict[str, Any]]:
         """
         Extract job data using schema.org structured markup
         Returns dict with title, company, description, confidence, and provenance
         """
         try:
-            # Fetch HTML content
-            html_content = await self.web_scraper.fetch_html(url)
-            if not html_content:
-                return None
+            # Fetch HTML content if not provided
+            if html_content is None:
+                html_content = await self.web_scraper.fetch_html(url)
+                if not html_content:
+                    return None
             
             # Try JSON-LD extraction first
             json_ld_result = self._extract_from_json_ld(html_content)
@@ -65,11 +68,11 @@ class JobPostingSchemaExtractor:
                     # Handle both single objects and arrays
                     if isinstance(data, list):
                         for j, item in enumerate(data):
-                            result = self._process_json_ld_item(item)
+                            result = self._process_json_ld_item(item, html_content)
                             if result:
                                 return result
                     else:
-                        result = self._process_json_ld_item(data)
+                        result = self._process_json_ld_item(data, html_content)
                         if result:
                             return result
                             
@@ -81,11 +84,11 @@ class JobPostingSchemaExtractor:
                         
                         if isinstance(data, list):
                             for j, item in enumerate(data):
-                                result = self._process_json_ld_item(item)
+                                result = self._process_json_ld_item(item, html_content)
                                 if result:
                                     return result
                         else:
-                            result = self._process_json_ld_item(data)
+                            result = self._process_json_ld_item(data, html_content)
                             if result:
                                 return result
                     except json.JSONDecodeError:
@@ -155,20 +158,36 @@ class JobPostingSchemaExtractor:
             # If fixing fails, return original content
             return json_content
     
-    def _process_json_ld_item(self, item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _process_json_ld_item(self, item: Dict[str, Any], html_content: str = None) -> Optional[Dict[str, Any]]:
         """Process a single JSON-LD item for job posting data"""
         try:
             # Check if this is a JobPosting schema
             if not self._is_job_posting_schema(item):
                 return None
             
-            # Extract job title
-            title = self._extract_title_from_json_ld(item)
-            if not title:
-                return None
+            # PRIORITY 1: Extract title and company from page title (most accurate)
+            title = None
+            company = None
+            if html_content:
+                soup = BeautifulSoup(html_content, 'html.parser')
+                title, company = JobPostingExtractorUtils.extract_title_and_company_from_page_title(soup, "Schema extractor")
+                if title:
+                    logger.info(f"Schema extractor using title-based title: '{title}'")
+                if company:
+                    logger.info(f"Schema extractor using title-based company: '{company}'")
             
-            # Extract company name
-            company = self._extract_company_from_json_ld(item)
+            # PRIORITY 2: Fall back to JSON-LD extraction if page title extraction failed
+            if not title:
+                title = self._extract_title_from_json_ld(item)
+                if title:
+                    logger.info(f"Schema extractor using JSON-LD title: '{title}'")
+                else:
+                    return None  # No title found, skip this item
+            
+            if not company:
+                company = self._extract_company_from_json_ld(item)
+                if company:
+                    logger.info(f"Schema extractor using JSON-LD company: '{company}'")
             
             # Extract job description
             description = self._extract_description_from_json_ld(item)
@@ -221,44 +240,9 @@ class JobPostingSchemaExtractor:
             if field in item and item[field]:
                 title = str(item[field]).strip()
                 if len(title) > 2:
-                    return self._clean_title(title)
+                    return JobPostingExtractorUtils.clean_title(title)
         
         return None
-    
-    def _clean_title(self, title: str) -> str:
-        """Clean job title by removing text inside square brackets"""
-        import re
-        # Remove text inside square brackets (e.g., "[Multiple Positions Available]")
-        cleaned_title = re.sub(r'\[.*?\]', '', title).strip()
-        # Clean up any extra whitespace
-        cleaned_title = re.sub(r'\s+', ' ', cleaned_title).strip()
-        return cleaned_title
-    
-    def _clean_company(self, company: str) -> str:
-        """Clean company name by removing common career page suffixes"""
-        import re
-        # Remove common career page suffixes (case insensitive)
-        career_suffixes = [
-            r'\s+candidate\s+experience\s+page\s*$',
-            r'\s+candidate\s+experience\s*$',
-            r'\s+career\s+page\s*$',
-            r'\s+careers\s+page\s*$',
-            r'\s+career\s+site\s*$',
-            r'\s+careers\s+site\s*$',
-            r'\s+career\s+portal\s*$',
-            r'\s+careers\s+portal\s*$',
-            r'\s+job\s+board\s*$',
-            r'\s+career\s+center\s*$',
-            r'\s+careers\s+center\s*$'
-        ]
-        
-        cleaned_company = company.strip()
-        for suffix_pattern in career_suffixes:
-            cleaned_company = re.sub(suffix_pattern, '', cleaned_company, flags=re.IGNORECASE)
-        
-        # Clean up any extra whitespace
-        cleaned_company = re.sub(r'\s+', ' ', cleaned_company).strip()
-        return cleaned_company
     
     def _extract_company_from_json_ld(self, item: Dict[str, Any]) -> Optional[str]:
         """Extract company name from JSON-LD item"""
@@ -271,7 +255,7 @@ class JobPostingSchemaExtractor:
                 if field in hiring_org and hiring_org[field]:
                     company = str(hiring_org[field]).strip()
                     if len(company) > 1:
-                        return self._clean_company(company)
+                        return JobPostingExtractorUtils.clean_company(company)
         
         # Check for direct company fields
         company_fields = ['company', 'employer', 'organization']
@@ -279,7 +263,7 @@ class JobPostingSchemaExtractor:
             if field in item and item[field]:
                 company = str(item[field]).strip()
                 if len(company) > 1:
-                    return self._clean_company(company)
+                    return JobPostingExtractorUtils.clean_company(company)
         
         return None
     
@@ -394,51 +378,12 @@ class JobPostingSchemaExtractor:
             # Add line break before closing tags
             text = re.sub(f'</{element}>', '\n', text, flags=re.IGNORECASE)
         
-        # Remove all remaining HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
+        # Remove all remaining HTML tags and decode entities using shared utility
+        text = JobPostingExtractorUtils.clean_html_tags(text)
         
-        # Decode common HTML entities
-        html_entities = {
-            '&amp;': '&',
-            '&lt;': '<',
-            '&gt;': '>',
-            '&quot;': '"',
-            '&#39;': "'",
-            '&nbsp;': ' ',
-            '&ndash;': '-',
-            '&mdash;': '—',
-            '&hellip;': '...',
-        }
-        
-        for entity, char in html_entities.items():
-            text = text.replace(entity, char)
-        
-        # Clean whitespace while preserving paragraph structure
+        # Additional whitespace cleaning is handled by the shared utility
         # Replace multiple consecutive line breaks with double line breaks (paragraph breaks)
         text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
-        
-        # Replace multiple spaces/tabs with single space within lines
-        text = re.sub(r'[ \t]+', ' ', text)
-        
-        # Remove leading/trailing whitespace from each line
-        lines = text.split('\n')
-        cleaned_lines = []
-        
-        for i, line in enumerate(lines):
-            cleaned_line = line.strip()
-            if cleaned_line:  # Only keep non-empty lines
-                cleaned_lines.append(cleaned_line)
-            elif cleaned_lines and cleaned_lines[-1] != '':  # Keep one empty line between paragraphs
-                # Check if the previous line is a list item (starts with -)
-                # If so, don't add empty line to avoid blank rows between list items
-                if not cleaned_lines[-1].startswith('- '):
-                    cleaned_lines.append('')
-        
-        # Join lines back together
-        text = '\n'.join(cleaned_lines)
-        
-        # Final cleanup - remove excessive leading/trailing whitespace
-        text = text.strip()
         
         return text
     
