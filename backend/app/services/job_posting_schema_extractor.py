@@ -373,51 +373,12 @@ class JobPostingSchemaExtractor:
             # Add line break before closing tags
             text = re.sub(f'</{element}>', '\n', text, flags=re.IGNORECASE)
         
-        # Remove all remaining HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
+        # Remove all remaining HTML tags and decode entities using shared utility
+        text = JobPostingExtractorUtils.clean_html_tags(text)
         
-        # Decode common HTML entities
-        html_entities = {
-            '&amp;': '&',
-            '&lt;': '<',
-            '&gt;': '>',
-            '&quot;': '"',
-            '&#39;': "'",
-            '&nbsp;': ' ',
-            '&ndash;': '-',
-            '&mdash;': '—',
-            '&hellip;': '...',
-        }
-        
-        for entity, char in html_entities.items():
-            text = text.replace(entity, char)
-        
-        # Clean whitespace while preserving paragraph structure
+        # Additional whitespace cleaning is handled by the shared utility
         # Replace multiple consecutive line breaks with double line breaks (paragraph breaks)
         text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
-        
-        # Replace multiple spaces/tabs with single space within lines
-        text = re.sub(r'[ \t]+', ' ', text)
-        
-        # Remove leading/trailing whitespace from each line
-        lines = text.split('\n')
-        cleaned_lines = []
-        
-        for i, line in enumerate(lines):
-            cleaned_line = line.strip()
-            if cleaned_line:  # Only keep non-empty lines
-                cleaned_lines.append(cleaned_line)
-            elif cleaned_lines and cleaned_lines[-1] != '':  # Keep one empty line between paragraphs
-                # Check if the previous line is a list item (starts with -)
-                # If so, don't add empty line to avoid blank rows between list items
-                if not cleaned_lines[-1].startswith('- '):
-                    cleaned_lines.append('')
-        
-        # Join lines back together
-        text = '\n'.join(cleaned_lines)
-        
-        # Final cleanup - remove excessive leading/trailing whitespace
-        text = text.strip()
         
         return text
     

@@ -14,10 +14,75 @@ class JobPostingExtractorUtils:
     """Shared utilities for job posting extraction"""
     
     @staticmethod
+    def clean_html_tags(text: str) -> str:
+        """Clean HTML tags and entities while preserving line breaks and structure"""
+        if not text:
+            return text
+        
+        # Remove HTML tags
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        # Decode common HTML entities
+        html_entities = {
+            '&amp;': '&',
+            '&lt;': '<',
+            '&gt;': '>',
+            '&quot;': '"',
+            '&#x27;': "'",
+            '&#x2F;': '/',
+            '&nbsp;': ' ',
+            '&ndash;': '–',
+            '&mdash;': '—',
+            '&hellip;': '…',
+            '&copy;': '©',
+            '&reg;': '®',
+            '&trade;': '™',
+            '&bull;': '•',
+            '&middot;': '·',
+            '&lsquo;': ''',
+            '&rsquo;': ''',
+            '&ldquo;': '"',
+            '&rdquo;': '"',
+        }
+        
+        for entity, replacement in html_entities.items():
+            text = text.replace(entity, replacement)
+        
+        # Clean up extra whitespace but preserve line breaks
+        # Replace multiple spaces/tabs with single space within lines
+        text = re.sub(r'[ \t]+', ' ', text)
+        
+        # Remove leading/trailing whitespace from each line
+        lines = text.split('\n')
+        cleaned_lines = []
+        
+        for i, line in enumerate(lines):
+            cleaned_line = line.strip()
+            if cleaned_line:  # Only keep non-empty lines
+                cleaned_lines.append(cleaned_line)
+            elif cleaned_lines and cleaned_lines[-1] != '':  # Keep one empty line between paragraphs
+                # Check if the previous line is a list item (starts with -)
+                # If so, don't add empty line to avoid blank rows between list items
+                if not cleaned_lines[-1].startswith('- '):
+                    cleaned_lines.append('')
+        
+        # Join lines back together
+        text = '\n'.join(cleaned_lines)
+        
+        # Final cleanup - remove excessive leading/trailing whitespace
+        text = text.strip()
+        
+        return text
+    
+    @staticmethod
     def clean_title(title: str) -> str:
-        """Clean job title by removing text inside square brackets"""
+        """Clean job title by removing text inside square brackets and HTML tags"""
+        # Remove HTML tags first
+        cleaned_title = JobPostingExtractorUtils.clean_html_tags(title)
+        
         # Remove text inside square brackets (e.g., "[Multiple Positions Available]")
-        cleaned_title = re.sub(r'\[.*?\]', '', title).strip()
+        cleaned_title = re.sub(r'\[.*?\]', '', cleaned_title).strip()
+        
         # Clean up any extra whitespace
         cleaned_title = re.sub(r'\s+', ' ', cleaned_title).strip()
         return cleaned_title
@@ -40,7 +105,7 @@ class JobPostingExtractorUtils:
             r'\s+careers\s+center\s*$'
         ]
         
-        cleaned_company = company.strip()
+        cleaned_company = JobPostingExtractorUtils.clean_html_tags(company.strip())
         for suffix_pattern in career_suffixes:
             cleaned_company = re.sub(suffix_pattern, '', cleaned_company, flags=re.IGNORECASE)
         
