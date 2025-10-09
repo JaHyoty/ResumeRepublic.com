@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import structlog
 
 from app.services.job_posting_web_scraper import JobPostingWebScraper
+from app.utils.job_posting_extractor_utils import JobPostingExtractorUtils
 
 logger = structlog.get_logger()
 
@@ -19,15 +20,16 @@ class JobPostingHeuristicExtractor:
     def __init__(self):
         self.web_scraper = JobPostingWebScraper()
     
-    async def extract_job_data(self, url: str) -> Optional[Dict[str, Any]]:
+    async def extract_job_data(self, url: str, html_content: str = None) -> Optional[Dict[str, Any]]:
         """
         Extract job data using heuristic DOM analysis
         """
         try:
-            # Fetch HTML content
-            html_content = await self.web_scraper.fetch_html(url)
-            if not html_content:
-                return None
+            # Fetch HTML content if not provided
+            if html_content is None:
+                html_content = await self.web_scraper.fetch_html(url)
+                if not html_content:
+                    return None
             
             soup = BeautifulSoup(html_content, 'html.parser')
             
@@ -96,95 +98,41 @@ class JobPostingHeuristicExtractor:
             for i, element in enumerate(elements):
                 text = element.get_text().strip()
                 if self._is_valid_title(text):
-                    return self._clean_title(text)
+                    return JobPostingExtractorUtils.clean_title(text)
         
         # Try meta tags
         meta_title = soup.find('meta', {'property': 'og:title'})
         if meta_title and meta_title.get('content'):
             title = meta_title['content'].strip()
             if self._is_valid_title(title):
-                return self._clean_title(title)
-        
-        return None
-    
-    def _clean_title(self, title: str) -> str:
-        """Clean job title by removing text inside square brackets"""
-        # Remove text inside square brackets (e.g., "[Multiple Positions Available]")
-        cleaned_title = re.sub(r'\[.*?\]', '', title).strip()
-        # Clean up any extra whitespace
-        cleaned_title = re.sub(r'\s+', ' ', cleaned_title).strip()
-        return cleaned_title
-    
-    def _clean_company(self, company: str) -> str:
-        """Clean company name by removing common career page suffixes"""
-        # Remove common career page suffixes (case insensitive)
-        career_suffixes = [
-            r'\s+candidate\s+experience\s+page\s*$',
-            r'\s+candidate\s+experience\s*$',
-            r'\s+career\s+page\s*$',
-            r'\s+careers\s+page\s*$',
-            r'\s+career\s+site\s*$',
-            r'\s+careers\s+site\s*$',
-            r'\s+career\s+portal\s*$',
-            r'\s+careers\s+portal\s*$',
-            r'\s+job\s+board\s*$',
-            r'\s+career\s+center\s*$',
-            r'\s+careers\s+center\s*$'
-        ]
-        
-        cleaned_company = company.strip()
-        for suffix_pattern in career_suffixes:
-            cleaned_company = re.sub(suffix_pattern, '', cleaned_company, flags=re.IGNORECASE)
-        
-        # Clean up any extra whitespace
-        cleaned_company = re.sub(r'\s+', ' ', cleaned_company).strip()
-        return cleaned_company
-    
-    def _extract_company_from_title(self, soup: BeautifulSoup) -> Optional[str]:
-        """Extract company name from page title using common patterns"""
-        # Get page title
-        title_tag = soup.find('title')
-        if not title_tag or not title_tag.get_text():
-            return None
-        
-        title = title_tag.get_text().strip()
-        
-        # Common patterns for company names in titles
-        patterns = [
-            r'at\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)',  # "Job at Company Name -" or "Job at Company Name"
-            r'@\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)',   # "Job @ Company Name -" or "Job @ Company Name"
-            r'with\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)', # "Job with Company Name -" or "Job with Company Name"
-            r'for\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)',  # "Job for Company Name -" or "Job for Company Name"
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, title, re.IGNORECASE)
-            if match:
-                company = match.group(1).strip()
-                # Clean up common suffixes
-                company = re.sub(r'\s*[-|]\s*.*$', '', company)  # Remove everything after "-" or "|"
-                company = re.sub(r'\s*\(.*\)\s*$', '', company)   # Remove parenthetical content
-                company = re.sub(r'\s*-\s*$', '', company)       # Remove trailing dashes
-                
-                # Validate the extracted company name
-                if self._is_valid_company(company):
-                    return company
+                return JobPostingExtractorUtils.clean_title(title)
         
         return None
     
     def _extract_company_heuristic(self, soup: BeautifulSoup, url: str) -> Optional[str]:
         """Extract company name using heuristics"""
-        # Try extracting company from page title first
-        title_company = self._extract_company_from_title(soup)
+        # PRIORITY 1: Try extracting company from page title (most accurate)
+        title_company = JobPostingExtractorUtils.extract_company_from_title(soup, "Heuristic extractor")
         if title_company:
-            return self._clean_company(title_company)
+            logger.info(f"Company extracted from page title: '{title_company}'")
+            return title_company
         
-        # Try meta tags
-        meta_company = soup.find('meta', {'property': 'og:site_name'})
-        if meta_company and meta_company.get('content'):
-            company = meta_company['content'].strip()
-            if self._is_valid_company(company):
-                return self._clean_company(company)
+        # PRIORITY 2: Try meta tags (multiple sources)
+        meta_sources = [
+            {'property': 'og:site_name'},
+            {'name': 'application-name'},
+            {'name': 'apple-mobile-web-app-title'},
+            {'property': 'og:title'},
+            {'name': 'title'}
+        ]
+        
+        for meta_attr in meta_sources:
+            meta_company = soup.find('meta', meta_attr)
+            if meta_company and meta_company.get('content'):
+                company = meta_company['content'].strip()
+                if JobPostingExtractorUtils.is_valid_company(company):
+                    logger.info(f"Company extracted from meta tag {meta_attr}: '{company}'")
+                    return JobPostingExtractorUtils.clean_company(company)
         
         # Try common company selectors
         company_selectors = [
@@ -200,8 +148,8 @@ class JobPostingHeuristicExtractor:
             
             for i, element in enumerate(elements):
                 text = element.get_text().strip()
-                if self._is_valid_company(text):
-                    return self._clean_company(text)
+                if JobPostingExtractorUtils.is_valid_company(text):
+                    return JobPostingExtractorUtils.clean_company(text)
         
         # Fallback to domain name
         from urllib.parse import urlparse
@@ -209,8 +157,8 @@ class JobPostingHeuristicExtractor:
         if domain:
             # Remove www. prefix
             company = domain.replace('www.', '').split('.')[0]
-            if self._is_valid_company(company):
-                return self._clean_company(company.title())
+            if JobPostingExtractorUtils.is_valid_company(company):
+                return JobPostingExtractorUtils.clean_company(company.title())
         
         return None
     
@@ -461,17 +409,6 @@ class JobPostingHeuristicExtractor:
         
         title_lower = title.lower()
         return any(keyword in title_lower for keyword in job_keywords) or len(title) > 10
-    
-    def _is_valid_company(self, company: str) -> bool:
-        """Validate company name"""
-        if not company or len(company) < 2:
-            return False
-        
-        # Avoid generic terms
-        generic_terms = ['home', 'page', 'website', 'site', 'www', 'http']
-        company_lower = company.lower()
-        
-        return not any(term in company_lower for term in generic_terms)
     
     def _is_valid_description(self, description: str) -> bool:
         """Validate job description"""

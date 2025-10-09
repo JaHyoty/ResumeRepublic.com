@@ -78,9 +78,21 @@ class JobPostingParserService:
             # Initialize parser service
             parser_service = JobPostingParserService()
             
+            # Fetch HTML content once for both extractors
+            logger.info("Fetching HTML content", job_posting_id=job_posting_id, url=job_posting.url)
+            html_content = await parser_service.web_scraper.fetch_html(job_posting.url)
+            if not html_content:
+                logger.error("Failed to fetch HTML content", job_posting_id=job_posting_id, url=job_posting.url)
+                await parser_service._update_job_posting_failure(job_posting, "Failed to fetch HTML content", db)
+                return
+            
+            logger.info("HTML content fetched successfully", 
+                       job_posting_id=job_posting_id, 
+                       content_length=len(html_content))
+            
             logger.info("Starting Stage 1: Schema extraction", job_posting_id=job_posting_id)
             # Stage 1: Try schema extraction first
-            schema_result = await parser_service._try_schema_extraction(job_posting, db)
+            schema_result = await parser_service._try_schema_extraction(job_posting, html_content, db)
             
             if schema_result and parser_service._is_valid_result(schema_result):
                 await parser_service._update_job_posting_success(
@@ -89,7 +101,7 @@ class JobPostingParserService:
                 return
             
             # Stage 2: Try heuristic extraction
-            heuristic_result = await parser_service._try_heuristic_extraction(job_posting, db)
+            heuristic_result = await parser_service._try_heuristic_extraction(job_posting, html_content, db)
             
             if heuristic_result and parser_service._is_valid_result(heuristic_result):
                 await parser_service._update_job_posting_success(
@@ -121,7 +133,7 @@ class JobPostingParserService:
                     error=str(update_error)
                 )
     
-    async def _try_schema_extraction(self, job_posting: JobPosting, db: Session) -> Optional[Dict[str, Any]]:
+    async def _try_schema_extraction(self, job_posting: JobPosting, html_content: str, db: Session) -> Optional[Dict[str, Any]]:
         """Try schema-based extraction (JSON-LD, microdata)"""
         start_time = time.time()
         
@@ -139,7 +151,7 @@ class JobPostingParserService:
             
             # Fetch and parse with schema extraction
             logger.info("Calling schema extractor", url=job_posting.url)
-            result = await self.schema_extractor.extract_job_data(job_posting.url)
+            result = await self.schema_extractor.extract_job_data(job_posting.url, html_content)
             
             logger.info("Schema extractor returned", result_found=result is not None)
             if result:
@@ -180,7 +192,7 @@ class JobPostingParserService:
             
             return None
     
-    async def _try_heuristic_extraction(self, job_posting: JobPosting, db: Session) -> Optional[Dict[str, Any]]:
+    async def _try_heuristic_extraction(self, job_posting: JobPosting, html_content: str, db: Session) -> Optional[Dict[str, Any]]:
         """Try heuristic DOM-based extraction"""
         start_time = time.time()
         
@@ -196,7 +208,7 @@ class JobPostingParserService:
             
             # Check for existing domain selectors first (only if domain exists)
             # Fetch and parse with heuristic extraction
-            result = await self.heuristic_extractor.extract_job_data(job_posting.url)
+            result = await self.heuristic_extractor.extract_job_data(job_posting.url, html_content)
             
             # Update attempt record
             attempt.success = result is not None
