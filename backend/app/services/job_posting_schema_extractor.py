@@ -54,7 +54,7 @@ class JobPostingSchemaExtractor:
             json_ld_pattern = r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
             matches = re.findall(json_ld_pattern, html_content, re.DOTALL | re.IGNORECASE)
             
-            for match in matches:
+            for i, match in enumerate(matches):
                 try:
                     # Clean up the JSON-LD content before parsing
                     cleaned_json = self._clean_json_ld_content(match.strip())
@@ -64,7 +64,7 @@ class JobPostingSchemaExtractor:
                     
                     # Handle both single objects and arrays
                     if isinstance(data, list):
-                        for item in data:
+                        for j, item in enumerate(data):
                             result = self._process_json_ld_item(item)
                             if result:
                                 return result
@@ -73,14 +73,14 @@ class JobPostingSchemaExtractor:
                         if result:
                             return result
                             
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
                     # Try to fix common JSON issues and retry
                     try:
                         fixed_json = self._fix_json_ld_issues(match.strip())
                         data = json.loads(fixed_json)
                         
                         if isinstance(data, list):
-                            for item in data:
+                            for j, item in enumerate(data):
                                 result = self._process_json_ld_item(item)
                                 if result:
                                     return result
@@ -91,10 +91,11 @@ class JobPostingSchemaExtractor:
                     except json.JSONDecodeError:
                         continue
             
+            logger.warning("No valid JSON-LD data found in any script tags")
             return None
             
         except Exception as e:
-            logger.error("JSON-LD extraction failed", error=str(e))
+            logger.error("JSON-LD extraction failed with exception", error=str(e))
             return None
     
     def _clean_json_ld_content(self, json_content: str) -> str:
@@ -177,7 +178,7 @@ class JobPostingSchemaExtractor:
             # Calculate confidence based on data completeness
             confidence = self._calculate_schema_confidence(item, title, company, description)
             
-            return {
+            result = {
                 'title': title,
                 'company': company or 'Unknown Company',
                 'description': description,
@@ -189,6 +190,8 @@ class JobPostingSchemaExtractor:
                     'source': 'structured_data'
                 }
             }
+            
+            return result
             
         except Exception as e:
             logger.error("JSON-LD item processing failed", error=str(e))
@@ -218,21 +221,57 @@ class JobPostingSchemaExtractor:
             if field in item and item[field]:
                 title = str(item[field]).strip()
                 if len(title) > 2:
-                    return title
+                    return self._clean_title(title)
         
         return None
+    
+    def _clean_title(self, title: str) -> str:
+        """Clean job title by removing text inside square brackets"""
+        import re
+        # Remove text inside square brackets (e.g., "[Multiple Positions Available]")
+        cleaned_title = re.sub(r'\[.*?\]', '', title).strip()
+        # Clean up any extra whitespace
+        cleaned_title = re.sub(r'\s+', ' ', cleaned_title).strip()
+        return cleaned_title
+    
+    def _clean_company(self, company: str) -> str:
+        """Clean company name by removing common career page suffixes"""
+        import re
+        # Remove common career page suffixes (case insensitive)
+        career_suffixes = [
+            r'\s+candidate\s+experience\s+page\s*$',
+            r'\s+candidate\s+experience\s*$',
+            r'\s+career\s+page\s*$',
+            r'\s+careers\s+page\s*$',
+            r'\s+career\s+site\s*$',
+            r'\s+careers\s+site\s*$',
+            r'\s+career\s+portal\s*$',
+            r'\s+careers\s+portal\s*$',
+            r'\s+job\s+board\s*$',
+            r'\s+career\s+center\s*$',
+            r'\s+careers\s+center\s*$'
+        ]
+        
+        cleaned_company = company.strip()
+        for suffix_pattern in career_suffixes:
+            cleaned_company = re.sub(suffix_pattern, '', cleaned_company, flags=re.IGNORECASE)
+        
+        # Clean up any extra whitespace
+        cleaned_company = re.sub(r'\s+', ' ', cleaned_company).strip()
+        return cleaned_company
     
     def _extract_company_from_json_ld(self, item: Dict[str, Any]) -> Optional[str]:
         """Extract company name from JSON-LD item"""
         # Check for hiringOrganization
         hiring_org = item.get('hiringOrganization', {})
+        
         if isinstance(hiring_org, dict):
             company_fields = ['name', 'legalName', 'alternateName']
             for field in company_fields:
                 if field in hiring_org and hiring_org[field]:
                     company = str(hiring_org[field]).strip()
                     if len(company) > 1:
-                        return company
+                        return self._clean_company(company)
         
         # Check for direct company fields
         company_fields = ['company', 'employer', 'organization']
@@ -240,7 +279,7 @@ class JobPostingSchemaExtractor:
             if field in item and item[field]:
                 company = str(item[field]).strip()
                 if len(company) > 1:
-                    return company
+                    return self._clean_company(company)
         
         return None
     
@@ -279,10 +318,17 @@ class JobPostingSchemaExtractor:
             if not title:
                 return None
             
+            # Clean the title
+            title = self._clean_title(title)
+            
             # Extract company
             company = self._extract_microdata_property(job_section, 'hiringOrganization')
             if not company:
                 company = self._extract_microdata_property(job_section, 'name')
+            
+            # Clean the company name
+            if company:
+                company = self._clean_company(company)
             
             # Extract description
             description = self._extract_microdata_property(job_section, 'description')

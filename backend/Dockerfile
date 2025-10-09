@@ -38,7 +38,12 @@ COPY . .
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
+
+# Switch to non-root user
 USER app
+
+# Install Playwright browsers as app user (without system deps)
+RUN playwright install chromium
 
 # Expose port
 EXPOSE 8000

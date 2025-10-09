@@ -50,8 +50,6 @@ class JobPostingParserService:
         Background task to process job posting parsing
         Implements two-stage pipeline: schema -> heuristic
         """
-        logger.info("Starting job posting parsing", job_posting_id=job_posting_id)
-        
         try:
             # Get job posting record
             job_posting = db.query(JobPosting).filter(JobPosting.id == job_posting_id).first()
@@ -77,27 +75,26 @@ class JobPostingParserService:
             
             # Stage 1: Try schema extraction first
             schema_result = await parser_service._try_schema_extraction(job_posting, db)
+            
             if schema_result and parser_service._is_valid_result(schema_result):
                 await parser_service._update_job_posting_success(
                     job_posting, schema_result, 'schema', db
                 )
-                logger.info("Schema extraction successful", job_posting_id=job_posting_id)
                 return
             
             # Stage 2: Try heuristic extraction
             heuristic_result = await parser_service._try_heuristic_extraction(job_posting, db)
+            
             if heuristic_result and parser_service._is_valid_result(heuristic_result):
                 await parser_service._update_job_posting_success(
                     job_posting, heuristic_result, 'heuristic', db
                 )
-                logger.info("Heuristic extraction successful", job_posting_id=job_posting_id)
                 return
             
             # Both methods failed
             await parser_service._mark_job_posting_failed(
                 job_posting, "Both extraction methods failed", db
             )
-            logger.warning("Both extraction methods failed", job_posting_id=job_posting_id)
             
         except Exception as e:
             logger.error(
@@ -123,6 +120,8 @@ class JobPostingParserService:
         start_time = time.time()
         
         try:
+            logger.info("Starting schema extraction", job_posting_id=job_posting.id, url=job_posting.url)
+            
             # Record attempt
             attempt = JobPostingFetchAttempt(
                 job_posting_id=job_posting.id,
@@ -133,7 +132,16 @@ class JobPostingParserService:
             db.commit()
             
             # Fetch and parse with schema extraction
+            logger.info("Calling schema extractor", url=job_posting.url)
             result = await self.schema_extractor.extract_job_data(job_posting.url)
+            
+            logger.info("Schema extractor returned", result_found=result is not None)
+            if result:
+                logger.info("Schema extraction result", 
+                           title=result.get('title'),
+                           company=result.get('company'),
+                           description_length=len(result.get('description', '')),
+                           confidence=result.get('confidence'))
             
             # Update attempt record
             attempt.success = result is not None
@@ -144,6 +152,11 @@ class JobPostingParserService:
                 attempt.note = "No structured data found"
             
             db.commit()
+            
+            logger.info("Schema extraction completed", 
+                       success=result is not None,
+                       duration_ms=attempt.duration_ms)
+            
             return result
             
         except Exception as e:
@@ -208,20 +221,40 @@ class JobPostingParserService:
     
     def _is_valid_result(self, result: Dict[str, Any]) -> bool:
         """Validate that extraction result contains required fields"""
+        logger.info("Starting result validation", result_keys=list(result.keys()) if result else [])
+        
         if not result:
+            logger.warning("Result validation failed: result is None or empty")
             return False
         
         # Check for minimum required fields
         title = result.get('title', '').strip()
         description = result.get('description', '').strip()
         
+        logger.info("Validation fields", 
+                   title=title, 
+                   title_length=len(title),
+                   description_length=len(description))
+        
         # Title must be present and not too short
         if not title or len(title) < 3:
+            logger.warning("Result validation failed: invalid title", 
+                          title=title, 
+                          title_length=len(title),
+                          min_length=3)
             return False
         
         # Description must be present and substantial
         if not description or len(description) < 50:
+            logger.warning("Result validation failed: invalid description", 
+                          description_length=len(description),
+                          min_length=50)
             return False
+        
+        logger.info("Result validation passed", 
+                   title=title,
+                   title_length=len(title),
+                   description_length=len(description))
         
         return True
     

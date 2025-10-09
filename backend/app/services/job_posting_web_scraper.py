@@ -19,7 +19,7 @@ class JobPostingWebScraper:
     """Web scraper for job posting pages"""
     
     def __init__(self):
-        self.timeout = 30
+        self.timeout = 8
         self.max_retries = 3
         self.user_agent = "Mozilla/5.0 (compatible; JobPostingBot/1.0; +https://resumerepublic.com/bot)"
     
@@ -66,17 +66,100 @@ class JobPostingWebScraper:
         """Fetch HTML using Playwright for JavaScript-heavy sites"""
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                page = await browser.new_page()
+                # Launch browser with stealth settings to avoid bot detection
+                # Add more robust arguments for containerized environments
+                browser_args = [
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',  # Additional sandbox bypass for containers
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-dev-shm-usage',
+                    '--disable-web-security',
+                    '--disable-features=VizDisplayCompositor',
+                    '--disable-extensions',
+                    '--disable-plugins',
+                    '--disable-images',  # Speed up loading
+                    '--disable-javascript-harmony-shipping',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-gpu',  # Disable GPU in headless mode
+                    '--disable-software-rasterizer',
+                    '--disable-background-networking',
+                    '--disable-default-apps',
+                    '--disable-sync',
+                    '--disable-translate',
+                    '--hide-scrollbars',
+                    '--metrics-recording-only',
+                    '--mute-audio',
+                    '--no-first-run',
+                    '--safebrowsing-disable-auto-update',
+                    '--disable-ipc-flooding-protection',
+                    '--disable-hang-monitor',
+                    '--disable-prompt-on-repost',
+                    '--disable-domain-reliability',
+                    '--disable-client-side-phishing-detection',
+                    '--disable-component-extensions-with-background-pages',
+                    '--disable-features=TranslateUI',
+                    '--disable-features=BlinkGenPropertyTrees',
+                    '--run-all-compositor-stages-before-draw',
+                    '--disable-threaded-animation',
+                    '--disable-threaded-scrolling',
+                    '--disable-checker-imaging',
+                    '--disable-new-content-rendering-timeout',
+                    '--disable-image-animation-resync',
+                    '--disable-partial-raster',
+                    '--disable-skia-runtime-opts',
+                    '--disable-system-font-check',
+                    '--disable-font-subpixel-positioning'
+                ]
                 
-                # Set user agent
-                await page.set_extra_http_headers({'User-Agent': self.user_agent})
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=browser_args
+                )
                 
-                # Navigate to the page
-                await page.goto(url, wait_until='networkidle', timeout=self.timeout * 1000)
+                # Create context with realistic settings
+                context = await browser.new_context(
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    locale='en-US',
+                    timezone_id='America/New_York',
+                    extra_http_headers={
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'Accept-Encoding': 'gzip, deflate, br',
+                        'DNT': '1',
+                        'Connection': 'keep-alive',
+                        'Upgrade-Insecure-Requests': '1',
+                    }
+                )
                 
-                # Wait a bit for any additional content to load
-                await page.wait_for_timeout(2000)
+                page = await context.new_page()
+                
+                # Remove webdriver property to avoid detection
+                await page.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined,
+                    });
+                """)
+                
+                # Navigate to the page with efficient loading strategy
+                try:
+                    # First, wait for network to be idle
+                    await page.goto(url, wait_until='networkidle', timeout=self.timeout * 1000)
+                    
+                    # Then wait specifically for JSON-LD to appear (if it loads dynamically)
+                    try:
+                        await page.wait_for_function("""
+                            () => document.querySelectorAll('script[type="application/ld+json"]').length > 0
+                        """, timeout=self.timeout * 1000)
+                    except Exception:
+                        pass  # JSON-LD not found dynamically, continue with current content
+                        
+                except Exception as nav_error:
+                    logger.warning("DOM content loaded timeout, trying load", url=url, error=str(nav_error))
+                    await page.goto(url, wait_until='load', timeout=self.timeout * 1000)
+                
                 
                 # Get the HTML content
                 html_content = await page.content()
@@ -88,6 +171,7 @@ class JobPostingWebScraper:
                 
         except Exception as e:
             logger.error("Failed to fetch HTML with Playwright", url=url, error=str(e))
+            
             return None
     
     def _has_substantial_content(self, html_content: str) -> bool:
