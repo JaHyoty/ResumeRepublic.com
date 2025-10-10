@@ -39,6 +39,8 @@ export interface ResumeDesignRequest {
 export interface ResumeDesignResponse {
   resumeVersionId: number
   pdfBlob: Blob
+  status?: string
+  message?: string
 }
 
 export interface ResumeDesignApiResponse {
@@ -46,6 +48,12 @@ export interface ResumeDesignApiResponse {
   pdf_data: string // base64 encoded
   filename: string
   content_type: string
+}
+
+export interface ResumeGenerationInitResponse {
+  resume_generation_id: number
+  status: string
+  message: string
 }
 
 export interface KeywordAnalysisRequest {
@@ -63,35 +71,30 @@ export const resumeService = {
     return (response.data as ResumeVersionsResponse).resume_versions
   },
 
-  // Design a new resume and return PDF blob with resume version ID
-  async designResume(data: ResumeDesignRequest): Promise<ResumeDesignResponse> {
+  // Send a resume design request and return immediately with generation ID
+  async sendResumeDesignRequest(data: ResumeDesignRequest): Promise<ResumeDesignResponse> {
     try {
       const response = await api.post('/api/resume/design', data, {
-        timeout: 60000 // 60 seconds timeout for resume generation
+        timeout: 10000 // 10 seconds timeout for initiation
       })
 
-      const apiResponse = response.data as ResumeDesignApiResponse
+      const initResponse = response.data as ResumeGenerationInitResponse
       
-      // Convert base64 PDF data back to blob
-      const binaryString = atob(apiResponse.pdf_data)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
-      const pdfBlob = new Blob([bytes], { type: 'application/pdf' })
-
+      // Return the initiation response in the same format as before
       return {
-        resumeVersionId: apiResponse.resume_version_id,
-        pdfBlob: pdfBlob
+        resumeVersionId: initResponse.resume_generation_id,
+        pdfBlob: new Blob(), // Empty blob since we're using webhooks now
+        status: initResponse.status,
+        message: initResponse.message
       }
     } catch (error) {
-      console.error('Error generating resume:', error)
+      console.error('Error initiating resume generation:', error)
       
-      let errorMessage = 'Failed to generate resume. Please try again.'
+      let errorMessage = 'Failed to initiate resume generation. Please try again.'
       
       if (error instanceof Error) {
         if (error.message.includes('timeout')) {
-          errorMessage = 'Resume generation timed out. Please try again with a shorter job description.'
+          errorMessage = 'Request timed out. Please try again.'
         } else if (error.message.includes('Network Error')) {
           errorMessage = 'Network error. Please check your connection and try again.'
         } else if (error.message.includes('403')) {
@@ -99,6 +102,54 @@ export const resumeService = {
         } else if (error.message.includes('500')) {
           errorMessage = 'Server error. Please try again later.'
         }
+      }
+      
+      throw new Error(errorMessage)
+    }
+  },
+
+  // Get the PDF blob for a completed resume generation
+  async getResumePdfBlob(resumeVersionId: number): Promise<ResumeDesignResponse> {
+    try {
+      const response = await api.get(`/api/resume/pdf/${resumeVersionId}/blob`)
+      const result = response.data as ResumeDesignApiResponse
+      
+      // Check if the response has the expected structure
+      if (!result.pdf_data) {
+        throw new Error('Invalid response format from server')
+      }
+      
+      // Convert base64 PDF data back to blob
+      const binaryString = atob(result.pdf_data)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
+      }
+      const pdfBlob = new Blob([bytes], { type: 'application/pdf' })
+
+      return {
+        resumeVersionId: result.resume_version_id,
+        pdfBlob: pdfBlob
+      }
+    } catch (error: any) {
+      console.error('Error fetching resume PDF blob:', error)
+      
+      let errorMessage = 'Failed to fetch resume PDF. Please try again.'
+      
+      // Handle different error cases
+      if (error.response) {
+        const status = error.response.status
+        if (status === 202) {
+          errorMessage = 'Resume generation is still in progress. Please wait for completion.'
+        } else if (status === 404) {
+          errorMessage = 'Resume not found.'
+        } else if (status === 500) {
+          errorMessage = 'Server error. Please try again later.'
+        }
+      } else if (error.message.includes('Invalid response format')) {
+        errorMessage = 'Invalid response from server. Please try again.'
+      } else if (error.message.includes('Network Error')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
       }
       
       throw new Error(errorMessage)

@@ -54,6 +54,7 @@ export type WebhookEventType =
   | 'job_posting_completed'
   | 'job_posting_failed'
   | 'application_status_update'
+  | 'resume_generation_status_update'
   | 'resume_generation_completed'
   | 'resume_generation_failed'
   | 'user_notification'
