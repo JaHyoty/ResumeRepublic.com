@@ -181,7 +181,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     }
   }, [resumeGenerationId])
 
-  const fetchCompletedResume = async (generationId: number) => {
+  const fetchCompletedResume = async (generationId: number, retryCount = 0) => {
     try {
       const result = await resumeService.getResumePdfBlob(generationId)
       
@@ -202,6 +202,17 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
       }, 100)
     } catch (error) {
       console.error('Error fetching completed resume:', error)
+      
+      // If the error is "still in progress" and we haven't retried too many times, retry
+      if (error instanceof Error && error.message.includes('still in progress') && retryCount < 3) {
+        console.log(`Retrying PDF fetch (attempt ${retryCount + 1}/3)...`)
+        setTimeout(() => {
+          fetchCompletedResume(generationId, retryCount + 1)
+        }, 2000) // Wait 2 seconds before retry
+        return
+      }
+      
+      // If it's not a "still in progress" error or we've retried too many times, show error
       setGenerationStatus('failed')
       setGenerationMessage(error instanceof Error ? error.message : 'Failed to retrieve completed resume')
       setIsGenerating(false)

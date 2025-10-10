@@ -114,6 +114,11 @@ export const resumeService = {
       const response = await api.get(`/api/resume/pdf/${resumeVersionId}/blob`)
       const result = response.data as ResumeDesignApiResponse
       
+      // Check if the response has the expected structure
+      if (!result.pdf_data) {
+        throw new Error('Invalid response format from server')
+      }
+      
       // Convert base64 PDF data back to blob
       const binaryString = atob(result.pdf_data)
       const bytes = new Uint8Array(binaryString.length)
@@ -126,19 +131,25 @@ export const resumeService = {
         resumeVersionId: result.resume_version_id,
         pdfBlob: pdfBlob
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching resume PDF blob:', error)
       
       let errorMessage = 'Failed to fetch resume PDF. Please try again.'
       
-      if (error instanceof Error) {
-        if (error.message.includes('202')) {
+      // Handle different error cases
+      if (error.response) {
+        const status = error.response.status
+        if (status === 202) {
           errorMessage = 'Resume generation is still in progress. Please wait for completion.'
-        } else if (error.message.includes('404')) {
+        } else if (status === 404) {
           errorMessage = 'Resume not found.'
-        } else if (error.message.includes('Network Error')) {
-          errorMessage = 'Network error. Please check your connection and try again.'
+        } else if (status === 500) {
+          errorMessage = 'Server error. Please try again later.'
         }
+      } else if (error.message.includes('Invalid response format')) {
+        errorMessage = 'Invalid response from server. Please try again.'
+      } else if (error.message.includes('Network Error')) {
+        errorMessage = 'Network error. Please check your connection and try again.'
       }
       
       throw new Error(errorMessage)
