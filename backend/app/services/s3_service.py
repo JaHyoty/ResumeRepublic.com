@@ -210,6 +210,20 @@ class S3Service:
             logger.error(f"Failed to get LaTeX content from S3: {e}")
             return None
     
+    async def download_pdf(self, s3_key: str) -> Optional[bytes]:
+        """Download PDF content from S3"""
+        try:
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=s3_key)
+            pdf_bytes = response['Body'].read()
+            logger.info(f"PDF downloaded from S3: {s3_key}, size: {len(pdf_bytes)} bytes")
+            return pdf_bytes
+        except ClientError as e:
+            logger.error(f"Failed to download PDF from S3: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unexpected error downloading PDF from S3: {e}")
+            return None
+    
     async def delete_pdf(self, s3_key: str) -> bool:
         """Delete a PDF from S3"""
         try:

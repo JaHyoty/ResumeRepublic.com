@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { applicationService } from '../../services/applicationService'
 import { userService } from '../../services/userService'
 import { resumeService, type ResumeDesignRequest } from '../../services/resumeService'
+import { webhookService, type WebhookEvent } from '../../services/webhookService'
 import PDFViewer from './PDFViewer'
 import KeywordAnalysis from './KeywordAnalysis'
 
@@ -50,6 +51,11 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   const [selectedApplicationId, setSelectedApplicationId] = useState<number | null>(linkedApplicationId || null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  
+  // Webhook-based resume generation state
+  const [resumeGenerationId, setResumeGenerationId] = useState<number | null>(null)
+  const [generationStatus, setGenerationStatus] = useState<string>('')
+  const [generationMessage, setGenerationMessage] = useState<string>('')
   
   // Keyword analysis workflow state
   const [showKeywordAnalysis, setShowKeywordAnalysis] = useState(false)
@@ -135,6 +141,73 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     }
   }, [])
 
+  // Webhook subscription for resume generation updates
+  useEffect(() => {
+    if (!resumeGenerationId) return
+
+    console.log(`Setting up webhook subscription for resume generation: ${resumeGenerationId}`)
+    const unsubscribe = webhookService.subscribeToEntity('resume_generation', resumeGenerationId.toString(), (event: WebhookEvent) => {
+      console.log('Received resume generation webhook:', event)
+      
+      if (event.status === 'optimizing') {
+        setGenerationStatus('optimizing')
+        setGenerationMessage(event.data?.message || 'Optimizing resume content and structure...')
+      } else if (event.status === 'finalizing') {
+        setGenerationStatus('finalizing')
+        setGenerationMessage(event.data?.message || 'Performing final checks and compilation...')
+      } else if (event.status === 'complete') {
+        setGenerationStatus('complete')
+        setGenerationMessage(event.data?.message || 'Resume generation completed successfully!')
+        
+        // Fetch the completed resume
+        fetchCompletedResume(resumeGenerationId)
+        
+        // Disconnect webhook on completion
+        unsubscribe()
+      } else if (event.status === 'failed') {
+        setGenerationStatus('failed')
+        setGenerationMessage(event.data?.error || 'Resume generation failed')
+        setIsGenerating(false)
+        
+        // Disconnect webhook on failure
+        unsubscribe()
+      }
+    })
+
+    // Cleanup function to unsubscribe when component unmounts or generation ID changes
+    return () => {
+      console.log('Cleaning up webhook subscription for resume generation:', resumeGenerationId)
+      unsubscribe()
+    }
+  }, [resumeGenerationId])
+
+  const fetchCompletedResume = async (generationId: number) => {
+    try {
+      const result = await resumeService.getResumePdfBlob(generationId)
+      
+      // Set the resume version ID and create PDF URL
+      setCurrentResumeVersionId(result.resumeVersionId)
+      
+      const url = URL.createObjectURL(result.pdfBlob)
+      setPdfUrl(url)
+      setViewMode('view') // Always start in view mode after generation
+      setIsGenerating(false)
+      
+      // Scroll to PDF viewer
+      setTimeout(() => {
+        const pdfViewer = document.getElementById('pdf-viewer');
+        if (pdfViewer) {
+          pdfViewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100)
+    } catch (error) {
+      console.error('Error fetching completed resume:', error)
+      setGenerationStatus('failed')
+      setGenerationMessage(error instanceof Error ? error.message : 'Failed to retrieve completed resume')
+      setIsGenerating(false)
+    }
+  }
+
   const handlePersonalInfoChange = (field: keyof PersonalInfo, value: string) => {
     setPersonalInfo(prev => ({
       ...prev,
@@ -162,6 +235,8 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
 
   const generateResume = async () => {
     setIsGenerating(true)
+    setGenerationStatus('')
+    setGenerationMessage('')
     
     try {
       // Prepare resume data (only personal info and job details - backend fetches the rest)
@@ -174,23 +249,19 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
         locale: userLocale
       }
 
-      // Generate optimized resume using resumeService
-      const result = await resumeService.designResume(data)
+      // Send resume design request using webhook-based service
+      const result = await resumeService.sendResumeDesignRequest(data)
       
-      // Set the resume version ID and create PDF URL
-      setCurrentResumeVersionId(result.resumeVersionId)
-      
-      const url = URL.createObjectURL(result.pdfBlob)
-      setPdfUrl(url)
-      setViewMode('view') // Always start in view mode after generation
+      // Set the resume generation ID for webhook tracking
+      setResumeGenerationId(result.resumeVersionId)
+      setGenerationStatus(result.status || 'processing')
+      setGenerationMessage(result.message || 'Resume generation initiated.')
 
     } catch (error) {
-      console.error('Error generating resume:', error)
-      alert(error instanceof Error ? error.message : 'Failed to generate resume. Please try again.')
-    } finally {
-      setIsGenerating(false)    
-      
-      // Scroll will be handled by the PDFViewer onReady callback
+      console.error('Error initiating resume generation:', error)
+      setGenerationStatus('failed')
+      setGenerationMessage(error instanceof Error ? error.message : 'Failed to initiate resume generation. Please try again.')
+      setIsGenerating(false)
     }
   }
 
@@ -677,8 +748,20 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                 {isGenerating ? (
                   <>
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Generating your optimized resume...</h3>
-                    <p className="text-gray-600">Please wait while we create your personalized resume</p>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      {generationStatus === 'processing' ? 'Initiating Resume Generation' :
+                       generationStatus === 'optimizing' ? 'Optimizing Resume' :
+                       generationStatus === 'finalizing' ? 'Performing Final Checks' :
+                       'Generating your optimized resume...'}
+                    </h3>
+                    <p className="text-gray-600">
+                      {generationMessage || 'Please wait while we create your personalized resume'}
+                    </p>
+                    {generationStatus === 'failed' && (
+                      <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-red-700 text-sm">{generationMessage}</p>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <>

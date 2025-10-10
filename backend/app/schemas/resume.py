@@ -23,3 +23,17 @@ class ResumeDesignRequest(BaseModel):
     job_description: str
     linked_application_id: Optional[int] = None
     locale: Optional[str] = "en-US"  # Default to US format
+
+
+class ResumeDesignResponse(BaseModel):
+    resume_generation_id: int
+    status: str
+    message: str
+
+
+class KeywordAnalysisRequest(BaseModel):
+    job_description: str
+
+
+class KeywordAnalysisResponse(BaseModel):
+    keywords: list[str]
