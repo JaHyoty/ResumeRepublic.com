@@ -187,7 +187,12 @@ You are a professional resume writer. Generate an optimized resume in LaTeX form
 - **MANDATORY**: Select only one job title for an experience. Choose the most relevant title.
 - **FORBIDDEN**: Do NOT repeat job titles for an experience. One experience can have only one job title.
 
-### 4. Projects
+### 4. Certifications
+- **MANDATORY**: Do NOT show any dates for certifications
+- **CRITICAL**: Never display issue dates, expiry dates, or any temporal information for certifications
+- **EXAMPLE**:  \item \small{{Certificate Issuer - CertificationName}}
+
+### 5. Projects
 - **MANDATORY**: Do NOT show any dates for projects
 - **MANDATORY**: Use empty braces {{}} for the date parameter in project entries (NOT {{' '}} or {{""}})
 - **CRITICAL**: Never use quotes around empty spaces - use {{}} instead of {{' '}} or {{""}} 
@@ -197,7 +202,19 @@ You are a professional resume writer. Generate an optimized resume in LaTeX form
 - **NO DATE INFERENCE**: Even if project descriptions mention timeframes, do NOT add dates to the LaTeX date field
 - **EXAMPLE**: \\resumeProjectHeading{{\\textbf{{Project Name}}}}{{}}
 
-### 5. General Accuracy
+### 6. Section Organization and Ordering
+- **CRITICAL**: Analyze the job description and applicant's background to determine the optimal section order
+- **STRATEGIC PLACEMENT**: Place sections with the strongest keyword matches and most relevant content near the top (after header)
+- **REASONING REQUIRED**: Consider which sections will best attract recruiter attention for this specific role
+- **COMMON PATTERNS**:
+  - For technical roles: Skills → Experience → Projects → Education → Certifications
+  - For experienced professionals: Experience → Skills → Projects → Education → Certifications
+  - For recent graduates: Education → Skills → Projects → Experience → Certifications
+  - For career changers: Skills → Projects → Experience → Education → Certifications
+- **FLEXIBILITY**: Adapt the order based on what will showcase the applicant's fit for the role most effectively
+- **KEYWORD PRIORITY**: Sections containing the most job-relevant keywords should appear earlier
+
+### 7. General Accuracy
 - Avoid vague adjectives - use only hard truths and specific facts
 - Maintain factual accuracy while optimizing for keywords
 
