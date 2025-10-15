@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
-from app.core.auth import get_current_user
+from app.core.auth import get_current_user, verify_token
 from app.models.user import User
 from app.models.job_posting import JobPosting
 import json
@@ -117,7 +117,6 @@ async def verify_webhook_token(token: str, db: Session) -> int | None:
     try:
         # For now, we'll use the same token validation as the main API
         # In production, you might want separate webhook tokens
-        from app.core.auth import verify_token
         
         payload = verify_token(token)
         if payload and "sub" in payload:

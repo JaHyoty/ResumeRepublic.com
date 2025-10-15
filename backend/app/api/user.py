@@ -3,12 +3,16 @@ User management API routes
 """
 
 import logging
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 import structlog
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.models.user import User
+from app.models.application import Application
+from app.models.resume import ResumeVersion
+from app.services.s3_service import s3_service
 from app.schemas.user import UserResponse, UserUpdate, TermsAgreementRequest
 
 router = APIRouter()
@@ -64,7 +68,6 @@ async def accept_terms(
         )
     
     # Update user agreement status
-    from datetime import datetime
     current_user.terms_accepted_at = datetime.utcnow()
     current_user.privacy_policy_accepted_at = datetime.utcnow()
     
@@ -88,15 +91,12 @@ async def delete_user(
     
     try:
         # Get all applications for this user
-        from app.models.application import Application
         applications = db.query(Application).filter(
             Application.user_id == current_user.id
         ).all()
         
         # Delete S3 files for all applications
         if applications:
-            from app.services.s3_service import s3_service
-            from app.models.resume import ResumeVersion
             
             for application in applications:
                 # Get all resume versions for this application

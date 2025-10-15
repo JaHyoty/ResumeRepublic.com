@@ -5,8 +5,16 @@ S3 Service for storing and retrieving PDF resumes
 import boto3
 import os
 import uuid
+import traceback
+import datetime
+import base64
+import urllib.parse
+import json
 from typing import Optional
 from botocore.exceptions import ClientError
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.backends import default_backend
 from app.core.settings import settings
 import logging
 
@@ -68,7 +76,6 @@ class S3Service:
         except Exception as e:
             logger.error(f"Unexpected error uploading PDF to S3: {e}")
             logger.error(f"Error type: {type(e).__name__}")
-            import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
@@ -107,14 +114,6 @@ class S3Service:
             # Use CloudFront signed URLs if configured for cleaner domain
             if settings.RESUMES_CLOUDFRONT_DOMAIN:
                 # Generate CloudFront signed URL using canned policy (AWS recommended approach)
-                from cryptography.hazmat.primitives import serialization, hashes
-                from cryptography.hazmat.primitives.asymmetric import padding
-                from cryptography.hazmat.backends import default_backend
-                import datetime
-                import os
-                import base64
-                import urllib.parse
-                import json
                 
                 # CloudFront public key ID (not the random key pair ID)
                 # We need to use the actual public key ID that was uploaded to CloudFront
@@ -196,7 +195,6 @@ class S3Service:
                 return None
         except Exception as e:
             logger.error(f"Failed to generate PDF URL: {e}")
-            import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     

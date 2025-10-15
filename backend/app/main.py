@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 import structlog
 import logging
+import uvicorn
 
 from app.core.settings import settings
 from app.core.secret_manager import clear_credentials_cache
@@ -156,7 +157,6 @@ async def health_check(db: Session = Depends(get_db)):
 
 
 if __name__ == "__main__":
-    import uvicorn
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

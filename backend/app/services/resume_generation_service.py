@@ -5,6 +5,7 @@ Handles background resume generation with webhook notifications
 
 import asyncio
 import time
+import shutil
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session, joinedload
 import structlog
@@ -18,8 +19,16 @@ from app.models.user import User
 from app.models.application import Application
 from app.models.job_posting import JobPosting
 from app.models.resume import ResumeVersion
+from app.models.experience import Experience, ExperienceTitle
+from app.models.education import Education
+from app.models.skill import Skill
+from app.models.certification import Certification
+from app.models.publication import Publication
+from app.models.project import Project
+from app.models.website import Website
 from app.services.latex_service import latex_service, LaTeXCompilationError
 from app.services.llm_service import llm_service
+from app.services.s3_service import s3_service
 from app.utils.template_utils import extract_template_content, get_full_template_content, combine_with_template_preamble
 from app.api.webhooks import (
     send_entity_update,
@@ -229,7 +238,6 @@ class ResumeGenerationService:
                 if tex_file_path.exists():
                     tex_file_path.unlink()
                 if temp_path.exists():
-                    import shutil
                     shutil.rmtree(temp_path)
             
         except Exception as e:
@@ -248,7 +256,6 @@ class ResumeGenerationService:
         """
         Upload resume content to S3 and finalize the resume version
         """
-        from app.services.s3_service import s3_service
         
         # Generate user-friendly filename for the PDF
         filename_parts = ["Resume"]
@@ -300,13 +307,6 @@ class ResumeGenerationService:
         """
         Fetch all user data needed for resume generation
         """
-        from app.models.experience import Experience, ExperienceTitle
-        from app.models.education import Education
-        from app.models.skill import Skill
-        from app.models.certification import Certification
-        from app.models.publication import Publication
-        from app.models.project import Project
-        from app.models.website import Website
         
         # Fetch experiences with titles
         experiences = db.query(Experience).options(

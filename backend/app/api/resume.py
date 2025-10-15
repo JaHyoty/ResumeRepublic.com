@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional
 import logging
 import tempfile
 import base64
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -267,7 +268,6 @@ async def get_resume_pdf_url(
     
     # Check if PDF is stored in S3
     if resume_version.s3_key:
-        from app.services.s3_service import s3_service
         try:
             # Generate secure CloudFront signed URL (30 minutes expiration)
             pdf_url = await s3_service.get_pdf_url(resume_version.s3_key, expiration=1800)
@@ -344,7 +344,6 @@ async def get_resume_latex(
     
     # Check if LaTeX is stored in S3
     if resume_version.latex_s3_key:
-        from app.services.s3_service import s3_service
         try:
             latex_content = await s3_service.get_latex_content(resume_version.latex_s3_key)
             if latex_content:
@@ -450,7 +449,6 @@ async def update_resume_latex(
             logger.debug(f"PDF file read successfully, size: {len(pdf_bytes)} bytes")
             
             # Upload new PDF and LaTeX to S3
-            from app.services.s3_service import s3_service
             
             # Delete old files from S3 if they exist
             if resume_version.s3_key:
@@ -544,7 +542,6 @@ async def analyze_keywords(
         
     except Exception as e:
         logger.error(f"Error in keyword analysis for user {current_user.id}: {str(e)}")
-        import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         
         # Return user-friendly error message

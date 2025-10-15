@@ -11,6 +11,7 @@ import structlog
 from app.core.database import get_db
 from app.models.application import Application
 from app.models.job_posting import JobPosting
+from app.models.resume import ResumeVersion
 from app.schemas.application import (
     ApplicationUpdate, 
     ApplicationResponse, 
@@ -18,6 +19,7 @@ from app.schemas.application import (
 )
 from app.core.auth import get_current_user
 from app.models.user import User
+from app.services.s3_service import s3_service
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -212,14 +214,12 @@ async def delete_application(
         )
     
     # Get all resume versions for this application before deleting
-    from app.models.resume import ResumeVersion
     resume_versions = db.query(ResumeVersion).filter(
         ResumeVersion.application_id == application_id
     ).all()
     
     # Delete S3 files for each resume version
     if resume_versions:
-        from app.services.s3_service import s3_service
         
         for resume_version in resume_versions:
             try:

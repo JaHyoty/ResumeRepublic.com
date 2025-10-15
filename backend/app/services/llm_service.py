@@ -9,10 +9,15 @@ import ssl
 import tempfile
 import subprocess
 import re
+import json
+import PyPDF2
 from pathlib import Path
 from typing import Dict, Any, Tuple
 from app.core.settings import settings
 from app.utils.tls_utils import create_httpx_client, validate_tls_configuration
+from app.services.latex_service import latex_service, LaTeXCompilationError
+from app.utils.template_utils import get_full_template_content
+from app.api.resume import combine_template_with_content
 
 # Use structlog for consistent logging
 import structlog
@@ -354,7 +359,6 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
         
         # Fix project date issues - remove quotes around empty spaces or single spaces
         # This handles cases like: {' '} or {""} or {"  "} in project dates
-        import re
         
         # Pattern to match project heading with quoted empty/space dates
         # Matches: }{' '} or }{"  "} or }{""} at the end of resumeProjectHeading lines
@@ -562,7 +566,6 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
         logger.debug(f"LaTeX content length: {len(latex_content)} characters")
         
         # Import required modules
-        from app.services.latex_service import latex_service, LaTeXCompilationError
         
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -570,8 +573,6 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
                 tex_file = temp_path / "resume.tex"
                 
                 # Combine template preamble with content (same as user-facing compilation)
-                from app.utils.template_utils import get_full_template_content
-                from app.api.resume import combine_template_with_content
                 full_template_content = get_full_template_content("ResumeTemplate1.tex")
                 complete_latex = combine_template_with_content(full_template_content, latex_content)
                 
@@ -588,7 +589,6 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
                 
                 # Count pages using PyPDF2 (more reliable than pdfinfo)
                 try:
-                    import PyPDF2
                     with open(pdf_file, 'rb') as file:
                         pdf_reader = PyPDF2.PdfReader(file)
                         page_count = len(pdf_reader.pages)
@@ -754,7 +754,6 @@ Return only the JSON array of keywords that are explicitly mentioned in the job 
                 
                 # Parse JSON response
                 try:
-                    import json
                     # Clean the response to extract only JSON
                     cleaned_content = raw_content.strip()
                     
@@ -813,7 +812,6 @@ Return only the JSON array of keywords that are explicitly mentioned in the job 
         """
         Fallback method to extract keywords when JSON parsing fails
         """
-        import re
         
         # Try to find quoted strings that look like technical terms
         keywords = []

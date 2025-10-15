@@ -4,6 +4,7 @@ Extracts job data using DOM analysis and heuristics
 """
 
 import re
+from copy import deepcopy
 from typing import Optional, Dict, Any, List
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
@@ -380,7 +381,6 @@ class JobPostingHeuristicExtractor:
             return None
         
         # Create a copy to avoid modifying the original
-        from copy import deepcopy
         filtered_element = deepcopy(element)
         
         # Remove common navigation elements
