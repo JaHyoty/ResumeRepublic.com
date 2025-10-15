@@ -120,7 +120,7 @@ class JobPostingExtractorUtils:
     
     @staticmethod
     def clean_company(company: str) -> str:
-        """Clean company name by removing common career page suffixes"""
+        """Clean company name by removing common career page suffixes and job-related patterns"""
         # Remove common career page suffixes (case insensitive)
         career_suffixes = [
             r'\s+candidate\s+experience\s+page\s*$',
@@ -137,11 +137,54 @@ class JobPostingExtractorUtils:
         ]
         
         cleaned_company = JobPostingExtractorUtils.clean_html_tags(company.strip())
+        
+        # Remove career-related suffixes
         for suffix_pattern in career_suffixes:
             cleaned_company = re.sub(suffix_pattern, '', cleaned_company, flags=re.IGNORECASE)
         
-        # Clean up any extra whitespace
+        # Remove job-related suffixes that might be in company names
+        job_suffixes = [
+            r'\s*-\s*job\s*id.*$',           # Remove job ID suffixes
+            r'\s*-\s*job\s*details.*$',       # Remove job details suffixes
+            r'\s*-\s*careers.*$',             # Remove careers suffixes
+            r'\s*-\s*jobs.*$',                # Remove jobs suffixes
+            r'\s*-\s*hiring.*$',              # Remove hiring suffixes
+            r'\s*careers?\s*$',               # Remove "careers" suffix
+            r'\s*jobs?\s*$',                 # Remove "jobs" suffix
+            r'\s*hiring\s*$',                # Remove "hiring" suffix
+        ]
+        
+        for suffix_pattern in job_suffixes:
+            cleaned_company = re.sub(suffix_pattern, '', cleaned_company, flags=re.IGNORECASE)
+        
+        # Remove everything after common separators (in case company name was extracted from title patterns)
+        separators = [
+            r'\s*at\s+.*$',                  # Remove everything after "at"
+            r'\s*@\s+.*$',                   # Remove everything after "@"
+            r'\s*-\s+.*$',                   # Remove everything after "-"
+            r'\s*:\s+.*$',                   # Remove everything after ":"
+            r'\s*[—|]\s+.*$',                # Remove everything after "—" or "|"
+        ]
+        
+        for separator_pattern in separators:
+            cleaned_company = re.sub(separator_pattern, '', cleaned_company, flags=re.IGNORECASE)
+        
+        # Clean up any extra whitespace and trailing punctuation
         cleaned_company = re.sub(r'\s+', ' ', cleaned_company).strip()
+        cleaned_company = re.sub(r'\s*-\s*$', '', cleaned_company)       # Remove trailing dashes
+        cleaned_company = re.sub(r'\.\s*$', '', cleaned_company)         # Remove trailing dots
+        cleaned_company = re.sub(r'\s*\(.*\)\s*$', '', cleaned_company)   # Remove parenthetical content
+        
+        # Remove specific domain suffixes (after other cleanup)
+        domain_suffixes = [
+            r'\.jobs\s*$',                    # Remove ".jobs" suffix
+            r'\.careers\s*$',                  # Remove ".careers" suffix
+            r'\.hiring\s*$',                   # Remove ".hiring" suffix
+        ]
+        
+        for suffix_pattern in domain_suffixes:
+            cleaned_company = re.sub(suffix_pattern, '', cleaned_company, flags=re.IGNORECASE)
+        
         return cleaned_company
     
     @staticmethod
@@ -174,6 +217,12 @@ class JobPostingExtractorUtils:
             r'with\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)', # "Job with Company Name -" or "Job with Company Name"
             r'for\s+([A-Z][A-Za-z\s&.,-]+?)(?:\s*[-|]\s*|$)',  # "Job for Company Name -" or "Job for Company Name"
             
+            # Handle "| Company.jobs" pattern (like Amazon.jobs)
+            r'\|\s*([A-Z][A-Za-z\s&.,-]+?)\.jobs\s*$',        # "| Company.jobs"
+            r'\|\s*([A-Z][A-Za-z\s&.,-]+?)\.careers\s*$',     # "| Company.careers"
+            r'\|\s*([A-Z][A-Za-z\s&.,-]+?)\.hiring\s*$',      # "| Company.hiring"
+            r'\|\s*([A-Z][A-Za-z\s&.,-]+?)\s*$',              # "| Company" (fallback)
+            
             # Alternative patterns
             r'([A-Z][A-Za-z\s&.,-]+?)\s*[-|]\s*careers?',     # "Company Name - Careers"
             r'([A-Z][A-Za-z\s&.,-]+?)\s*[-|]\s*jobs?',        # "Company Name - Jobs"
@@ -187,18 +236,11 @@ class JobPostingExtractorUtils:
                 potential_company = match.group(1).strip()
                 logger.info(f"{extractor_name} pattern {i+1} matched: '{potential_company}'")
                 
-                # Clean up common suffixes
-                potential_company = re.sub(r'\s*[-|]\s*.*$', '', potential_company)  # Remove everything after "-" or "|"
-                potential_company = re.sub(r'\s*\(.*\)\s*$', '', potential_company)   # Remove parenthetical content
-                potential_company = re.sub(r'\s*-\s*$', '', potential_company)       # Remove trailing dashes
-                potential_company = re.sub(r'\s*careers?\s*$', '', potential_company, flags=re.IGNORECASE)  # Remove "careers" suffix
-                potential_company = re.sub(r'\s*jobs?\s*$', '', potential_company, flags=re.IGNORECASE)    # Remove "jobs" suffix
-                
+                potential_company = JobPostingExtractorUtils.clean_company(potential_company)
                 logger.info(f"{extractor_name} cleaned company name: '{potential_company}'")
                 
                 # Validate the extracted company name
                 if JobPostingExtractorUtils.is_valid_company(potential_company):
-                    logger.info(f"{extractor_name} valid company found: '{potential_company}'")
                     return JobPostingExtractorUtils.clean_company(potential_company)
                 else:
                     logger.info(f"{extractor_name} invalid company name: '{potential_company}'")
@@ -246,14 +288,6 @@ class JobPostingExtractorUtils:
             if re.match(pattern, company_lower):
                 return False
         
-        # Check if it looks like a job title with multiple words that don't form a company name
-        words = company_lower.split()
-        if len(words) >= 3:
-            # If it has 3+ words and contains job-related terms, it's likely a job title
-            job_terms = ['developer', 'engineer', 'consultant', 'manager', 'analyst', 'scientist', 'specialist', 'coordinator', 'director', 'lead', 'senior', 'junior', 'associate', 'staff', 'principal', 'cloud', 'aws', 'azure', 'devops', 'professional', 'technical']
-            if any(term in words for term in job_terms):
-                return False
-        
         # Must be at least 2 characters and not just numbers
         if len(company.strip()) < 2 or company.strip().isdigit():
             return False
@@ -286,6 +320,7 @@ class JobPostingExtractorUtils:
         # Pattern 2: "Position at Company" or "Position - Company"
         at_patterns = [
             r'^(.+?)\s+at\s+.+$',           # Position at Company
+            r'^(.+?)\s*@\s*.+$',             # Position @ Company
             r'^(.+?)\s*-\s*.+$',            # Position - Company
             r'^(.+?)\s*:\s*.+$',            # Position: Company
         ]
@@ -312,10 +347,6 @@ class JobPostingExtractorUtils:
                 potential_title = match.group(1).strip()
                 if JobPostingExtractorUtils._is_valid_title(potential_title) and len(potential_title) > 5:
                     return JobPostingExtractorUtils.clean_title(potential_title)
-        
-        # If no pattern matches, return the original title if it's valid
-        if JobPostingExtractorUtils._is_valid_title(page_title) and len(page_title) > 10:
-            return JobPostingExtractorUtils.clean_title(page_title)
         
         return None
     

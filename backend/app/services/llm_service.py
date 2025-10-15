@@ -17,7 +17,7 @@ from app.core.settings import settings
 from app.utils.tls_utils import create_httpx_client, validate_tls_configuration
 from app.services.latex_service import latex_service, LaTeXCompilationError
 from app.utils.template_utils import get_full_template_content
-from app.api.resume import combine_template_with_content
+from app.utils.template_utils import combine_with_template_preamble
 
 # Use structlog for consistent logging
 import structlog
@@ -195,7 +195,7 @@ You are a professional resume writer. Generate an optimized resume in LaTeX form
 ### 4. Certifications
 - **MANDATORY**: Do NOT show any dates for certifications
 - **CRITICAL**: Never display issue dates, expiry dates, or any temporal information for certifications
-- **EXAMPLE**:  \item \small{{Certificate Issuer - CertificationName}}
+- **EXAMPLE**:  \\item \\small{{Certificate Issuer - CertificationName}}
 
 ### 5. Projects
 - **MANDATORY**: Do NOT show any dates for projects
@@ -205,7 +205,7 @@ You are a professional resume writer. Generate an optimized resume in LaTeX form
 - **TECHNOLOGY INTEGRATION**: If technologies are listed in the `Technologies Used` field, naturally incorporate them into the project description
 - **ACHIEVEMENT EXTRACTION**: Look for achievement-like statements within project descriptions and highlight them appropriately
 - **NO DATE INFERENCE**: Even if project descriptions mention timeframes, do NOT add dates to the LaTeX date field
-- **EXAMPLE**: \\resumeProjectHeading{{\\textbf{{Project Name}}}}{{}}
+- **EXAMPLE**: \\\resumeProjectHeading{{\\\textbf{{Project Name}}}}{{}}
 
 ### 6. Section Organization and Ordering
 - **CRITICAL**: Analyze the job description and applicant's background to determine the optimal section order
@@ -573,8 +573,7 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
                 tex_file = temp_path / "resume.tex"
                 
                 # Combine template preamble with content (same as user-facing compilation)
-                full_template_content = get_full_template_content("ResumeTemplate1.tex")
-                complete_latex = combine_template_with_content(full_template_content, latex_content)
+                complete_latex = combine_with_template_preamble(latex_content, "ResumeTemplate1.tex")
                 
                 logger.debug(f"Complete LaTeX length: {len(complete_latex)} characters")
                 
