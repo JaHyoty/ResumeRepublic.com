@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 import structlog
 
-from app.core.database import SessionLocal
+from app.core.database import get_db_for_background_task
 from app.models.job_posting import JobPosting, JobPostingFetchAttempt
 from app.services.job_posting_schema_extractor import JobPostingSchemaExtractor
 from app.services.job_posting_heuristic_extractor import JobPostingHeuristicExtractor
@@ -37,11 +37,8 @@ class JobPostingParserService:
         Async background task for FastAPI BackgroundTasks
         Creates its own database session
         """
-        db = SessionLocal()
-        try:
+        with get_db_for_background_task() as db:
             await JobPostingParserService.process_job_posting(job_posting_id, db)
-        finally:
-            db.close()
     
     @staticmethod
     async def process_job_posting(job_posting_id: str, db: Session):

@@ -13,7 +13,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from app.core.database import SessionLocal
+from app.core.database import get_db_for_background_task
 from app.models.user import User
 from app.models.application import Application
 from app.models.job_posting import JobPosting
@@ -44,11 +44,8 @@ class ResumeGenerationService:
         Async background task for FastAPI BackgroundTasks
         Creates its own database session
         """
-        db = SessionLocal()
-        try:
+        with get_db_for_background_task() as db:
             await ResumeGenerationService.process_resume_generation(resume_generation_id, db)
-        finally:
-            db.close()
     
     @staticmethod
     async def process_resume_generation(resume_generation_id: str, db: Session):
