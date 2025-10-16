@@ -2,9 +2,7 @@
 LLM Service for resume generation
 """
 
-import os
 import httpx
-import logging
 import ssl
 import tempfile
 import subprocess
@@ -18,6 +16,7 @@ from app.utils.tls_utils import create_httpx_client, validate_tls_configuration
 from app.services.latex_service import latex_service, LaTeXCompilationError
 from app.utils.template_utils import get_full_template_content
 from app.utils.template_utils import combine_with_template_preamble
+from app.utils.latex_sanitizer import sanitize_latex, LaTeXSecurityError
 
 # Use structlog for consistent logging
 import structlog
@@ -101,6 +100,19 @@ class LLMService:
         # Step 5: Clean up LaTeX formatting issues
         logger.info("Starting resume generation - Step 5: LaTeX cleanup")
         cleaned_resume = self._clean_latex_content(verified_resume)
+        
+        # Step 6: Security validation of LLM-generated content
+        logger.info("Starting resume generation - Step 6: Security validation")
+        try:
+            sanitize_latex(cleaned_resume)
+            logger.info("LLM-generated LaTeX passed security validation")
+        except LaTeXSecurityError as e:
+            logger.error(
+                f"LLM-generated LaTeX failed security validation: {str(e)}",
+                extra={'content_preview': cleaned_resume[:200]}
+            )
+            # This is a critical error - LLM should not generate dangerous content
+            raise Exception(f"LLM generated potentially dangerous LaTeX content: {str(e)}")
         
         return cleaned_resume
     

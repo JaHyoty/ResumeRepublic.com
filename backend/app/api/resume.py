@@ -1,16 +1,19 @@
 """
 Resume generation API endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from fastapi.responses import Response
 from sqlalchemy.orm import Session, joinedload
-from typing import Dict, Any, Optional
 import logging
+from jose import jwt
+from app.core.settings import settings
 import tempfile
 import base64
 import traceback
 from datetime import datetime
 from pathlib import Path
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.database import get_db
 from app.core.auth import get_current_user
@@ -18,25 +21,55 @@ from app.models.user import User
 from app.models.application import Application
 from app.models.job_posting import JobPosting
 from app.models.resume import ResumeVersion
-from app.models.experience import Experience, ExperienceTitle
-from app.models.education import Education
-from app.models.skill import Skill
-from app.models.certification import Certification
-from app.models.publication import Publication
-from app.models.project import Project
-from app.models.website import Website
 from app.services.latex_service import latex_service, LaTeXCompilationError
 from app.services.llm_service import llm_service
 from app.services.s3_service import s3_service
 from app.services.resume_generation_service import ResumeGenerationService
 from app.utils.template_utils import extract_document_content, combine_with_template_preamble
+from app.utils.latex_sanitizer import validate_user_latex, LaTeXSecurityError
 from app.schemas.resume import ResumeDesignRequest, ResumeDesignResponse, KeywordAnalysisRequest, KeywordAnalysisResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# Initialize rate limiter with user ID-based limiting
+def get_user_key(request: Request):
+    """
+    Custom key function for rate limiting that uses user ID when available.
+    Falls back to IP address for unauthenticated requests.
+    
+    This approach extracts the user ID from the JWT token directly since
+    rate limiting happens before FastAPI dependency injection.
+    """
+    try:
+        # Try to get Authorization header
+        auth_header = request.headers.get("authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            # No auth token, fall back to IP
+            return get_remote_address(request)
+        
+        # Extract token
+        token = auth_header.split(" ")[1]
+        
+        # Decode JWT token to get user ID        
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id = payload.get("sub")
+        
+        if user_id:
+            return f"user:{user_id}"
+        else:
+            return get_remote_address(request)
+            
+    except Exception:
+        # If anything fails (invalid token, expired, etc.), fall back to IP
+        return get_remote_address(request)
+
+limiter = Limiter(key_func=get_user_key)
+
+@limiter.limit("1/minute")  # Rate limit: max 1 resume designs per minute
 @router.post("/design", response_model=ResumeDesignResponse, status_code=status.HTTP_202_ACCEPTED)
 async def design_resume(
+    request: Request,  # Required for rate limiting
     resume_data: ResumeDesignRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
@@ -377,7 +410,9 @@ async def get_resume_latex(
 
 
 @router.put("/latex/{resume_version_id}")
+@limiter.limit("2/minute")  # Rate limit: max 2 LaTeX compilations per minute
 async def update_resume_latex(
+    request: Request,  # Required for rate limiting
     resume_version_id: int,
     latex_data: dict,
     current_user: User = Depends(get_current_user),
@@ -387,6 +422,9 @@ async def update_resume_latex(
     Update the LaTeX document content (between \\begin{document} and \\end{document}) 
     for a specific resume version and regenerate PDF. The content will be combined 
     with the template preamble automatically.
+    
+    Security: This endpoint enforces strict validation and rate limiting to prevent
+    malicious LaTeX code execution, file system access, and DoS attacks.
     """
     # Get resume version and verify ownership
     resume_version = db.query(ResumeVersion).filter(
@@ -408,23 +446,22 @@ async def update_resume_latex(
             detail="LaTeX content is required"
         )
     
-    # Validate LaTeX content
-    if not latex_content.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="LaTeX content cannot be empty"
+    # SECURITY: Comprehensive validation and sanitization
+    try:
+        validate_user_latex(latex_content)
+    except LaTeXSecurityError as e:
+        logger.warning(
+            f"LaTeX security violation detected for user {current_user.id}: {str(e)}",
+            extra={'user_id': current_user.id, 'resume_version_id': resume_version_id}
         )
-    
-    if '\\begin{document}' not in latex_content:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="LaTeX content must contain \\begin{document}"
+            detail=f"Security validation failed: {str(e)}"
         )
-    
-    if '\\end{document}' not in latex_content:
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="LaTeX content must contain \\end{document}"
+            detail=str(e)
         )
     
     try:
@@ -440,16 +477,12 @@ async def update_resume_latex(
             tex_file.write_text(complete_latex, encoding='utf-8')
             
             # Compile LaTeX to PDF
-            logger.debug(f"Starting LaTeX compilation for resume version {resume_version_id}")
             pdf_file = latex_service.compile_latex(tex_file, temp_path)
-            logger.debug(f"LaTeX compilation completed for resume version {resume_version_id}")
             
             # Read PDF content
             pdf_bytes = pdf_file.read_bytes()
-            logger.debug(f"PDF file read successfully, size: {len(pdf_bytes)} bytes")
             
             # Upload new PDF and LaTeX to S3
-            
             # Delete old files from S3 if they exist
             if resume_version.s3_key:
                 await s3_service.delete_pdf(resume_version.s3_key)
@@ -465,9 +498,6 @@ async def update_resume_latex(
                 resume_version.s3_key = pdf_s3_key
                 resume_version.latex_s3_key = latex_s3_key
                 db.commit()
-                
-                # Return PDF as response
-                logger.debug(f"Returning updated PDF response, size: {len(pdf_bytes)} bytes")
                 
                 # Create user-friendly filename for download
                 filename_parts = []
@@ -503,21 +533,36 @@ async def update_resume_latex(
                 
     except LaTeXCompilationError as e:
         logger.error(f"LaTeX compilation failed for resume version {resume_version_id}: {str(e)}")
+        
+        # Provide user-friendly error messages
+        error_message = str(e)
+        if "timed out" in error_message.lower():
+            detail = (
+                "LaTeX compilation timed out. This usually means your resume is too complex. "
+                "Try: (1) Reducing the number of sections, (2) Simplifying formatting, "
+                "(3) Removing excessive content. If you believe this is an error, please contact support."
+            )
+        else:
+            detail = f"LaTeX compilation failed: {error_message}"
+        
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"LaTeX compilation failed: {str(e)}"
+            detail=detail
         )
+        
     except Exception as e:
-        logger.error(f"Failed to update resume LaTeX for version {resume_version_id}: {str(e)}")
+        logger.error(f"Unexpected error updating resume LaTeX: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update resume content"
+            detail="Internal server error"
         )
 
 
+@limiter.limit("2/minute")  # Rate limit: max 2 keyword analysis per minute
 @router.post("/analyze-keywords", response_model=KeywordAnalysisResponse)
 async def analyze_keywords(
-    request: KeywordAnalysisRequest,
+    request: Request,  # Required for rate limiting
+    keyword_request: KeywordAnalysisRequest,
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -527,7 +572,7 @@ async def analyze_keywords(
     
     try:
         # Validate job description
-        if not request.job_description.strip():
+        if not keyword_request.job_description.strip():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Job description cannot be empty"
@@ -535,7 +580,7 @@ async def analyze_keywords(
         
         # Use LLM service to analyze keywords
         logger.debug(f"Starting keyword analysis for user {current_user.id}")
-        keywords = await llm_service.analyze_keywords(request.job_description)
+        keywords = await llm_service.analyze_keywords(keyword_request.job_description)
         logger.debug(f"Keyword analysis completed for user {current_user.id}, found {len(keywords)} keywords")
         
         return KeywordAnalysisResponse(keywords=keywords)

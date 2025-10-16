@@ -4,7 +4,7 @@ Main FastAPI application entry point
 """
 
 from datetime import datetime
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy import text
@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 import structlog
 import logging
 import uvicorn
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.settings import settings
 from app.core.secret_manager import clear_credentials_cache
@@ -77,7 +79,9 @@ app = FastAPI(
     redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
 )
 
-
+# Add rate limit exception handler
+app.state.limiter = resume.limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add middleware
 app.add_middleware(
