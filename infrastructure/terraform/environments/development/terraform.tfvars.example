@@ -13,7 +13,7 @@ parent_domain_name = "resumerepublic.com"
 # Networking Configuration
 vpc_cidr = "10.1.0.0/16"  # Different CIDR for dev
 availability_zone_count = 2
-private_subnets = ["10.1.1.0/24", "10.1.2.0/24"]  # Backend services
+# private_subnets = ["10.1.1.0/24", "10.1.2.0/24"]  # Removed - no longer needed  # Backend services
 database_subnets = ["10.1.10.0/24", "10.1.20.0/24"]  # Database tier
 public_subnets  = ["10.1.101.0/24", "10.1.102.0/24"]
 backend_port = 8000

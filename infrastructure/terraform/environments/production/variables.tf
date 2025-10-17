@@ -44,11 +44,11 @@ variable "availability_zone_count" {
   default     = 2
 }
 
-variable "private_subnets" {
-  description = "List of private subnet CIDR blocks for backend services"
-  type        = list(string)
-  default     = ["10.0.1.0/24", "10.0.2.0/24"]
-}
+# variable "private_subnets" {
+#   description = "List of private subnet CIDR blocks for backend services"
+#   type        = list(string)
+#   default     = ["10.0.1.0/24", "10.0.2.0/24"]
+# }
 
 variable "database_subnets" {
   description = "List of database subnet CIDR blocks"

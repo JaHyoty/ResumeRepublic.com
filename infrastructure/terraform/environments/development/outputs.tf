@@ -6,10 +6,10 @@ output "vpc_id" {
   value       = module.networking.vpc_id
 }
 
-output "private_subnets" {
-  description = "List of private subnet IDs for backend services"
-  value       = module.networking.private_subnets
-}
+# output "private_subnets" {
+#   description = "List of private subnet IDs for backend services"
+#   value       = module.networking.private_subnets
+# }
 
 output "alb_dns_name" {
   description = "Application Load Balancer DNS name"

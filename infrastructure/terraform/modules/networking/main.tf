@@ -25,11 +25,11 @@ module "vpc" {
   cidr = var.vpc_cidr
 
   azs             = slice(data.aws_availability_zones.available.names, 0, var.availability_zone_count)
-  private_subnets = var.private_subnets
+  # private_subnets = var.private_subnets  # Removed - no longer needed
   database_subnets = var.database_subnets
   public_subnets  = var.public_subnets
 
-  enable_nat_gateway = true
+  enable_nat_gateway = false
   enable_vpn_gateway = false
   enable_dns_hostnames = true
   enable_dns_support = true
@@ -46,13 +46,13 @@ resource "aws_security_group" "rds" {
   name_prefix = "${var.project_name}-${var.environment}-rds-"
   vpc_id      = module.vpc.vpc_id
 
-  # Only allow PostgreSQL access from backend subnets
+  # Allow PostgreSQL access from ECS security group
   ingress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = var.private_subnets
-    description = "PostgreSQL access from backend subnets"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_security_group.ecs.id]
+    description     = "PostgreSQL access from ECS tasks"
   }
 
   # Allow access from database subnets (for RDS internal communication)
@@ -80,11 +80,13 @@ resource "aws_security_group" "ecs" {
   name_prefix = "${var.project_name}-${var.environment}-ecs-"
   vpc_id      = module.vpc.vpc_id
 
+  # Only allow traffic from ALB security group
   ingress {
-    from_port   = var.backend_port
-    to_port     = var.backend_port
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    from_port       = var.backend_port
+    to_port         = var.backend_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+    description     = "HTTP access from ALB only"
   }
 
   egress {

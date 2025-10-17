@@ -10,10 +10,10 @@ output "vpc_cidr_block" {
   value       = module.vpc.vpc_cidr_block
 }
 
-output "private_subnets" {
-  description = "List of private subnet IDs for backend services"
-  value       = module.vpc.private_subnets
-}
+# output "private_subnets" {
+#   description = "List of private subnet IDs for backend services"
+#   value       = module.vpc.private_subnets
+# }
 
 output "database_subnets" {
   description = "List of database subnet IDs"

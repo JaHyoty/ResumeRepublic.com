@@ -2,7 +2,7 @@
 resource "aws_instance" "jump_host" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
-  subnet_id              = var.private_subnet_id
+  subnet_id              = var.database_subnet_id
   vpc_security_group_ids = [aws_security_group.jump_host.id]
   iam_instance_profile   = aws_iam_instance_profile.jump_host.name
 

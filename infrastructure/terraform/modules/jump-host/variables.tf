@@ -13,8 +13,8 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "private_subnet_id" {
-  description = "Private subnet ID where the jump host will be deployed"
+variable "database_subnet_id" {
+  description = "Database subnet ID where the jump host will be deployed"
   type        = string
 }
 

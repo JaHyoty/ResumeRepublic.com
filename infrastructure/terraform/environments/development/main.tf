@@ -34,7 +34,7 @@ module "networking" {
 
   vpc_cidr                = var.vpc_cidr
   availability_zone_count = var.availability_zone_count
-  private_subnets         = var.private_subnets
+  # private_subnets         = var.private_subnets  # Removed - no longer needed
   database_subnets        = var.database_subnets
   public_subnets          = var.public_subnets
   backend_port            = var.backend_port
@@ -49,7 +49,7 @@ module "database" {
   environment  = local.environment
   common_tags  = local.common_tags
 
-  private_subnet_ids      = module.networking.private_subnets
+  # private_subnet_ids      = module.networking.private_subnets  # Removed - using database_subnet_group_name instead
   database_subnet_group_name = module.networking.database_subnet_group_name
   rds_security_group_id   = module.networking.rds_security_group_id
   postgres_version        = var.postgres_version
@@ -154,7 +154,7 @@ module "compute" {
   aws_region   = var.aws_region
   common_tags  = local.common_tags
 
-  private_subnet_ids      = module.networking.private_subnets
+  public_subnet_ids      = module.networking.public_subnets
   ecs_security_group_id   = module.networking.ecs_security_group_id
   ecs_execution_role_arn  = module.iam.ecs_execution_role_arn
   ecs_task_role_arn       = module.iam.ecs_task_role_arn
@@ -301,7 +301,7 @@ module "jump_host" {
   project_name              = var.project_name
   environment              = local.environment
   vpc_id                   = module.networking.vpc_id
-  private_subnet_id        = module.networking.private_subnets[0]
+  database_subnet_id        = module.networking.database_subnets[0]
   database_host            = module.database.db_endpoint
   database_port            = module.database.db_port
   database_security_group_id = module.database.db_security_group_id
