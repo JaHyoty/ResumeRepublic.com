@@ -330,7 +330,7 @@ module "jump_host" {
   project_name              = var.project_name
   environment              = local.environment
   vpc_id                   = module.networking.vpc_id
-  database_subnet_id        = module.networking.database_subnets[0]
+  subnet_id              = module.networking.public_subnets[0]
   database_host            = module.database.db_endpoint
   database_port            = module.database.db_port
   database_security_group_id = module.database.db_security_group_id

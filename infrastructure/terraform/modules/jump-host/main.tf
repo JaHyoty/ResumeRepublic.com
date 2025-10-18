@@ -2,9 +2,10 @@
 resource "aws_instance" "jump_host" {
   ami                    = data.aws_ami.amazon_linux.id
   instance_type          = var.instance_type
-  subnet_id              = var.database_subnet_id
+  subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.jump_host.id]
   iam_instance_profile   = aws_iam_instance_profile.jump_host.name
+  associate_public_ip_address = true
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
     db_host = var.database_host
@@ -53,6 +54,17 @@ resource "aws_security_group" "jump_host" {
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-${var.environment}-jump-host-sg"
   })
+}
+
+# Security group rule to allow jump host to access RDS
+resource "aws_security_group_rule" "jump_host_to_rds" {
+  type                     = "ingress"
+  from_port                = var.database_port
+  to_port                  = var.database_port
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.jump_host.id
+  security_group_id        = var.database_security_group_id
+  description              = "Allow jump host to access RDS"
 }
 
 # IAM role for jump host
