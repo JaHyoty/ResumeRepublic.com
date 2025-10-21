@@ -11,13 +11,11 @@ class EducationBase(BaseModel):
     """Base education schema"""
     institution: str = Field(..., min_length=1, max_length=255)
     degree: str = Field(..., min_length=1, max_length=255)
-    field_of_study: Optional[str] = Field(None, max_length=255)
+    field_of_study: str = Field(..., min_length=1, max_length=255)
     start_date: date
-    end_date: Optional[date] = None
+    end_date: date  # Mandatory graduation date
     gpa: Optional[str] = Field(None, max_length=10)
-    description: Optional[str] = None
-    location: Optional[str] = Field(None, max_length=255)
-    website_url: Optional[str] = Field(None, max_length=500)
+    coursework: Optional[str] = None  # Renamed from description
 
 
 class EducationCreate(EducationBase):
@@ -33,9 +31,7 @@ class EducationUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     gpa: Optional[str] = Field(None, max_length=10)
-    description: Optional[str] = None
-    location: Optional[str] = Field(None, max_length=255)
-    website_url: Optional[str] = Field(None, max_length=500)
+    coursework: Optional[str] = None
 
 
 class Education(EducationBase):

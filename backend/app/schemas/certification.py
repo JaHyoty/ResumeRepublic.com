@@ -5,7 +5,7 @@ from datetime import date
 class CertificationBase(BaseModel):
     name: str
     issuer: str
-    issue_date: date
+    issue_date: Optional[date] = None
     expiry_date: Optional[date] = None
     credential_id: Optional[str] = None
     credential_url: Optional[str] = None

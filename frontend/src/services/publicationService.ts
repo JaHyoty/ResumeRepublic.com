@@ -4,7 +4,7 @@ export interface Publication {
   id: number
   user_id: number
   title: string
-  co_authors?: string
+  authors?: string
   publisher?: string
   publication_date?: string  // Will be serialized as YYYY-MM-DD from backend
   url?: string
@@ -14,7 +14,7 @@ export interface Publication {
 
 export interface CreatePublicationRequest {
   title: string
-  co_authors?: string | null
+  authors?: string | null
   publisher?: string | null
   publication_date?: string | null  // YYYY-MM-DD format
   url?: string | null
@@ -24,7 +24,7 @@ export interface CreatePublicationRequest {
 
 export interface UpdatePublicationRequest {
   title?: string
-  co_authors?: string | null
+  authors?: string | null
   publisher?: string | null
   publication_date?: string | null  // YYYY-MM-DD format
   url?: string | null

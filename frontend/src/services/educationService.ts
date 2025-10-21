@@ -4,25 +4,21 @@ export interface Education {
   id: number
   institution: string
   degree: string
-  field_of_study?: string
+  field_of_study: string
   start_date: string
-  end_date?: string
+  end_date: string
   gpa?: string
-  description?: string
-  location?: string
-  website_url?: string
+  coursework?: string
 }
 
 export interface EducationCreate {
   institution: string
   degree: string
-  field_of_study?: string
+  field_of_study: string
   start_date: string
-  end_date?: string
+  end_date: string
   gpa?: string
-  description?: string
-  location?: string
-  website_url?: string
+  coursework?: string
 }
 
 export interface EducationUpdate {
@@ -32,9 +28,7 @@ export interface EducationUpdate {
   start_date?: string
   end_date?: string | null
   gpa?: string | null
-  description?: string | null
-  location?: string | null
-  website_url?: string | null
+  coursework?: string | null
 }
 
 export const educationService = {

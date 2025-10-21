@@ -23,7 +23,6 @@ class Experience(Base):
     # Relationships
     user = relationship("User", back_populates="experiences")
     titles = relationship("ExperienceTitle", back_populates="experience", cascade="all, delete-orphan")
-    tools = relationship("ExperienceTool", back_populates="experience", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Experience(id={self.id}, company='{self.company}')>"

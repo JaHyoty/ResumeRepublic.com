@@ -35,7 +35,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onEdit, onDelete }) 
             )}
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {formatDate(project.start_date)} - {project.is_current ? 'Present' : (project.end_date ? formatDate(project.end_date) : 'Present')}
+            {project.start_date ? formatDate(project.start_date) : 'Start date unknown'} - {project.is_current ? 'Present' : (project.end_date ? formatDate(project.end_date) : 'Present')}
           </p>
           {project.technologies_used && (
             <p className="text-xs text-gray-500 mt-1">
@@ -68,6 +68,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onEdit, onDelete }) 
       {/* Expanded details */}
       {isSelected && (
         <div className="mt-4 pt-4 border-t border-gray-200">
+          {project.role && (
+            <div className="mb-3">
+              <h5 className="text-sm font-medium text-gray-900 mb-1">Role</h5>
+              <p className="text-sm text-gray-600">{project.role}</p>
+            </div>
+          )}
+          
           {project.description && (
             <div className="mb-3">
               <h5 className="text-sm font-medium text-gray-900 mb-1">Description</h5>
@@ -99,7 +106,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onEdit, onDelete }) 
                     key={index}
                     className="inline-flex items-center px-2 py-1 rounded text-xs bg-orange-100 text-orange-800"
                   >
-                    {tech.trim()}
+                    {tech.trim().replace(/\(/g, ', ').replace(/\)/g, '')}
                   </span>
                 ))}
               </div>

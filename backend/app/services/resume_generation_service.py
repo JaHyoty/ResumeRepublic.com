@@ -147,14 +147,13 @@ class ResumeGenerationService:
         Generate an AI-optimized PDF resume using LLM and LaTeX compilation
         """
         try:
-            # Get full template content (including preamble) and content for LLM
-            full_template_content = get_full_template_content("ResumeTemplate1.tex")
+            # Get template content for LLM
             template_content_for_llm = extract_template_content("ResumeTemplate1.tex")
             
             # Fetch all user data from database
             user_data = ResumeGenerationService._fetch_user_data_for_resume(user.id, db)
             
-            # Get locale for LLM formatting instructions
+            # Get locale for LLM formatting instructions and applicant personal info
             locale = resume_version.resume_metadata.get("locale", "en-US")
             personal_info = resume_version.resume_metadata.get("personal_info", {})
             
@@ -175,10 +174,12 @@ class ResumeGenerationService:
             job_description = resume_version.resume_metadata.get("job_description", "")
             
             logger.debug(f"Calling LLM service Stage 1 for user {user.id}")
+            # Format applicant data for LLM
+            formatted_applicant_data = llm_service._format_applicant_data(applicant_data)
             initial_latex = await llm_service._generate_initial_resume(
                 job_title=job_title,
                 job_description=job_description,
-                applicant_knowledge=applicant_data,
+                applicant_knowledge=formatted_applicant_data,
                 template_content=template_content_for_llm,
                 locale=locale
             )
@@ -195,19 +196,20 @@ class ResumeGenerationService:
             )
             logger.info(f"Finalizing webhook sent for user {user.id}, resume_version {resume_version.id}")
             
-            # Stage 2: Verify and correct resume
-            logger.debug(f"Calling LLM service Stage 2 for user {user.id}")
-            verified_latex = await llm_service._verify_and_correct_resume(
-                initial_latex,
-                applicant_data,
-                job_title,
-                job_description,
-                1  # Assume 1 page for now
-            )
-            logger.debug(f"LLM service Stage 2 completed for user {user.id}")
+            # # Stage 2: Verify and correct resume
+            # logger.debug(f"Calling LLM service Stage 2 for user {user.id}")
+            # verified_latex = await llm_service._verify_and_correct_resume(
+            #     initial_latex,
+            #     formatted_applicant_data,
+            #     job_title,
+            #     job_description,
+            #     1  # Assume 1 page for now
+            # )
+            # logger.debug(f"LLM service Stage 2 completed for user {user.id}")
             
             # Clean up LaTeX formatting issues
-            optimized_latex = llm_service._clean_latex_content(verified_latex)
+            optimized_latex = llm_service._clean_latex_content(initial_latex)
+            # optimized_latex = llm_service._clean_latex_content(verified_latex)
             
             # Combine template preamble with optimized content
             complete_latex = combine_with_template_preamble(optimized_latex)
@@ -313,29 +315,6 @@ class ResumeGenerationService:
             joinedload(Experience.titles)
         ).filter(Experience.user_id == user_id).all()
         
-        # Convert to dict format
-        experiences_data = []
-        for exp in experiences:
-            exp_data = {
-                "id": exp.id,
-                "company": exp.company,
-                "location": exp.location,
-                "start_date": exp.start_date.isoformat() if exp.start_date else None,
-                "end_date": exp.end_date.isoformat() if exp.end_date else None,
-                "is_current": exp.is_current,
-                "description": exp.description,
-                "titles": []
-            }
-            
-            for title in exp.titles:
-                title_data = {
-                    "id": title.id,
-                    "title": title.title,
-                    "is_primary": title.is_primary
-                }
-                exp_data["titles"].append(title_data)
-            
-            experiences_data.append(exp_data)
         
         # Fetch other data
         education = db.query(Education).filter(Education.user_id == user_id).all()
@@ -346,7 +325,20 @@ class ResumeGenerationService:
         websites = db.query(Website).filter(Website.user_id == user_id).all()
         
         return {
-            "experiences": experiences_data,
+            "experiences": [{
+                "id": exp.id,
+                "company": exp.company,
+                "location": exp.location,
+                "start_date": exp.start_date.isoformat() if exp.start_date else None,
+                "end_date": exp.end_date.isoformat() if exp.end_date else None,
+                "is_current": exp.is_current,
+                "description": exp.description,
+                "titles": [{
+                    "id": title.id,
+                    "title": title.title,
+                    "is_primary": title.is_primary
+                } for title in exp.titles]
+            } for exp in experiences],
             "education": [{
                 "id": edu.id,
                 "institution": edu.institution,
@@ -355,16 +347,11 @@ class ResumeGenerationService:
                 "start_date": edu.start_date.isoformat() if edu.start_date else None,
                 "end_date": edu.end_date.isoformat() if edu.end_date else None,
                 "gpa": edu.gpa,
-                "description": edu.description,
-                "location": edu.location,
-                "website_url": edu.website_url
+                "coursework": edu.coursework
             } for edu in education],
             "skills": [{
                 "id": skill.id,
-                "name": skill.name,
-                "proficiency": skill.proficiency,
-                "years_experience": float(skill.years_experience) if skill.years_experience else None,
-                "source": skill.source
+                "name": skill.name
             } for skill in skills],
             "certifications": [{
                 "id": cert.id,
@@ -378,7 +365,7 @@ class ResumeGenerationService:
             "publications": [{
                 "id": pub.id,
                 "title": pub.title,
-                "co_authors": pub.co_authors,
+                "authors": pub.authors,
                 "publisher": pub.publisher,
                 "publication_date": pub.publication_date.isoformat() if pub.publication_date else None,
                 "url": pub.url,
@@ -389,6 +376,7 @@ class ResumeGenerationService:
                 "id": proj.id,
                 "name": proj.name,
                 "description": proj.description,
+                "role": proj.role,
                 "start_date": proj.start_date.isoformat() if proj.start_date else None,
                 "end_date": proj.end_date.isoformat() if proj.end_date else None,
                 "is_current": proj.is_current,

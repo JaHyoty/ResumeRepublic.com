@@ -38,26 +38,9 @@ const EducationCard: React.FC<EducationCardProps> = ({
           <div className="flex items-center mt-1">
             <p className="text-xs text-gray-500">
               {formatDateRange()}
-              {education.location && ` • ${education.location}`}
               {education.gpa && ` • GPA: ${isNaN(parseFloat(education.gpa)) ? education.gpa : parseFloat(education.gpa).toFixed(2)}`}
             </p>
           </div>
-          {education.website_url && (
-            <p className="text-xs text-blue-600 mt-1">
-              <a 
-                href={
-                  education.website_url.startsWith('http://') || education.website_url.startsWith('https://')
-                    ? education.website_url
-                    : `https://${education.website_url.replace(/^\/+/, '')}`
-                }
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:text-blue-800 transition-colors duration-200"
-              >
-                Visit Website
-              </a>
-            </p>
-          )}
         </div>
         <div className="flex space-x-1 ml-4">
           <button 
@@ -81,9 +64,9 @@ const EducationCard: React.FC<EducationCardProps> = ({
         </div>
       </div>
       
-      {education.description && (
+      {education.coursework && (
         <div className="mt-3 pt-3 border-t border-gray-200">
-          <p className="text-sm text-gray-600">{education.description}</p>
+          <p className="text-sm text-gray-600">{education.coursework}</p>
         </div>
       )}
     </div>

@@ -334,6 +334,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
   }
 
   const handleDropdownToggle = () => {
+    if (showKeywordAnalysis) return
     setIsDropdownOpen(!isDropdownOpen)
   }
 
@@ -350,6 +351,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     try {
       const content = await resumeService.getLatexContent(currentResumeVersionId)
       setLatexContent(content)
+      setViewMode('view')
     } catch (error) {
       console.error('Error fetching LaTeX content:', error)
       alert(error instanceof Error ? error.message : 'Failed to load LaTeX content. Please try again.')
@@ -384,6 +386,27 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
     }
   }
 
+  const handleReset = () => {
+    setShowKeywordAnalysis(false)
+    setKeywordAnalysisCompleted(false)
+    setAnalyzedKeywords([])
+    setIsGenerating(false)
+    setGenerationStatus('')
+    setGenerationMessage('')
+    setResumeGenerationId(null)
+    setCurrentResumeVersionId(null)
+    setLatexContent('')
+    setViewMode('view')
+    setIsLoadingLatex(false)
+    setIsUpdatingLatex(false)
+    setJobTitle('')
+    setCompany('')
+    setJobDescription('')
+    setSelectedApplicationId(null)
+    setIsDropdownOpen(false)
+    setPdfUrl(null)
+  }
+
   const handleViewModeChange = async (mode: 'view' | 'edit') => {
     if (mode === 'edit' && !latexContent && currentResumeVersionId) {
       // Fetch LaTeX content when switching to edit mode for the first time
@@ -403,8 +426,26 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
         {/* Designer Panel */}
         <div className="space-y-6">
           {/* Job Description Input */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Job Description</h2>
+          <div className={`bg-white rounded-lg shadow-md p-6 ${showKeywordAnalysis ? 'opacity-75' : ''}`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Job Description</h2>
+              {showKeywordAnalysis && (
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center text-sm text-gray-500">
+                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                    </svg>
+                    Locked
+                  </div>
+                  <button
+                    onClick={handleReset}
+                    className="text-sm text-blue-600 hover:text-blue-800 underline"
+                  >
+                    Reset
+                  </button>
+                </div>
+              )}
+            </div>
             
             {/* Link to Application */}
             {applications && applications.length > 0 && (
@@ -421,7 +462,12 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                   <button
                     type="button"
                     onClick={handleDropdownToggle}
-                    className="w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg text-left text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm hover:border-blue-400 flex items-center justify-between"
+                    disabled={showKeywordAnalysis}
+                    className={`w-full px-4 py-3 bg-white border-2 border-blue-300 rounded-lg text-left text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm flex items-center justify-between ${
+                      showKeywordAnalysis 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : 'hover:border-blue-400'
+                    }`}
                   >
                     <span className={selectedApplicationId ? 'text-gray-700' : 'text-gray-500'}>
                       {getSelectedApplicationText()}
@@ -439,7 +485,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                   </button>
                   
                   {/* Dropdown Options */}
-                  {isDropdownOpen && (
+                  {isDropdownOpen && !showKeywordAnalysis && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                       <div
                         className="px-4 py-1.5 text-gray-500 cursor-pointer hover:bg-gray-50 border-b border-gray-100"
@@ -496,7 +542,10 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                   type="text"
                   value={jobTitle}
                   onChange={(e) => setJobTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={showKeywordAnalysis}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    showKeywordAnalysis ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
                   placeholder="e.g., Software Engineer"
                 />
               </div>
@@ -508,7 +557,10 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                   type="text"
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={showKeywordAnalysis}
+                  className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    showKeywordAnalysis ? 'bg-gray-100 cursor-not-allowed' : ''
+                  }`}
                   placeholder="e.g., Google"
                 />
               </div>
@@ -522,7 +574,10 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
                 rows={8}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={showKeywordAnalysis}
+                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  showKeywordAnalysis ? 'bg-gray-100 cursor-not-allowed' : ''
+                }`}
                 placeholder="Paste the job description here to optimize your resume..."
               />
               <p className="text-sm text-gray-500 mt-1">

@@ -4,7 +4,8 @@ export interface Project {
   id?: number
   name: string
   description?: string
-  start_date: string
+  role?: string
+  start_date?: string
   end_date?: string
   url?: string
   is_current: boolean
@@ -14,7 +15,8 @@ export interface Project {
 export interface CreateProjectRequest {
   name: string
   description?: string
-  start_date: string
+  role?: string
+  start_date?: string
   end_date?: string
   url?: string
   is_current: boolean

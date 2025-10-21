@@ -4,7 +4,8 @@ import { projectService, type Project, type CreateProjectRequest } from '../../s
 interface ProjectFormData {
   name: string
   description?: string
-  start_date: string
+  role?: string
+  start_date?: string
   end_date?: string
   url?: string
   is_current: boolean
@@ -27,6 +28,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
   const [formData, setFormData] = useState<ProjectFormData>({
     name: '',
     description: '',
+    role: '',
     start_date: '',
     end_date: '',
     url: '',
@@ -42,7 +44,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       setFormData({
         name: initialData.name,
         description: initialData.description || '',
-        start_date: initialData.start_date,
+        role: initialData.role || '',
+        start_date: initialData.start_date || '',
         end_date: initialData.end_date || '',
         url: initialData.url || '',
         is_current: initialData.is_current,
@@ -52,6 +55,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       setFormData({
         name: '',
         description: '',
+        role: '',
         start_date: '',
         end_date: '',
         url: '',
@@ -96,9 +100,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       newErrors.name = 'Project name is required'
     }
 
-    if (!formData.start_date) {
-      newErrors.start_date = 'Start date is required'
-    }
+    // Start date is now optional
 
     if (!formData.is_current && !formData.end_date) {
       newErrors.end_date = 'End date is required for completed projects'
@@ -125,7 +127,8 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       const projectData: CreateProjectRequest = {
         name: formData.name.trim(),
         description: formData.description?.trim() || undefined,
-        start_date: formData.start_date,
+        role: formData.role?.trim() || undefined,
+        start_date: formData.start_date || undefined,
         end_date: formData.is_current ? undefined : formData.end_date,
         url: formData.url?.trim() || undefined,
         is_current: formData.is_current,
@@ -170,6 +173,22 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
         {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
       </div>
 
+      {/* Role */}
+      <div>
+        <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
+          Role
+        </label>
+        <input
+          type="text"
+          id="role"
+          value={formData.role}
+          onChange={(e) => handleInputChange('role', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="e.g., Lead Developer, Project Manager, Full-stack Developer"
+          disabled={isSubmitting}
+        />
+      </div>
+
       {/* Description */}
       <div>
         <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
@@ -181,11 +200,11 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
           onChange={(e) => handleInputChange('description', e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={8}
-          placeholder="Describe the project, its purpose, your role, and key achievements"
+          placeholder="Describe the project, its purpose, and key achievements"
           disabled={isSubmitting}
         />
         <p className="text-gray-500 text-sm mt-1">
-          Include both project details and key achievements in the description
+          Include project details and key achievements
         </p>
       </div>
 
@@ -209,7 +228,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor="start_date" className="block text-sm font-medium text-gray-700 mb-1">
-            Start Date *
+            Start Date
           </label>
           <input
             type="date"
@@ -222,6 +241,7 @@ const ProjectForm: React.FC<ProjectFormProps> = ({
             disabled={isSubmitting}
           />
           {errors.start_date && <p className="text-red-500 text-sm mt-1">{errors.start_date}</p>}
+          <p className="text-gray-500 text-sm mt-1">Leave empty if start date is unknown</p>
         </div>
 
         <div>

@@ -14,7 +14,6 @@ from typing import Dict, Any, Tuple
 from app.core.settings import settings
 from app.utils.tls_utils import create_httpx_client, validate_tls_configuration
 from app.services.latex_service import latex_service, LaTeXCompilationError
-from app.utils.template_utils import get_full_template_content
 from app.utils.template_utils import combine_with_template_preamble
 from app.utils.latex_sanitizer import sanitize_latex, LaTeXSecurityError
 
@@ -45,77 +44,7 @@ class LLMService:
         else:
             print("WARNING: TLS enforcement is disabled for LLM API calls")
     
-    async def generate_resume(
-        self, 
-        job_title: str,
-        job_description: str,
-        applicant_data: Dict[str, Any],
-        template_content: str,
-        locale: str = "en-US"
-    ) -> str:
-        """
-        Generate optimized resume using LLM with fact-checking verification
-        """
         
-        # Validate API key
-        if not self.api_key:
-            raise Exception("OPENROUTER_API_KEY is not configured. Please set the environment variable.")
-        
-        # Format applicant data for the prompt
-        applicant_knowledge = self._format_applicant_data(applicant_data)
-        
-        # Step 1: Generate initial resume
-        logger.info("Starting resume generation - Step 1: Initial generation")
-        initial_resume = await self._generate_initial_resume(
-            job_title, job_description, applicant_knowledge, template_content, locale
-        )
-        
-        # Step 2: Compile and check page count
-        logger.info("Starting resume generation - Step 2: Page count verification")
-        logger.debug(f"Initial resume length: {len(initial_resume)} characters")
-        page_count, compilation_error = await self._compile_latex_and_count_pages(initial_resume)
-        
-        if compilation_error:
-            logger.warning(f"LaTeX compilation warning: {compilation_error}")
-        
-        logger.info(f"Initial resume page count: {page_count}")
-        logger.debug(f"Page count type: {type(page_count)}, value: {page_count}")
-        
-        # Step 3: Verify, correct, and optimize for length if needed
-        logger.info("Starting resume generation - Step 3: Fact-checking and length optimization")
-        verified_resume = await self._verify_and_correct_resume(
-            initial_resume, applicant_knowledge, job_title, job_description, page_count
-        )
-        
-        # Step 4: If length optimization was applied, check page count again
-        if page_count > 1:
-            logger.info("Starting resume generation - Step 4: Final page count verification")
-            final_page_count, final_error = await self._compile_latex_and_count_pages(verified_resume)
-            
-            if final_error:
-                logger.warning(f"Final LaTeX compilation warning: {final_error}")
-            
-            logger.info(f"Final resume page count: {final_page_count}")
-        
-        # Step 5: Clean up LaTeX formatting issues
-        logger.info("Starting resume generation - Step 5: LaTeX cleanup")
-        cleaned_resume = self._clean_latex_content(verified_resume)
-        
-        # Step 6: Security validation of LLM-generated content
-        logger.info("Starting resume generation - Step 6: Security validation")
-        try:
-            sanitize_latex(cleaned_resume)
-            logger.info("LLM-generated LaTeX passed security validation")
-        except LaTeXSecurityError as e:
-            logger.error(
-                f"LLM-generated LaTeX failed security validation: {str(e)}",
-                extra={'content_preview': cleaned_resume[:200]}
-            )
-            # This is a critical error - LLM should not generate dangerous content
-            raise Exception(f"LLM generated potentially dangerous LaTeX content: {str(e)}")
-        
-        return cleaned_resume
-    
     async def _generate_initial_resume(
         self,
         job_title: str,
@@ -127,128 +56,86 @@ class LLMService:
         """
         Generate the initial resume draft
         """
-        prompt = f"""# Resume Generation Task
+        prompt = f"""You are an expert resume optimizer. Your task is to generate a one-page resume in LaTeX format tailored to a specific job description. Follow these stages carefully and use your reasoning from each stage to inform the next.
 
-You are a professional resume writer. Generate an optimized resume in LaTeX format for a **{job_title}** position.
+---
 
-## Critical Requirements
-- Use ONLY the provided LaTeX template structure
-- Replace template content with applicant's information
-- Highlight keywords from the job description
-- **MANDATORY**: Keep resume to exactly ONE PAGE
-- Do NOT add explanations, comments, or markdown formatting
-- Return ONLY valid LaTeX code starting with `\\begin{{document}}` and ending with `\\end{{document}}`
+### Stage 1: Keyword Extraction  
+Analyze the job description below and extract the most important keywords, skills, and responsibilities. Focus on technical terms, tools, certifications, and role-specific verbs.
 
-## One-Page Optimization Guidelines
-- **Experiences**: Include maximum 3 most relevant positions
-- **Bullet Points**: Maximum 3-4 impactful bullets per experience
-- **Projects**: Maximum 2 most relevant projects
-- **Skills**: Prioritize job-relevant skills, group efficiently
-- **Education**: Keep concise, include GPA only if strong (>3.5)
-- **Certifications**: Include only recent or highly relevant ones
+### JOB DESCRIPTION START
+{job_description}
+### JOB DESCRIPTION END
 
-### Content Selection Priority:
-1. Recent experience (last 3-5 years)
-2. Direct keyword matches with job description
-3. Quantified achievements and impact
-4. Technical skills mentioned in job posting
-5. Leadership and notable accomplishments
+---
 
-## Formatting Requirements
+### Stage 2: Applicant Strengths Analysis  
+Given the applicant's background below, identify which skills, experiences, and projects are most relevant to the job description.  
+- Highlight the most aligned experiences and projects  
+- Identify which education details are relevant  
+- List any skills or content that should be excluded to keep the resume concise and targeted  
+- Do not fabricate or infer accomplishments not present in the applicant's history
 
-### 1. Multi-Position Formatting
-- If an applicant has multiple positions at the same company, use the multi-position format from the template
-- First position: Use `\\resumeSubheading` with company name and location
-- Additional positions at same company: Use `\\resumeSubSubheading` (without repeating company name)
-- Group all positions under the same company together
+### APPLICANT BACKGROUND START
+{applicant_knowledge}
+### APPLICANT BACKGROUND END
 
-### 2. Keyword Integration
-- You have creative freedom to rephrase and optimize experience descriptions
-- Integrate relevant keywords from the job description naturally into descriptions
-- Enhance descriptions while maintaining factual accuracy
-- Use action verbs and quantifiable results when possible
-- Make descriptions more compelling and ATS-friendly
+---
 
-### 3. Phone Number Formatting
-- Format phone numbers according to the specified locale: **{locale}**
-- Use appropriate regional formatting for professional presentation
-- Examples by locale:
-  - **en-US/en-CA**: (555) 123-4567 or +1 (555) 123-4567
-  - **en-GB/en-AU**: 0123 456 789 or +44 123 456 789
-  - **fr-FR**: 01 23 45 67 89 or +33 1 23 45 67 89
-  - **de-DE**: 030 12345678 or +49 30 12345678
-  - **es-ES/es-MX**: 123 456 789 or +34 123 456 789
-  - **For other locales**: use international format: +[country code] [number]
-- Ensure the phone number looks professional and follows regional conventions
+### Stage 3: Resume Construction  
+Using your analysis from Stage 1 and Stage 2, generate a one-page resume in LaTeX format using the provided template.  
+- Use the XYZ format for bullet points: *Achieved X by doing Y with Z*  
+- Group skills logically by category (e.g., Programming Languages, Frameworks, Tools, etc.) and ensure each skill is placed in the most appropriate category.
+- Limit each experience to a maximum of 4 relevant bullet points  
+- Format phone numbers according to the specified locale: **{locale}**  
+- Resume must fit within a single LaTeX page. If necessary, truncate less relevant bullets or sections. Do not exceed 1,000 words or 60 lines of LaTeX code  
+- If no direct match is found for a keyword or requirement, omit or generalize the bullet point while preserving factual accuracy  
+- Do NOT include any dates for projects in the `\\resumeProjectHeading` command. Use empty braces {{}} for project dates.
+- Ensure formatting matches the LaTeX template below
 
-## Accuracy Requirements
+### LATEX TEMPLATE START
+{template_content}
+### LATEX TEMPLATE END
+
+---
+
+### Final Output Requirements
+
+Return **only** valid LaTeX code that:
+- Starts with `\\begin{{document}}` and ends with `\\end{{document}}`
+- Includes no commentary, reasoning, or explanation
+- Fits on **one page only**
+- Uses only content found in the applicant's history
+
+---
+
+## ✅ Accuracy Requirements
 
 ### 1. Use ONLY knowledge found from the applicant's history
-- **Skills section** must contain ONLY skills present in the applicant's skills list
-- **Experience section** must NOT claim accomplishments the applicant has not claimed
-- **Experience section** must use ONLY skills found in the applicant's skills
-- **Certifications section** must use EXACT naming from the applicant's certifications
+- **Skills section** must contain ONLY skills present in the applicant's skills list  
+- **Experience section** must NOT claim accomplishments the applicant has not claimed  
+- **Experience section** must use ONLY skills found in the applicant's skills  
+- **Certifications section** must use EXACT naming from the applicant's certifications  
 
 ### 2. Education
-- **MANDATORY**: Use the Graduation Date field EXACTLY as provided in the applicant data
-- **FORBIDDEN**: Do NOT use "N/A", "Current", "Present", "In Progress", or any placeholder text
-- **FORBIDDEN**: Do NOT modify, abbreviate, or change the Graduation Date format in any way
-- **EXAMPLE**: If Graduation Date shows "Expected May 2025", you MUST display "Expected May 2025" exactly
-- **EXAMPLE**: If Graduation Date shows "June 2023", you MUST display "June 2023" exactly
-- If Graduation Date is null/empty, leave the date field empty - do NOT add placeholder text
-- Do not display the location for education
 - **GPA FORMATTING**: If GPA is a number, display it with exactly 2 decimal places (e.g., "3.85", "4.00"). If GPA is text (e.g., "First Class", "Magna Cum Laude"), display as-is.
 
 ### 3. Experience
-- **MANDATORY**: display the location of every experience, even if Remote
-- **MANDATORY**: Select only one job title for an experience. Choose the most relevant title.
-- **FORBIDDEN**: Do NOT repeat job titles for an experience. One experience can have only one job title.
+- **MANDATORY**: Display the location of every experience, even if Remote  
+- **MANDATORY**: Choose the most relevant title per experience or join titles with `/` if relevant  
+- **EXPERIENCE FORMATTING**: Use `\\resumeSubheading` for the most recent role at each company, and `\\resumeSubSubheading` for any previous roles at the same company.
 
-### 4. Certifications
-- **MANDATORY**: Do NOT show any dates for certifications
-- **CRITICAL**: Never display issue dates, expiry dates, or any temporal information for certifications
-- **EXAMPLE**:  \\item \\small{{Certificate Issuer - CertificationName}}
-
-### 5. Projects
-- **MANDATORY**: Do NOT show any dates for projects
-- **MANDATORY**: Use empty braces {{}} for the date parameter in project entries (NOT {{' '}} or {{""}})
-- **CRITICAL**: Never use quotes around empty spaces - use {{}} instead of {{' '}} or {{""}} 
-- **DESCRIPTION HANDLING**: Projects may include both general descriptions and specific achievements within the same description field
-- **TECHNOLOGY INTEGRATION**: If technologies are listed in the `Technologies Used` field, naturally incorporate them into the project description
-- **ACHIEVEMENT EXTRACTION**: Look for achievement-like statements within project descriptions and highlight them appropriately
-- **NO DATE INFERENCE**: Even if project descriptions mention timeframes, do NOT add dates to the LaTeX date field
-- **EXAMPLE**: \\\resumeProjectHeading{{\\\textbf{{Project Name}}}}{{}}
-
-### 6. Section Organization and Ordering
-- **CRITICAL**: Analyze the job description and applicant's background to determine the optimal section order
-- **STRATEGIC PLACEMENT**: Place sections with the strongest keyword matches and most relevant content near the top (after header)
-- **REASONING REQUIRED**: Consider which sections will best attract recruiter attention for this specific role
+### 4. Section Organization and Ordering
+- **CRITICAL**: Analyze the job description and applicant's background to determine the optimal section order  
+- **STRATEGIC PLACEMENT**: Place sections with the strongest keyword matches and most relevant content near the top (after header)  
+- **REASONING REQUIRED**: Consider which sections will best attract recruiter attention for this specific role  
 - **COMMON PATTERNS**:
-  - For technical roles: Skills → Experience → Projects → Education → Certifications
-  - For experienced professionals: Experience → Skills → Projects → Education → Certifications
-  - For recent graduates: Education → Skills → Projects → Experience → Certifications
-  - For career changers: Skills → Projects → Experience → Education → Certifications
-- **FLEXIBILITY**: Adapt the order based on what will showcase the applicant's fit for the role most effectively
-- **KEYWORD PRIORITY**: Sections containing the most job-relevant keywords should appear earlier
-
-### 7. General Accuracy
-- Avoid vague adjectives - use only hard truths and specific facts
-- Maintain factual accuracy while optimizing for keywords
-
-## Job Description
-```
-{job_description}
-```
-
-## Applicant Information
-{applicant_knowledge}
-
-## LaTeX Template
-```latex
-{template_content}
-```
-
-Generate the optimized resume now."""
+  - For technical roles: Skills → Experience → Projects → Education → Certifications  
+  - For experienced professionals: Experience → Skills → Projects → Education → Certifications  
+  - For recent graduates: Education → Skills → Projects → Experience → Certifications  
+  - For career changers: Skills → Projects → Experience → Education → Certifications  
+- **FLEXIBILITY**: Adapt the order based on what will showcase the applicant's fit for the role most effectively  
+- **KEYWORD PRIORITY**: Sections containing the most job-relevant keywords should appear earlier"""
 
         return await self._make_llm_request(prompt)
     
@@ -275,8 +162,8 @@ Generate the optimized resume now."""
 ## CRITICAL: Length Optimization Required
 The current resume is {page_count} pages long. You MUST reduce it to exactly 1 page by:
 - Selecting only the most relevant experiences (max 3)
-- Limiting bullet points to 3-4 per experience
-- Including only the most relevant projects (max 2)
+- Limiting bullet points to maximum of 4 per experience
+- Including only the most relevant projects (max 3)
 - Prioritizing recent and job-relevant content
 - Removing less critical details while maintaining impact
 - Focus on quantified achievements and direct keyword matches
@@ -291,8 +178,8 @@ The current resume is {page_count} pages long. You MUST reduce it to exactly 1 p
 
 **CONTENT LIMITS:**
 - Maximum 3 work experiences
-- Maximum 3-4 bullet points per experience
-- Maximum 2 projects
+- Maximum 4 bullet points per experience
+- Maximum 3 projects
 - Concise skills section with job-relevant skills only
 - Brief education section (include GPA only if >3.5)
 """
@@ -300,8 +187,6 @@ The current resume is {page_count} pages long. You MUST reduce it to exactly 1 p
         prompt = f"""# Resume Fact-Checking and Optimization Task
 
 You are a fact-checking expert reviewing a resume for accuracy and length optimization. Your task is to compare the generated resume against the applicant's actual data, correct any inaccuracies, and ensure it fits on one page.
-
-{length_instruction}
 
 ## Critical Task
 - Review the generated resume line by line
@@ -346,6 +231,8 @@ You are a fact-checking expert reviewing a resume for accuracy and length optimi
 - Remove any industry buzzwords not used by the applicant
 - **Consistency check**: Verify all factual details match the source data
 
+{length_instruction}
+
 ## Applicant's Actual Data
 {applicant_knowledge}
 
@@ -368,23 +255,25 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
         Clean up common LaTeX formatting issues in the generated resume
         """
         logger.debug("Cleaning LaTeX content for formatting issues")
+           
+        # Remove bolding from skills section only (but keep category headers bolded)
+        # Find the skills section and remove \textbf{} wrapping from individual skills after colons
+        skills_section_pattern = r'(\\section\{[^}]*[Ss]kills[^}]*\}.*?)(?=\\section|\Z)'
         
-        # Fix project date issues - remove quotes around empty spaces or single spaces
-        # This handles cases like: {' '} or {""} or {"  "} in project dates
+        def clean_skills_section(match):
+            skills_content = match.group(1)
+            # Remove \textbf{} wrapping from skills AFTER the colon, but keep category headers bolded
+            # Pattern matches: }{: \textbf{skill} and removes the \textbf{} wrapper
+            skills_content = re.sub(r'(\}\{\:\s*)\\textbf\{([^}]+)\}', r'\1\2', skills_content)
+            # Also remove Markdown-style bolding **text** after colons
+            skills_content = re.sub(r'(\}\{\:\s*)\*\*([^*]+)\*\*', r'\1\2', skills_content)
+            return skills_content
         
-        # Pattern to match project heading with quoted empty/space dates
-        # Matches: }{' '} or }{"  "} or }{""} at the end of resumeProjectHeading lines
-        project_date_pattern = r'(\})\{[\'\"]\s*[\'\"]\}'
-        latex_content = re.sub(project_date_pattern, r'\1{}', latex_content)
+        latex_content = re.sub(skills_section_pattern, clean_skills_section, latex_content, flags=re.DOTALL)
         
-        # Also handle cases where there might be just quotes with spaces
-        project_date_pattern2 = r'(\})\{[\'\"][\s]*[\'\"]?\}'
-        latex_content = re.sub(project_date_pattern2, r'\1{}', latex_content)
-        
-        # Handle any remaining quoted single spaces or empty strings in project contexts
-        # This is more specific to avoid affecting other parts of the resume
-        project_context_pattern = r'(\\resumeProjectHeading.*?\{.*?\})\{[\'\"]\s*[\'\"]\}'
-        latex_content = re.sub(project_context_pattern, r'\1{}', latex_content, flags=re.DOTALL)
+        # Convert any remaining Markdown-style bolding **text** to LaTeX \textbf{text} in the entire document
+        # This handles cases where the LLM used Markdown formatting instead of LaTeX
+        latex_content = re.sub(r'\*\*([^*]+)\*\*', r'\\textbf{\1}', latex_content)
         
         logger.debug(f"LaTeX content cleaned, length: {len(latex_content)}")
         return latex_content
@@ -864,12 +753,11 @@ Return only the JSON array of keywords that are explicitly mentioned in the job 
         
         # Education
         if applicant_data.get("education"):
-            formatted_data.append("# Education")
+            formatted_data.append("# Education (Include only the most relevant education and GPA if it's strong (>3.5)):")
             formatted_data.append("")
             for edu in applicant_data["education"]:
                 formatted_data.append(f"## {edu.get('degree', 'N/A')} in {edu.get('field_of_study', 'N/A')}")
                 formatted_data.append(f"**Institution:** {edu.get('institution', 'N/A')}")
-                formatted_data.append(f"**Location:** {edu.get('location', 'N/A')}")
                 formatted_data.append(f"**Graduation Date:** {edu.get('end_date', 'N/A')}")
                 if edu.get('gpa'):
                     # Format GPA with 2 decimal places if it's a number
@@ -885,23 +773,22 @@ Return only the JSON array of keywords that are explicitly mentioned in the job 
         
         # Work Experience
         if applicant_data.get("experiences"):
-            formatted_data.append("# Work Experience")
+            formatted_data.append("# Professional Experience")
             formatted_data.append("")
             for exp in applicant_data["experiences"]:
-                formatted_data.append(f"## {exp.get('company', 'N/A')}")
-                formatted_data.append(f"**Location:** {exp.get('location', 'N/A')}")
-                formatted_data.append(f"**Duration:** {exp.get('start_date', 'N/A')} - {'Present' if exp.get('is_current') else exp.get('end_date', 'N/A')}")
+                formatted_data.append(f"## {exp.get('company', '')}")
+                formatted_data.append(f"**Location:** {exp.get('location', '')}")
+                formatted_data.append(f"**Duration:** {exp.get('start_date', '')} - {'Present' if exp.get('is_current') else exp.get('end_date', '')}")
                 
                 # Job Titles
                 if exp.get('titles'):
-                    formatted_data.append("**Positions:**")
+                    formatted_data.append("**Position titles (You can pick the most relevant title or combine titles if needed):**")
                     for title in exp['titles']:
-                        primary_indicator = " *(Primary)*" if title.get('is_primary') else ""
+                        primary_indicator = " *(Primary)*" if title.get('is_primary') and len(exp['titles']) > 1 else ""
                         formatted_data.append(f"- {title.get('title', 'N/A')}{primary_indicator}")
                 
                 if exp.get('description'):
-                    formatted_data.append("**Description:**")
-                    formatted_data.append(f"{exp['description']}")
+                    formatted_data.append(f"**Description:** {exp['description']}")
                 
                 formatted_data.append("")
         
@@ -910,53 +797,45 @@ Return only the JSON array of keywords that are explicitly mentioned in the job 
             formatted_data.append("# Projects")
             formatted_data.append("")
             for project in applicant_data["projects"]:
-                formatted_data.append(f"## {project.get('name', 'N/A')}")
-                formatted_data.append(f"**Duration:** {project.get('start_date', 'N/A')} - {'Present' if project.get('is_current') else project.get('end_date', 'N/A')}")
+                formatted_data.append(f"## {project.get('name', '')}")
+                if project.get('role'):
+                    formatted_data.append(f"**Role:** {project['role']}")
+                # Do not display the duration for projects
                 if project.get('url'):
                     formatted_data.append(f"**URL:** {project['url']}")
                 if project.get('description'):
-                    formatted_data.append("**Description:**")
-                    formatted_data.append(f"{project['description']}")
+                    formatted_data.append(f"**Description:** {project['description']}")
                 
                 # Technologies Used
                 if project.get('technologies_used'):
-                    formatted_data.append("**Technologies Used:**")
-                    formatted_data.append(f"{project['technologies_used']}")
+                    formatted_data.append(f"**Technologies Used:** {project['technologies_used']}")
                 
                 formatted_data.append("")
         
         # Skills
         if applicant_data.get("skills"):
-            formatted_data.append("# Skills")
-            formatted_data.append("")
-            skill_names = [skill.get('name', 'N/A') for skill in applicant_data["skills"]]
-            # Group skills in a more readable format
-            skills_per_line = 8
-            for i in range(0, len(skill_names), skills_per_line):
-                skill_group = skill_names[i:i + skills_per_line]
-                formatted_data.append(f"- {' • '.join(skill_group)}")
+            formatted_data.append("# Skills (Group skills logically by category - Programming Languages, Frameworks, Tools, etc. - and ensure each skill is placed in the most appropriate category):")
+            skill_names = [skill.get('name', '') for skill in applicant_data["skills"]]
+            formatted_data.append(", ".join(skill_names))
             formatted_data.append("")
         
         # Certifications
         if applicant_data.get("certifications"):
-            formatted_data.append("# Certifications")
+            formatted_data.append("# Certifications (Include only the most relevant certifications):")
             formatted_data.append("")
             for cert in applicant_data["certifications"]:
-                formatted_data.append(f"## {cert.get('name', 'N/A')}")
-                formatted_data.append(f"**Issuer:** {cert.get('issuer', 'N/A')}")
-                formatted_data.append(f"**Issue Date:** {cert.get('issue_date', 'N/A')}")
-                if cert.get('expiry_date'):
-                    formatted_data.append(f"**Expiry Date:** {cert['expiry_date']}")
+                formatted_data.append(f"## {cert.get('name', '')}")
+                formatted_data.append(f"**Issuer:** {cert.get('issuer', '')}")
                 formatted_data.append("")
         
         # Publications
         if applicant_data.get("publications"):
-            formatted_data.append("# Publications")
+            formatted_data.append("# Publications (Include only the most relevant publications):")
             formatted_data.append("")
             for pub in applicant_data["publications"]:
-                formatted_data.append(f"## {pub.get('title', 'N/A')}")
-                if pub.get('co_authors'):
-                    formatted_data.append(f"**Co-authors:** {pub['co_authors']}")
+                formatted_data.append(f"## {pub.get('title', '')}")
+                if pub.get('authors'):
+                    formatted_data.append(f"**Author(s):** {pub['authors']}")
                 if pub.get('publisher'):
                     formatted_data.append(f"**Publisher:** {pub['publisher']}")
                 if pub.get('publication_date'):
@@ -967,7 +846,7 @@ Return only the JSON array of keywords that are explicitly mentioned in the job 
         
         # Websites
         if applicant_data.get("websites"):
-            formatted_data.append("# Websites & Links")
+            formatted_data.append("# Websites & Links (Include only the most relevant websites and links):")
             formatted_data.append("")
             for website in applicant_data["websites"]:
                 formatted_data.append(f"- **{website.get('site_name', 'N/A')}:** {website.get('url', 'N/A')}")

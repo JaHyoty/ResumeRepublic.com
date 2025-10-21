@@ -4,7 +4,7 @@ from datetime import date
 
 class PublicationBase(BaseModel):
     title: str
-    co_authors: Optional[str] = None
+    authors: Optional[str] = None
     publisher: Optional[str] = None
     publication_date: Optional[date] = None
     url: Optional[str] = None
@@ -16,7 +16,7 @@ class PublicationCreate(PublicationBase):
 
 class PublicationUpdate(BaseModel):
     title: Optional[str] = None
-    co_authors: Optional[str] = None
+    authors: Optional[str] = None
     publisher: Optional[str] = None
     publication_date: Optional[date] = None
     url: Optional[str] = None

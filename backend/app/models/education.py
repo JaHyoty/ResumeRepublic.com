@@ -15,13 +15,11 @@ class Education(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     institution = Column(String(255), nullable=False)
     degree = Column(String(255), nullable=False)
-    field_of_study = Column(String(255), nullable=True)
+    field_of_study = Column(String(255), nullable=False)
     start_date = Column(Date, nullable=False)
-    end_date = Column(Date, nullable=True)  # None for current education
+    end_date = Column(Date, nullable=False)  # Mandatory graduation date
     gpa = Column(String(10), nullable=True)  # e.g., "3.85", "First Class", flexible format
-    description = Column(Text, nullable=True)
-    location = Column(String(255), nullable=True)
-    website_url = Column(String(500), nullable=True)
+    coursework = Column(Text, nullable=True)  # Renamed from description
 
     # Relationships
     user = relationship("User", back_populates="education")

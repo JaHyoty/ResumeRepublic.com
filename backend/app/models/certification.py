@@ -15,7 +15,7 @@ class Certification(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     issuer = Column(String(255), nullable=False)
-    issue_date = Column(Date, nullable=False)
+    issue_date = Column(Date, nullable=True)
     expiry_date = Column(Date, nullable=True)
     credential_id = Column(String(255), nullable=True)
     credential_url = Column(Text, nullable=True)

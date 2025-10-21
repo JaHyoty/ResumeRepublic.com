@@ -67,7 +67,9 @@ class Settings(BaseSettings):
         "http://localhost:3000", 
         "http://localhost:3001", 
         "http://localhost:5173", 
-        "http://localhost:4173"
+        "http://localhost:4173",
+        "https://dev.resumerepublic.com",
+        "https://resumerepublic.com"
     ]
     ALLOWED_HOSTS: Union[List[str], str] = ["localhost", "127.0.0.1"]
     

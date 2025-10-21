@@ -3,7 +3,7 @@ import { publicationService, type Publication, type CreatePublicationRequest } f
 
 interface PublicationsFormData {
   title: string
-  co_authors?: string
+  authors?: string
   publisher?: string
   publication_date?: string
   url?: string
@@ -28,7 +28,7 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
   
   const [formData, setFormData] = useState<PublicationsFormData>({
     title: initialData?.title || '',
-    co_authors: initialData?.co_authors || '',
+    authors: initialData?.authors || '',
     publisher: initialData?.publisher || '',
     publication_date: initialData?.publication_date || '',
     url: initialData?.url || '',
@@ -80,7 +80,7 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
     try {
       const submitData: CreatePublicationRequest = {
         title: formData.title.trim(),
-        co_authors: formData.co_authors?.trim() || null,
+        authors: formData.authors?.trim() || null,
         publisher: formData.publisher?.trim() || null,
         publication_date: formData.publication_date?.trim() || null,
         url: formData.url?.trim() || null,
@@ -156,16 +156,16 @@ const PublicationsForm: React.FC<PublicationsFormProps> = ({
           )}
         </div>
 
-        {/* Co-authors */}
+        {/* Author(s) */}
         <div>
-          <label htmlFor="co_authors" className="block text-sm font-medium text-gray-700 mb-2">
-            Co-authors
+          <label htmlFor="authors" className="block text-sm font-medium text-gray-700 mb-2">
+            Author(s)
           </label>
           <input
             type="text"
-            id="co_authors"
-            value={formData.co_authors}
-            onChange={(e) => handleInputChange('co_authors', e.target.value)}
+            id="authors"
+            value={formData.authors}
+            onChange={(e) => handleInputChange('authors', e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="e.g., John Doe, Jane Smith"
             disabled={isSubmitting}

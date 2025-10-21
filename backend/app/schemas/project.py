@@ -10,7 +10,8 @@ from datetime import date
 class ProjectBase(BaseModel):
     name: str
     description: Optional[str] = None
-    start_date: date
+    role: Optional[str] = None  # New field for role
+    start_date: Optional[date] = None  # Made optional
     end_date: Optional[date] = None
     url: Optional[str] = None
     is_current: bool = False
@@ -24,6 +25,7 @@ class ProjectCreate(ProjectBase):
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    role: Optional[str] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     url: Optional[str] = None

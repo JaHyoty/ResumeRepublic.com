@@ -55,9 +55,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
       newErrors.issuer = 'Issuer is required'
     }
 
-    if (!formData.issue_date.trim()) {
-      newErrors.issue_date = 'Issue date is required'
-    }
+    // Issue date is now optional
 
     // Date validation is handled by the native date input
 
@@ -173,7 +171,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
         {/* Issue Date */}
         <div>
           <label htmlFor="issue_date" className="block text-sm font-medium text-gray-700 mb-2">
-            Issue Date *
+            Issue Date
           </label>
           <input
             type="date"
@@ -188,6 +186,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
           {errors.issue_date && (
             <p className="mt-1 text-sm text-red-600">{errors.issue_date}</p>
           )}
+          <p className="mt-1 text-xs text-gray-500">Leave empty if issue date is unknown</p>
         </div>
 
         {/* Expiry Date */}

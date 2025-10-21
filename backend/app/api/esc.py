@@ -188,7 +188,6 @@ def get_user_skills(
     skills = db.query(SkillModel).filter(
         SkillModel.user_id == current_user.id
     ).order_by(
-        SkillModel.source,
         SkillModel.name
     ).all()
     return skills

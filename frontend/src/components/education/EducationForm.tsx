@@ -16,9 +16,7 @@ interface EducationFormData {
   start_date: string
   end_date: string
   gpa: string
-  description: string
-  location: string
-  website_url: string
+  coursework: string
 }
 
 const EducationForm: React.FC<EducationFormProps> = ({
@@ -36,9 +34,7 @@ const EducationForm: React.FC<EducationFormProps> = ({
     start_date: '',
     end_date: '',
     gpa: '',
-    description: '',
-    location: '',
-    website_url: ''
+    coursework: ''
   })
   const [errors, setErrors] = useState<Partial<Record<keyof EducationFormData, string>>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -52,9 +48,7 @@ const EducationForm: React.FC<EducationFormProps> = ({
         start_date: initialData.start_date,
         end_date: initialData.end_date || '',
         gpa: initialData.gpa || '',
-        description: initialData.description || '',
-        location: initialData.location || '',
-        website_url: initialData.website_url || ''
+        coursework: initialData.coursework || ''
       })
     } else {
       setFormData({
@@ -64,9 +58,7 @@ const EducationForm: React.FC<EducationFormProps> = ({
         start_date: '',
         end_date: '',
         gpa: '',
-        description: '',
-        location: '',
-        website_url: ''
+        coursework: ''
       })
     }
     setErrors({})
@@ -93,8 +85,16 @@ const EducationForm: React.FC<EducationFormProps> = ({
       newErrors.degree = 'Degree is required'
     }
 
+    if (!formData.field_of_study.trim()) {
+      newErrors.field_of_study = 'Field of study is required'
+    }
+
     if (!formData.start_date) {
       newErrors.start_date = 'Start date is required'
+    }
+
+    if (!formData.end_date) {
+      newErrors.end_date = 'Graduation date is required'
     }
 
     setErrors(newErrors)
@@ -114,13 +114,11 @@ const EducationForm: React.FC<EducationFormProps> = ({
       const educationData: EducationCreate | EducationUpdate = {
         institution: formData.institution.trim(),
         degree: formData.degree.trim(),
-        field_of_study: formData.field_of_study.trim() || null,
+        field_of_study: formData.field_of_study.trim(),
         start_date: formData.start_date,
-        end_date: formData.end_date || null,
+        end_date: formData.end_date,
         gpa: formData.gpa.trim() || null,
-        description: formData.description.trim() || null,
-        location: formData.location.trim() || null,
-        website_url: formData.website_url.trim() || null
+        coursework: formData.coursework.trim() || null
       }
 
       if (initialData) {
@@ -218,15 +216,20 @@ const EducationForm: React.FC<EducationFormProps> = ({
             {/* Field of Study */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Field of Study
+                Field of Study *
               </label>
               <input
                 type="text"
                 value={formData.field_of_study}
                 onChange={(e) => handleInputChange('field_of_study', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Computer Science"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  errors.field_of_study ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="E.g. Computer Science, Software Engineering, etc."
               />
+              {errors.field_of_study && (
+                <p className="text-red-500 text-xs mt-1">{errors.field_of_study}</p>
+              )}
             </div>
 
             {/* GPA */}
@@ -261,59 +264,37 @@ const EducationForm: React.FC<EducationFormProps> = ({
               )}
             </div>
 
-            {/* End Date */}
+            {/* Graduation Date */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
+                Graduation Date *
               </label>
               <input
                 type="date"
                 value={formData.end_date}
                 onChange={(e) => handleInputChange('end_date', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  errors.end_date ? 'border-red-500' : 'border-gray-300'
+                }`}
               />
+              {errors.end_date && (
+                <p className="text-red-500 text-xs mt-1">{errors.end_date}</p>
+              )}
             </div>
 
-            {/* Location */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Location
-              </label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => handleInputChange('location', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="New York, NY"
-              />
-            </div>
-
-            {/* Website URL */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Website URL
-              </label>
-              <input
-                type="url"
-                value={formData.website_url}
-                onChange={(e) => handleInputChange('website_url', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="https://university.edu"
-              />
-            </div>
           </div>
 
-          {/* Description */}
+          {/* Completed Coursework */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description
+              Completed Coursework
             </label>
             <textarea
-              value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
+              value={formData.coursework}
+              onChange={(e) => handleInputChange('coursework', e.target.value)}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Additional details about your education..."
+              placeholder="List relevant courses, projects, or academic achievements..."
             />
           </div>
           {/* Form Footer */}

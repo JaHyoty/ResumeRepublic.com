@@ -5,7 +5,7 @@ export interface Certification {
   user_id: number
   name: string
   issuer: string
-  issue_date: string  // Will be serialized as YYYY-MM-DD from backend
+  issue_date?: string  // Will be serialized as YYYY-MM-DD from backend
   expiry_date?: string  // Will be serialized as YYYY-MM-DD from backend
   credential_id?: string
   credential_url?: string
@@ -14,7 +14,7 @@ export interface Certification {
 export interface CreateCertificationRequest {
   name: string
   issuer: string
-  issue_date: string  // YYYY-MM-DD format
+  issue_date?: string | null  // YYYY-MM-DD format
   expiry_date?: string | null  // YYYY-MM-DD format
   credential_id?: string | null
   credential_url?: string | null
@@ -23,7 +23,7 @@ export interface CreateCertificationRequest {
 export interface UpdateCertificationRequest {
   name?: string
   issuer?: string
-  issue_date?: string  // YYYY-MM-DD format
+  issue_date?: string | null  // YYYY-MM-DD format
   expiry_date?: string | null  // YYYY-MM-DD format
   credential_id?: string | null
   credential_url?: string | null

@@ -205,7 +205,7 @@ const ExperienceSkillsView: React.FC = () => {
       icon: '🎓',
       color: 'bg-purple-50 border-purple-200',
       iconColor: 'text-purple-600',
-      fields: ['Institution', 'Degree', 'Field of Study', 'Dates', 'GPA', 'Location', 'Description']
+      fields: ['Institution', 'Degree', 'Field of Study', 'Graduation Date', 'GPA', 'Completed Coursework']
     },
     {
       id: 'experience',
@@ -241,7 +241,7 @@ const ExperienceSkillsView: React.FC = () => {
       icon: '📚',
       color: 'bg-indigo-50 border-indigo-200',
       iconColor: 'text-indigo-600',
-      fields: ['Title', 'Co-authors', 'Publication Date', 'URL', 'Description', 'Publication Type']
+      fields: ['Title', 'Author(s)', 'Publication Date', 'URL', 'Description', 'Publication Type']
     },
     {
       id: 'websites',
@@ -259,7 +259,7 @@ const ExperienceSkillsView: React.FC = () => {
       icon: '🚀',
       color: 'bg-orange-50 border-orange-200',
       iconColor: 'text-orange-600',
-      fields: ['Project Name', 'Description', 'Technologies', 'URL', 'Dates']
+      fields: ['Project Name', 'Role', 'Description', 'Technologies', 'URL', 'Dates']
     }
   ]
 
@@ -678,7 +678,7 @@ const ExperienceSkillsView: React.FC = () => {
             <h4 className="font-semibold text-gray-900">{certification.name}</h4>
             <p className="text-sm text-gray-600 mt-1">{certification.issuer}</p>
             <p className="text-xs text-gray-500 mt-1">
-              Issued: {formatDate(certification.issue_date)}
+              {certification.issue_date ? `Issued: ${formatDate(certification.issue_date)}` : 'Issue date not specified'}
               {certification.expiry_date && ` • Expires: ${formatDate(certification.expiry_date)}`}
             </p>
             {certification.credential_id && (
@@ -710,8 +710,8 @@ const ExperienceSkillsView: React.FC = () => {
         <div className="flex justify-between items-center">
           <div className="flex-1">
             <h4 className="font-semibold text-gray-900">{publication.title}</h4>
-            {publication.co_authors && (
-              <p className="text-sm text-gray-600 mt-1">Co-authors: {publication.co_authors}</p>
+            {publication.authors && (
+              <p className="text-sm text-gray-600 mt-1">Author(s): {publication.authors}</p>
             )}
             {publication.publisher && (
               <p className="text-sm text-gray-600 mt-1">Publisher: {publication.publisher}</p>

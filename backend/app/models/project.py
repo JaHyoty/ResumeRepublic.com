@@ -15,7 +15,8 @@ class Project(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    start_date = Column(Date, nullable=False)
+    role = Column(String(255), nullable=True)  # New field for role
+    start_date = Column(Date, nullable=True)  # Made optional
     end_date = Column(Date, nullable=True)  # None for ongoing projects
     url = Column(String(500), nullable=True)
     is_current = Column(Boolean, default=False)

@@ -14,7 +14,7 @@ class Publication(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
-    co_authors = Column(Text, nullable=True)
+    authors = Column(Text, nullable=True)  # Renamed from co_authors
     publisher = Column(String(255), nullable=True)
     publication_date = Column(Date, nullable=True)
     url = Column(String(500), nullable=True)
