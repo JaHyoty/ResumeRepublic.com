@@ -311,8 +311,7 @@ def create_skills_bulk(
         if skill_name and skill_name.lower() not in existing_skill_names:
             new_skills.append(SkillModel(
                 user_id=current_user.id,
-                name=skill_name,
-                source="job_analysis"  # Mark these as coming from keyword analysis
+                name=skill_name
             ))
             existing_skill_names.add(skill_name.lower())  # Prevent duplicates within the same request
     

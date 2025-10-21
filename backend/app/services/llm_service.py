@@ -124,6 +124,7 @@ Return **only** valid LaTeX code that:
 - **MANDATORY**: Display the location of every experience, even if Remote  
 - **MANDATORY**: Choose the most relevant title per experience or join titles with `/` if relevant  
 - **EXPERIENCE FORMATTING**: Use `\\resumeSubheading` for the most recent role at each company, and `\\resumeSubSubheading` for any previous roles at the same company.
+- **EXPERIENCE ORDERING**: List all relevant experiences in chronological order with the most recent experience first (descending order by end date, with current positions at the top).
 
 ### 4. Section Organization and Ordering
 - **CRITICAL**: Analyze the job description and applicant's background to determine the optimal section order  

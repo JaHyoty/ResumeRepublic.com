@@ -44,10 +44,10 @@ class Settings(BaseSettings):
     USE_IAM_DATABASE_AUTH: bool = False
     
     # Database Connection Pool Settings
-    DATABASE_POOL_SIZE: int = 5
-    DATABASE_MAX_OVERFLOW: int = 10
+    DATABASE_POOL_SIZE: int = 10
+    DATABASE_MAX_OVERFLOW: int = 20
     DATABASE_POOL_TIMEOUT: int = 30
-    DATABASE_POOL_RECYCLE: int = 300
+    DATABASE_POOL_RECYCLE: int = 3600  # 1 hour instead of 5 minutes
     
     # Security
     SECRET_KEY: str = secrets.token_urlsafe(32)
