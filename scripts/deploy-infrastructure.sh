@@ -322,9 +322,27 @@ destroy_infrastructure() {
     echo -e "${YELLOW}🗑️  Destroying $env_name infrastructure...${NC}"
     cd "$env_path"
     
-    if ! terraform destroy -auto-approve; then
-        echo -e "${RED}❌ Infrastructure destruction failed${NC}"
-        exit 1
+    # Try normal destroy first
+    DESTROY_OUTPUT=$(terraform destroy -auto-approve 2>&1)
+    DESTROY_EXIT=$?
+    
+    # Display output
+    echo "$DESTROY_OUTPUT"
+    
+    if [ $DESTROY_EXIT -ne 0 ]; then
+        # Check if it's a count dependency issue
+        if echo "$DESTROY_OUTPUT" | grep -q "Invalid count argument"; then
+            echo -e "${YELLOW}⚠️  Count dependency detected. Retrying with -refresh=false...${NC}"
+            # Try with refresh disabled to avoid count evaluation issues
+            if ! terraform destroy -refresh=false -auto-approve; then
+                echo -e "${RED}❌ Infrastructure destruction failed${NC}"
+                echo -e "${YELLOW}💡 Tip: You may need to manually delete ECR images or other resources first.${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${RED}❌ Infrastructure destruction failed${NC}"
+            exit 1
+        fi
     fi
     
     echo -e "${GREEN}✅ Infrastructure destroyed successfully${NC}"
