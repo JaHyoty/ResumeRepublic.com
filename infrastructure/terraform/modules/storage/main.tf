@@ -22,84 +22,6 @@ resource "random_string" "bucket_suffix" {
   upper   = false
 }
 
-# S3 bucket for CloudFront access logs
-resource "aws_s3_bucket" "cloudfront_logs" {
-  bucket = "${var.project_name}-${var.environment}-cloudfront-logs-${random_string.bucket_suffix.result}"
-
-  tags = merge(var.common_tags, {
-    Name        = "${var.project_name}-${var.environment}-cloudfront-logs"
-    Purpose     = "CloudFront access logs"
-    Environment = var.environment
-  })
-}
-
-# Enable ACLs on the CloudFront logs bucket (required for CloudFront logging)
-resource "aws_s3_bucket_ownership_controls" "cloudfront_logs" {
-  bucket = aws_s3_bucket.cloudfront_logs.id
-
-  rule {
-    object_ownership = "BucketOwnerPreferred"
-  }
-}
-
-# S3 bucket versioning for CloudFront logs
-resource "aws_s3_bucket_versioning" "cloudfront_logs" {
-  bucket = aws_s3_bucket.cloudfront_logs.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# S3 bucket server-side encryption for CloudFront logs
-resource "aws_s3_bucket_server_side_encryption_configuration" "cloudfront_logs" {
-  bucket = aws_s3_bucket.cloudfront_logs.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
-  }
-}
-
-# S3 bucket lifecycle configuration for CloudFront logs
-resource "aws_s3_bucket_lifecycle_configuration" "cloudfront_logs" {
-  bucket = aws_s3_bucket.cloudfront_logs.id
-
-  rule {
-    id     = "cloudfront_logs_lifecycle"
-    status = "Enabled"
-
-    filter {
-      prefix = ""  # Apply to all objects
-    }
-
-    expiration {
-      days = 30  # Keep logs for 30 days
-    }
-
-    noncurrent_version_expiration {
-      noncurrent_days = 7
-    }
-  }
-}
-
-# S3 bucket ACL for CloudFront logs (required for CloudFront logging)
-resource "aws_s3_bucket_acl" "cloudfront_logs" {
-  depends_on = [aws_s3_bucket_ownership_controls.cloudfront_logs]
-  bucket     = aws_s3_bucket.cloudfront_logs.id
-  acl        = "private"
-}
-
-# S3 bucket public access block for CloudFront logs
-resource "aws_s3_bucket_public_access_block" "cloudfront_logs" {
-  bucket = aws_s3_bucket.cloudfront_logs.id
-
-  block_public_acls       = false  # Allow ACLs for CloudFront logging
-  block_public_policy     = true
-  ignore_public_acls      = false  # Allow ACLs for CloudFront logging
-  restrict_public_buckets = false  # CloudFront needs access to write logs
-}
-
 # S3 Bucket for Frontend
 resource "aws_s3_bucket" "frontend" {
   bucket        = "${var.project_name}-${var.environment}-frontend-${random_string.bucket_suffix.result}"
@@ -309,13 +231,6 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  # CloudFront access logging for debugging routing issues
-  logging_config {
-    bucket          = aws_s3_bucket.cloudfront_logs.bucket_domain_name
-    include_cookies = false
-    prefix          = "cloudfront-logs/"
-  }
-
   viewer_certificate {
     acm_certificate_arn      = var.acm_certificate_arn
     ssl_support_method       = "sni-only"
@@ -371,13 +286,6 @@ resource "aws_cloudfront_distribution" "resumes" {
     # Use AWS managed policies for better compatibility
     cache_policy_id            = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"  # Managed-CachingDisabled
     origin_request_policy_id   = "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf"  # Managed-CORS-S3Origin
-  }
-
-  # CloudFront access logging for debugging
-  logging_config {
-    bucket          = aws_s3_bucket.cloudfront_logs.bucket_domain_name
-    include_cookies = false
-    prefix          = "resumes-cloudfront-logs/"
   }
 
   # SSL Certificate (use same as frontend)

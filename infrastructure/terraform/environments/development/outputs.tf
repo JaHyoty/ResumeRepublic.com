@@ -76,11 +76,6 @@ output "cloudfront_distribution_id" {
   value       = module.storage.cloudfront_distribution_id
 }
 
-output "cloudfront_logs_s3_bucket_name" {
-  description = "S3 bucket name for CloudFront logs"
-  value       = module.storage.cloudfront_logs_s3_bucket_name
-}
-
 output "resumes_s3_bucket_name" {
   description = "S3 bucket name for resumes"
   value       = module.storage.resumes_s3_bucket_name

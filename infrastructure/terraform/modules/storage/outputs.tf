@@ -86,22 +86,6 @@ output "resumes_s3_bucket_regional_domain_name" {
   value       = aws_s3_bucket.resumes.bucket_regional_domain_name
 }
 
-# CloudFront Logs S3 Bucket Outputs
-output "cloudfront_logs_s3_bucket_id" {
-  description = "S3 bucket ID for CloudFront logs"
-  value       = aws_s3_bucket.cloudfront_logs.id
-}
-
-output "cloudfront_logs_s3_bucket_name" {
-  description = "S3 bucket name for CloudFront logs"
-  value       = aws_s3_bucket.cloudfront_logs.bucket
-}
-
-output "cloudfront_logs_s3_bucket_arn" {
-  description = "S3 bucket ARN for CloudFront logs"
-  value       = aws_s3_bucket.cloudfront_logs.arn
-}
-
 # Resumes CloudFront Distribution Outputs
 output "resumes_cloudfront_distribution_id" {
   description = "CloudFront distribution ID for resumes"

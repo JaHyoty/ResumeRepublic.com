@@ -140,7 +140,3 @@ output "resumes_cloudfront_distribution_id" {
   value       = module.storage.resumes_cloudfront_distribution_id
 }
 
-output "cloudfront_logs_s3_bucket_name" {
-  description = "S3 bucket name for CloudFront logs"
-  value       = module.storage.cloudfront_logs_s3_bucket_name
-}
