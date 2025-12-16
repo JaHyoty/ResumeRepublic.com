@@ -36,20 +36,20 @@ const FeatureCard: React.FC<FeatureCardProps> = ({ icon, title, description, fea
 
 const Features: React.FC = () => {
   const featuresData = [
-    {
-      icon: (
-        <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-          <FileText className="w-6 h-6 text-primary-600" />
-        </div>
-      ),
-      title: "Smart Resume Parsing",
-      description: "Upload your existing resume and let our system extract key details automatically.",
-      features: [
-        "PDF and DOCX support",
-        "Intelligent data extraction", 
-        "Error detection and correction"
-      ]
-    },
+    // {
+    //   icon: (
+    //     <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+    //       <FileText className="w-6 h-6 text-primary-600" />
+    //     </div>
+    //   ),
+    //   title: "Smart Resume Parsing",
+    //   description: "Upload your existing resume and let our system extract key details automatically.",
+    //   features: [
+    //     "PDF and DOCX support",
+    //     "Intelligent data extraction", 
+    //     "Error detection and correction"
+    //   ]
+    // },
     {
       icon: (
         <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -76,6 +76,20 @@ const Features: React.FC = () => {
         "Multiple templates",
         "ATS optimization",
         "PDF export"
+      ]
+    },
+    {
+      icon: (
+        <div className="w-12 h-12 bg-yellow-200 rounded-lg flex items-center justify-center">
+          <FileText className="w-6 h-6 text-primary-600" />
+        </div>
+      ),
+      title: "Job Description Parsing",
+      description: "Easily extract job description from job postings.",
+      features: [
+        "Fetch from URL",
+        "Extract key requirements",
+        "Store job descriptionsfor interview preparation"
       ]
     },
     {
