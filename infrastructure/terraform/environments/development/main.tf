@@ -228,6 +228,14 @@ module "compute" {
           name  = "CLOUDFRONT_PRIVATE_KEY_PATH"
           value = "/app/cloudfront_private_key.pem"
         },
+    {
+      name  = "COOKIE_SECURE"
+      value = "true"
+    },
+    {
+      name  = "COOKIE_DOMAIN"
+      value = var.domain_name != "" ? ".${var.domain_name}" : ""
+    },
   ]
 
   container_secrets = concat([
