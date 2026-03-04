@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -20,7 +20,7 @@ active_connections: Dict[str, Set[asyncio.Queue]] = {}
 
 @router.get("/events")
 async def webhook_events(
-    token: str,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -28,8 +28,14 @@ async def webhook_events(
     Handles all types of webhook events, not just job postings
     """
     try:
-        # Verify token (you might want to implement proper token validation)
-        # For now, we'll use a simple approach - in production, use proper JWT validation
+        # Read auth token from cookie (fallback to query param for backwards compat)
+        token = request.cookies.get("access_token") or request.query_params.get("token")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated"
+            )
+
         user_id = await verify_webhook_token(token, db)
         if not user_id:
             raise HTTPException(
@@ -118,7 +124,7 @@ async def verify_webhook_token(token: str, db: Session) -> int | None:
         # For now, we'll use the same token validation as the main API
         # In production, you might want separate webhook tokens
         
-        payload = verify_token(token)
+        payload = verify_token(token, expected_type="access")
         if payload and "sub" in payload:
             user_id = int(payload["sub"])
             

@@ -52,7 +52,13 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = secrets.token_urlsafe(32)
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    
+    # Cookie Configuration
+    COOKIE_DOMAIN: Optional[str] = None  # e.g. ".resumerepublic.com" for production
+    COOKIE_SECURE: bool = False  # Set True in production (requires HTTPS)
+    COOKIE_SAMESITE: str = "lax"
     
     # OAuth
     GOOGLE_CLIENT_ID: Optional[str] = None

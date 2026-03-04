@@ -1,17 +1,23 @@
 """
-Real Authentication API routes with JWT and database
+Real Authentication API routes with JWT cookies and database
 """
 
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 import structlog
 
 from app.core.settings import settings
 from app.core.database import get_db
-from app.core.auth import create_access_token, get_current_user
+from app.core.auth import (
+    create_access_token,
+    get_current_user,
+    set_auth_cookies,
+    clear_auth_cookies,
+    verify_token,
+)
 from app.core.password import verify_password
 from app.core.google_oauth import google_oauth_service
 from app.models.user import User
@@ -60,9 +66,13 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return db_user
 
 
-@router.post("/login", response_model=Token)
-async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
-    """Login user and return JWT token"""
+@router.post("/login")
+async def login(
+    user_credentials: UserLogin, 
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Login user and set auth cookies"""
     
     # Find user by email
     user = db.query(User).filter(User.email == user_credentials.email).first()
@@ -82,24 +92,22 @@ async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
             detail="Inactive user"
         )
     
-    # Create access token
-    access_token = create_access_token(
-        data={"sub": str(user.id)}
-    )
+    # Set auth cookies
+    token_meta = set_auth_cookies(response, user.id)
     
     logger.info("User logged in", user_id=user.id, email=user.email)
     
     return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        **token_meta,
+        "message": "Login successful",
     }
 
 
-@router.post("/login-form", response_model=Token)
+@router.post("/login-form")
 async def login_form(
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Login using OAuth2PasswordRequestForm (for Swagger UI)"""
     
@@ -121,17 +129,14 @@ async def login_form(
             detail="Inactive user"
         )
     
-    # Create access token
-    access_token = create_access_token(
-        data={"sub": str(user.id)}
-    )
+    # Set auth cookies
+    token_meta = set_auth_cookies(response, user.id)
     
     logger.info("User logged in via form", user_id=user.id, email=user.email)
     
     return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        **token_meta,
+        "message": "Login successful",
     }
 
 
@@ -142,21 +147,75 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/logout")
-async def logout():
-    """Logout user (client should discard token)"""
+async def logout(response: Response):
+    """Logout user — clears auth cookies"""
+    clear_auth_cookies(response)
     return {"message": "Successfully logged out"}
 
 
 @router.get("/verify-token")
-async def verify_token(current_user: User = Depends(get_current_user)):
+async def verify_token_endpoint(current_user: User = Depends(get_current_user)):
     """Verify if token is valid"""
     return {"valid": True, "user_id": current_user.id}
 
 
-@router.post("/google", response_model=Token)
+@router.post("/refresh")
+async def refresh_token(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    """Refresh access token using refresh token cookie.
+    
+    Issues a new access_token cookie (and optionally rotates the refresh token).
+    """
+    refresh_cookie = request.cookies.get("refresh_token")
+    if not refresh_cookie:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token",
+        )
+    
+    payload = verify_token(refresh_cookie, expected_type="refresh")
+    if payload is None:
+        clear_auth_cookies(response)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+    
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+    
+    # Verify the user still exists and is active
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user or not user.is_active:
+        clear_auth_cookies(response)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+        )
+    
+    # Issue fresh cookies (rotates both tokens)
+    token_meta = set_auth_cookies(response, user.id)
+    
+    logger.info("Token refreshed", user_id=user.id)
+    
+    return {
+        **token_meta,
+        "message": "Token refreshed",
+    }
+
+
+@router.post("/google")
 async def google_oauth_login(
     oauth_data: GoogleOAuthRequest, 
-    db: Session = Depends(get_db)
+    response: Response,
+    db: Session = Depends(get_db),
 ):
     """Login with Google OAuth"""
     
@@ -212,10 +271,8 @@ async def google_oauth_login(
         logger.info("New user created via Google OAuth", 
                    user_id=user.id, email=email)
     
-    # Create access token
-    access_token = create_access_token(
-        data={"sub": str(user.id)}
-    )
+    # Set auth cookies
+    token_meta = set_auth_cookies(response, user.id)
     
     # Check if user needs to agree to terms
     needs_agreement = not user.terms_accepted_at or not user.privacy_policy_accepted_at
@@ -224,8 +281,6 @@ async def google_oauth_login(
                user_id=user.id, email=email, needs_agreement=needs_agreement)
     
     return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        "needs_agreement": needs_agreement
+        **token_meta,
+        "needs_agreement": needs_agreement,
     }
