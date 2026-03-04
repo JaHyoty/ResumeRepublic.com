@@ -102,15 +102,10 @@ class WebhookService extends EventEmitter {
     }
 
     try {
-      const token = localStorage.getItem('auth_token')
-      if (!token) {
-        console.warn('No auth token found, cannot connect to webhooks')
-        return
-      }
-
-      // Create EventSource connection to generic webhook endpoint
-      const webhookUrl = `${import.meta.env.API_BASE_URL || 'http://localhost:8000'}/api/webhooks/events?token=${token}`
-      this.eventSource = new EventSource(webhookUrl)
+      // EventSource will send cookies automatically since we use withCredentials
+      // The backend webhook endpoint validates auth via cookies
+      const webhookUrl = `${import.meta.env.API_BASE_URL || 'http://localhost:8000'}/api/webhooks/events`
+      this.eventSource = new EventSource(webhookUrl, { withCredentials: true })
 
       this.eventSource.onopen = () => {
         console.log('Webhook connection established')
@@ -146,12 +141,6 @@ class WebhookService extends EventEmitter {
 
   // Force connect (useful for manual connection)
   forceConnect(): boolean {
-    const token = localStorage.getItem('auth_token')
-    if (!token) {
-      console.warn('No auth token found, cannot connect to webhooks')
-      return false
-    }
-    
     this.connect()
     return true
   }

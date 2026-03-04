@@ -5,57 +5,53 @@ const API_BASE_URL = import.meta.env.API_BASE_URL || 'http://localhost:8000';
 
 class ApiClient {
   private client: AxiosInstance;
+  private isRefreshing = false;
+  private refreshPromise: Promise<void> | null = null;
 
   constructor() {
     this.client = axios.create({
       baseURL: API_BASE_URL,
       timeout: 10000,
+      withCredentials: true, // Send cookies with every request
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    // Request interceptor to add auth token
-    this.client.interceptors.request.use(
-      (config) => {
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-      },
-      (error) => {
-        return Promise.reject(error);
-      }
-    );
-
-    // Response interceptor to handle token refresh
+    // Response interceptor — silent refresh on 401
     this.client.interceptors.response.use(
       (response) => response,
       async (error) => {
         const originalRequest = error.config;
         
         if (error.response?.status === 401 && !originalRequest._retry) {
-          originalRequest._retry = true;
-          
-          // Only redirect if it's not a login/register endpoint
-          const url = error.config?.url || ''
-          const isAuthEndpoint = url.includes('/api/auth/login') || url.includes('/api/auth/register')
+          // Don't retry auth endpoints to avoid loops
+          const url = originalRequest?.url || '';
+          const isAuthEndpoint = url.includes('/api/auth/login') 
+            || url.includes('/api/auth/register')
+            || url.includes('/api/auth/refresh');
           
           if (!isAuthEndpoint) {
+            originalRequest._retry = true;
+
             try {
-              const refreshToken = localStorage.getItem('refresh_token');
-              if (refreshToken) {
-                const response = await this.post('/api/auth/refresh');
-                const { access_token } = response.data as { access_token: string };
-                localStorage.setItem('auth_token', access_token);
-                originalRequest.headers.Authorization = `Bearer ${access_token}`;
-                return this.client(originalRequest);
+              // Coalesce concurrent refresh calls into one
+              if (!this.isRefreshing) {
+                this.isRefreshing = true;
+                this.refreshPromise = this.client
+                  .post('/api/auth/refresh')
+                  .then(() => {})
+                  .finally(() => {
+                    this.isRefreshing = false;
+                    this.refreshPromise = null;
+                  });
               }
+
+              await this.refreshPromise;
+              // Retry the original request — new access_token cookie is set
+              return this.client(originalRequest);
             } catch (refreshError) {
-              // Refresh failed, redirect to login
-              localStorage.removeItem('auth_token');
-              localStorage.removeItem('refresh_token');
+              // Refresh failed — redirect to login
               window.location.href = '/login';
             }
           }

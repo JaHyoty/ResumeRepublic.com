@@ -17,28 +17,22 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const isAuthenticated = !!user && !!token;
+  // Derived — authenticated when we have a user (cookie is httpOnly, invisible to JS)
+  const isAuthenticated = !!user;
   const needsAgreement = user ? (!user.terms_accepted_at || !user.privacy_policy_accepted_at) : false;
 
-  // Initialize auth state on app load
+  // On app load, call /me to check if the cookie is still valid
   useEffect(() => {
     const initializeAuth = async () => {
-      const storedToken = authService.getToken();
-      
-      if (storedToken) {
-        try {
-          setToken(storedToken);
-          const userData = await authService.getCurrentUser();
-          setUser(userData);
-        } catch (error) {
-          console.error('Failed to get current user:', error);
-          authService.logout();
-        }
+      try {
+        const userData = await authService.getCurrentUser();
+        setUser(userData);
+      } catch {
+        // No valid cookie — user is simply not logged in
+        setUser(null);
       }
-      
       setIsLoading(false);
     };
 
@@ -47,10 +41,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (credentials: LoginCredentials): Promise<void> => {
     try {
-      const authToken = await authService.login(credentials);
-      authService.setToken(authToken.access_token);
-      setToken(authToken.access_token);
-      
+      await authService.login(credentials);
+      // Cookie is set by the backend — now fetch the user
       const userData = await authService.getCurrentUser();
       setUser(userData);
     } catch (error) {
@@ -61,16 +53,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = async (credentials: RegisterCredentials): Promise<void> => {
     try {
-      const userData = await authService.register(credentials);
-      setUser(userData);
-      
-      // After registration, login to get token
-      const authToken = await authService.login({
+      await authService.register(credentials);
+      // After registration, login to get cookies
+      await authService.login({
         email: credentials.email,
         password: credentials.password
       });
-      authService.setToken(authToken.access_token);
-      setToken(authToken.access_token);
+      const userData = await authService.getCurrentUser();
+      setUser(userData);
     } catch (error) {
       console.error('Registration failed:', error);
       throw error;
@@ -81,12 +71,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const loginWithGoogle = async (idToken: string): Promise<any> => {
     try {
       const authResponse = await authService.loginWithGoogle(idToken);
-      authService.setToken(authResponse.access_token);
-      setToken(authResponse.access_token);
-      
+      // Cookie is set by the backend — now fetch the user
       const userData = await authService.getCurrentUser();
       setUser(userData);
-      
       return authResponse;
     } catch (error) {
       console.error('Google login failed:', error);
@@ -101,12 +88,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = (): void => {
     authService.logout();
     setUser(null);
-    setToken(null);
   };
 
-  // Token refresh can be added later
   const refreshToken = async (): Promise<void> => {
-    throw new Error('Token refresh not implemented yet');
+    try {
+      await authService.refreshToken();
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      setUser(null);
+      throw error;
+    }
   };
 
   const refreshUser = async (): Promise<void> => {
@@ -121,7 +112,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const value: AuthContextType = {
     user,
-    token,
+    token: null, // Kept for type compatibility — tokens are now httpOnly cookies
     isLoading,
     isAuthenticated,
     needsAgreement,
