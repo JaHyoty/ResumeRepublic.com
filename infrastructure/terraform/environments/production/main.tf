@@ -115,7 +115,7 @@ module "storage" {
   environment  = local.environment
   common_tags  = local.common_tags
 
-  cloudfront_aliases         = var.domain_name != "" ? [var.domain_name] : []
+  cloudfront_aliases         = var.domain_name != "" ? (var.create_www_record ? [var.domain_name, "www.${var.domain_name}"] : [var.domain_name]) : []
   resumes_cloudfront_aliases = []  # No aliases for now - use default CloudFront domain
   acm_certificate_arn        = var.domain_name != "" ? module.dns[0].acm_certificate_validation_arn : null
   enable_spa_routing         = true
@@ -181,7 +181,7 @@ module "compute" {
     },
     {
       name  = "ALLOWED_ORIGINS"
-      value = var.domain_name != "" ? "https://${var.domain_name}" : "*"
+      value = var.domain_name != "" ? "https://${var.domain_name},https://www.${var.domain_name}" : "*"
     },
     {
       name  = "ALLOWED_HOSTS"

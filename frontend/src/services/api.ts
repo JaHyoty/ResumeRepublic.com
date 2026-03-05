@@ -51,8 +51,16 @@ class ApiClient {
               // Retry the original request — new access_token cookie is set
               return this.client(originalRequest);
             } catch (refreshError) {
-              // Refresh failed — redirect to login
-              window.location.href = '/login';
+              // Refresh failed
+              // ONLY redirect to login for "regular" app requests.
+              // If we are checking auth status (/me) or already on /login, let it fail silently
+              // so the UI can handle the unauthenticated state gracefully.
+              const isCheckingAuth = url.includes('/api/auth/me');
+              const isAlreadyOnLogin = window.location.pathname === '/login';
+              
+              if (!isCheckingAuth && !isAlreadyOnLogin) {
+                window.location.href = '/login';
+              }
             }
           }
         }
