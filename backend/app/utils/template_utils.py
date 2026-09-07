@@ -75,6 +75,10 @@ def combine_with_template_preamble(document_content: str, template_name: str = "
     # Extract preamble
     preamble = full_template[:preamble_end]
     
+    # If document_content already includes \end{document}, don't duplicate closing
+    if "\\end{document}" in document_content:
+        return preamble + document_content
+    
     # Find the end of the document
     document_end = full_template.find("\\end{document}")
     if document_end == -1:

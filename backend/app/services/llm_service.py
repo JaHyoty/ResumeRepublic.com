@@ -8,7 +8,6 @@ import tempfile
 import subprocess
 import re
 import json
-import PyPDF2
 from pathlib import Path
 from typing import Dict, Any, Tuple
 from app.core.settings import settings
@@ -43,8 +42,85 @@ class LLMService:
             print(f"TLS enforcement enabled for LLM API calls (min version: {settings.MIN_TLS_VERSION})")
         else:
             print("WARNING: TLS enforcement is disabled for LLM API calls")
-    
-        
+
+    async def generate_optimized_resume(
+        self,
+        user_data: Dict[str, Any],
+        personal_info: Dict[str, Any],
+        job_description: str,
+        template_content: str,
+        locale: str = "en-US",
+    ) -> str:
+        """
+        Generate an optimized resume in LaTeX format tailored to a job description.
+        1. Formats user profile into structured knowledge.
+        2. Prompts LLM for initial draft tailored to job description and template.
+        3. Compiles and estimates page count.
+        4. Verifies and fact-checks against user data, shortening if multi-page.
+        """
+        if not self.api_key:
+            raise Exception("OPENROUTER_API_KEY is not configured. Please set the environment variable.")
+
+        # Format applicant data into markdown knowledge base
+        applicant_knowledge = self._format_applicant_data(user_data)
+
+        # Prepend personal contact info if present
+        if personal_info:
+            contact_lines = []
+            if personal_info.get("name"):
+                contact_lines.append(f"**Name:** {personal_info['name']}")
+            if personal_info.get("email"):
+                contact_lines.append(f"**Email:** {personal_info['email']}")
+            if personal_info.get("phone"):
+                contact_lines.append(f"**Phone:** {personal_info['phone']}")
+            if personal_info.get("location"):
+                contact_lines.append(f"**Location:** {personal_info['location']}")
+            if personal_info.get("linkedin"):
+                contact_lines.append(f"**LinkedIn:** {personal_info['linkedin']}")
+            if personal_info.get("website"):
+                contact_lines.append(f"**Website:** {personal_info['website']}")
+            if contact_lines:
+                applicant_knowledge = "# Contact Information\n" + "\n".join(contact_lines) + "\n\n" + applicant_knowledge
+
+        job_title = personal_info.get("job_title", "") if personal_info else ""
+
+        # Step 1: Initial draft generation
+        logger.info("Generating initial resume draft with LLM")
+        initial_draft = await self._generate_initial_resume(
+            job_title=job_title,
+            job_description=job_description,
+            applicant_knowledge=applicant_knowledge,
+            template_content=template_content,
+            locale=locale,
+        )
+
+        initial_cleaned = self._clean_latex_content(initial_draft)
+        initial_latex = self._extract_latex_content(initial_cleaned)
+
+        # Step 2: Check page count
+        page_count, compile_log = await self._compile_latex_and_count_pages(initial_latex)
+        logger.info(f"Initial resume page count: {page_count}")
+
+        # Step 3: Verify and fact-check (and optimize length if > 1 page)
+        logger.info("Verifying and correcting resume with LLM")
+        verified_draft = await self._verify_and_correct_resume(
+            initial_resume=initial_latex,
+            applicant_knowledge=applicant_knowledge,
+            job_title=job_title,
+            job_description=job_description,
+            page_count=page_count,
+        )
+
+        final_cleaned = self._clean_latex_content(verified_draft)
+        final_latex = self._extract_latex_content(final_cleaned)
+
+        # Fallback check
+        if not final_latex or len(final_latex.strip()) < 100:
+            logger.warning("Verification returned empty LaTeX, falling back to initial draft")
+            return initial_latex
+
+        return final_latex
+
     async def _generate_initial_resume(
         self,
         job_title: str,
@@ -91,6 +167,7 @@ Using your analysis from Stage 1 and Stage 2, generate a one-page resume in LaTe
 - Resume must fit within a single LaTeX page. If necessary, truncate less relevant bullets or sections. Do not exceed 1,000 words or 60 lines of LaTeX code  
 - If no direct match is found for a keyword or requirement, omit or generalize the bullet point while preserving factual accuracy  
 - Do NOT include any dates for projects in the `\\resumeProjectHeading` command. Use empty braces {{}} for project dates.
+- MANDATORY: Format all publications using `\\resumeSubHeadingListStart` and `\\resumeSubheading`. NEVER use `\\begin{{itemize}}` or `\\item` for Publications.
 - Ensure formatting matches the LaTeX template below
 
 ### LATEX TEMPLATE START
@@ -126,15 +203,26 @@ Return **only** valid LaTeX code that:
 - **EXPERIENCE FORMATTING**: Use `\\resumeSubheading` for the most recent role at each company, and `\\resumeSubSubheading` for any previous roles at the same company.
 - **EXPERIENCE ORDERING**: List all relevant experiences in chronological order with the most recent experience first (descending order by end date, with current positions at the top).
 
-### 4. Section Organization and Ordering
+### 4. Publications
+- **MANDATORY FORMATTING**: Every publication MUST be formatted strictly using `\\resumeSubHeadingListStart` and `\\resumeSubheading`:
+  \\resumeSubHeadingListStart
+    \\resumeSubheading
+      {{Publication Title}}{{Publication Date}}
+      {{Author(s)}}{{Publisher or Conference or Journal}}
+  \\resumeSubHeadingListEnd
+- If the publication has a URL, format the title as `\\href{{URL}}{{\\underline{{Publication Title}}}}`.
+- If any fields (Date, Author(s), Publisher) are missing or not provided in the applicant's data, you MUST still use `\\resumeSubheading` and supply empty braces {{}} for those missing arguments (e.g., `\\resumeSubheading{{Publication Title}}{{}}{{}}{{}}`).
+- **NEVER** format Publications as a list with `\\begin{{itemize}}` or `\\item`. You MUST use `\\resumeSubheading`.
+
+### 5. Section Organization and Ordering
 - **CRITICAL**: Analyze the job description and applicant's background to determine the optimal section order  
 - **STRATEGIC PLACEMENT**: Place sections with the strongest keyword matches and most relevant content near the top (after header)  
 - **REASONING REQUIRED**: Consider which sections will best attract recruiter attention for this specific role  
 - **COMMON PATTERNS**:
-  - For technical roles: Skills → Experience → Projects → Education → Certifications  
-  - For experienced professionals: Experience → Skills → Projects → Education → Certifications  
-  - For recent graduates: Education → Skills → Projects → Experience → Certifications  
-  - For career changers: Skills → Projects → Experience → Education → Certifications  
+  - For technical roles: Skills → Experience → Projects → Education → Publications → Certifications  
+  - For experienced professionals: Experience → Skills → Projects → Education → Publications → Certifications  
+  - For recent graduates: Education → Skills → Projects → Experience → Publications → Certifications  
+  - For career changers: Skills → Projects → Experience → Education → Publications → Certifications  
 - **FLEXIBILITY**: Adapt the order based on what will showcase the applicant's fit for the role most effectively  
 - **KEYWORD PRIORITY**: Sections containing the most job-relevant keywords should appear earlier"""
 
@@ -226,7 +314,15 @@ You are a fact-checking expert reviewing a resume for accuracy and length optimi
 - **Achievement check**: Only include accomplishments explicitly stated by the applicant
 - **Date formatting**: Ensure project dates use empty braces {{}} not {{' '}} or {{""}} or quoted spaces
 
-### 5. General Accuracy
+### 5. Publications Verification
+- **CRITICAL FORMATTING**: Ensure all publications strictly use `\\resumeSubHeadingListStart` and `\\resumeSubheading`, NOT `\\begin{{itemize}}` or `\\item`.
+- Each publication must follow:
+  \\resumeSubheading
+    {{Publication Title or \\href{{URL}}{{\\underline{{Publication Title}}}}}}{{Publication Date or {{}}}}
+    {{Author(s) or {{}}}}{{Publisher or Conference or Journal or {{}}}}
+- If any fields are missing, ensure empty braces {{}} are used. If Publications was generated with `\\begin{{itemize}}`, convert it to `\\resumeSubHeadingListStart ... \\resumeSubheading ... \\resumeSubHeadingListEnd`.
+
+### 6. General Accuracy
 - Remove vague adjectives or superlatives not supported by facts
 - Ensure all dates, locations, and company names are accurate
 - Remove any industry buzzwords not used by the applicant
@@ -275,6 +371,48 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
         # Convert any remaining Markdown-style bolding **text** to LaTeX \textbf{text} in the entire document
         # This handles cases where the LLM used Markdown formatting instead of LaTeX
         latex_content = re.sub(r'\*\*([^*]+)\*\*', r'\\textbf{\1}', latex_content)
+        
+        # Ensure Publications section uses \resumeSubHeadingListStart / \resumeSubheading instead of \begin{itemize}
+        publications_section_pattern = r'(\\section\{[^}]*[Pp]ublications[^}]*\}.*?)(?=\\section|\Z)'
+        
+        def clean_publications_section(match):
+            pub_content = match.group(1)
+            # If it already uses \resumeSubheading, keep as is
+            if r'\resumeSubheading' in pub_content:
+                return pub_content
+            
+            # If it uses \begin{itemize}, convert it
+            if r'\begin{itemize}' in pub_content:
+                m = re.search(r'\\begin\{itemize\}(?:\[[^\]]*\])?(.*?)\\end\{itemize\}', pub_content, flags=re.DOTALL)
+                if m:
+                    body = m.group(1)
+                    raw_items = [it.strip() for it in re.split(r'\\item\b', body) if it.strip()]
+                    subheadings = []
+                    for it in raw_items:
+                        it_clean = it.strip()
+                        # Strip outer \small{...} or \small ... if present
+                        if it_clean.startswith(r'\small{') and it_clean.endswith('}'):
+                            it_clean = it_clean[len(r'\small{'):-1].strip()
+                        elif it_clean.startswith(r'\small'):
+                            it_clean = it_clean[len(r'\small'):].strip()
+                        
+                        if it_clean:
+                            subheadings.append(
+                                f"    \\resumeSubheading\n"
+                                f"      {{{it_clean}}}{{}}\n"
+                                f"      {{}}{{}}"
+                            )
+                    if subheadings:
+                        converted = (
+                            "\\section{Publications}\n"
+                            "  \\resumeSubHeadingListStart\n" +
+                            "\n".join(subheadings) + "\n" +
+                            "  \\resumeSubHeadingListEnd\n\n"
+                        )
+                        return converted
+            return pub_content
+
+        latex_content = re.sub(publications_section_pattern, clean_publications_section, latex_content, flags=re.DOTALL)
         
         logger.debug(f"LaTeX content cleaned, length: {len(latex_content)}")
         return latex_content
@@ -490,6 +628,7 @@ Please return the corrected resume with all inaccuracies removed, maintaining th
                 
                 # Count pages using PyPDF2 (more reliable than pdfinfo)
                 try:
+                    import PyPDF2
                     with open(pdf_file, 'rb') as file:
                         pdf_reader = PyPDF2.PdfReader(file)
                         page_count = len(pdf_reader.pages)

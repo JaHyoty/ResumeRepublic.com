@@ -1,6 +1,7 @@
 """
 LaTeX resume generation service
 """
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -63,6 +64,12 @@ class LaTeXService:
                 preexec_fn = lambda: self._set_resource_limits(cpu_time=timeout)
             else:
                 preexec_fn = None
+
+            # Direct TeX cache and config to writable /tmp directory
+            env = dict(os.environ)
+            env["HOME"] = "/tmp"
+            env["TEXMFVAR"] = "/tmp/texmf-var"
+            env["TEXMFCONFIG"] = "/tmp/texmf-config"
             
             result = subprocess.run([
                 'pdflatex',
@@ -70,7 +77,7 @@ class LaTeXService:
                 '-interaction=nonstopmode',
                 '-output-directory', str(output_dir),
                 str(tex_file)
-            ], capture_output=True, text=True, timeout=timeout, preexec_fn=preexec_fn)
+            ], capture_output=True, text=True, timeout=timeout, preexec_fn=preexec_fn, cwd=str(output_dir), env=env)
             
             if result.returncode != 0:
                 error_msg = f"LaTeX compilation failed (return code {result.returncode}): {result.stderr or result.stdout}"
