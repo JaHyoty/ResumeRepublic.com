@@ -14,200 +14,152 @@ ResumeRepublic is a comprehensive career management platform that helps job seek
 
 ### Key Features
 
-- 🤖 **AI-Powered Resume Optimization** - Uses advanced LLMs to tailor your resume content to specific job descriptions
-- 📊 **Application Tracking** - Track your job applications, interviews, and follow-ups in one place
-- 🎨 **Professional Templates** - Beautiful LaTeX-based resume templates with consistent formatting
-- ✏️ **LaTeX Editor** - Fine-tune your resume with an integrated LaTeX editor
-- 🔍 **Job Posting Parser** - Automatically extract job details from company websites
-- 📈 **Real-time Updates** - WebSocket-based real-time status updates during resume generation
+- 🤖 **AI-Powered Resume Optimization** - Uses advanced LLMs to tailor resume content to specific job descriptions with fact-checking verification
+- 📊 **Application Tracking** - Track job applications, interviews, and follow-ups in one place
+- 🎨 **Professional Templates** - Beautiful LaTeX-based resume templates with ATS-friendly formatting
+- ✏️ **LaTeX Editor** - Fine-tune resumes with an integrated LaTeX editor and real-time PDF generation
+- 🔍 **Job Posting Parser** - Automatically extract job details from company websites using headless browser scraping
+- 📈 **Real-time Updates** - Webhook-based real-time status updates during resume generation
 - ☁️ **Secure Cloud Storage** - Resumes stored securely in AWS S3 with CloudFront CDN delivery
+
+---
 
 ## 🏗️ Architecture
 
-ResumeRepublic is built with a modern, cloud-native architecture:
+> ℹ️ **Looking for the previous infrastructure?**  
+> ResumeRepublic was originally deployed on a containerized, VPC-bound infrastructure using Amazon ECS Fargate, RDS PostgreSQL, and an EC2 Bastion/Jump Host. The documentation and Terraform modules for that legacy setup are archived in [**`infrastructure/terraform/modules/_archived/`**](infrastructure/terraform/modules/_archived/README.md).
 
-### Frontend
-- **React 18** with TypeScript
-- **Vite** for fast builds and hot module replacement
-- **TailwindCSS** for responsive, modern UI
-- **React Router** for client-side routing
-- Deployed to **AWS S3** with **CloudFront** distribution
+ResumeRepublic now runs on a modern, fully **Serverless** architecture on AWS designed for high performance, infinite scalability, and zero idle costs:
 
-### Backend
-- **FastAPI** (Python) for high-performance API
-- **PostgreSQL** for relational data storage
-- **SQLAlchemy** ORM with Alembic migrations
-- **Playwright** for web scraping job postings
-- **LaTeX** for professional PDF generation
-- Deployed to **AWS ECS Fargate** with blue-green deployments
+```
+[ User Browser ]
+       │
+       ├─────────────────────────────────┐
+       ▼                                 ▼
+[ CloudFront CDN ]              [ API Gateway (HTTP API) ]
+       │                                 │
+       ▼                                 ▼
+  [ S3 Bucket ]                 [ Backend API Lambda ]
+ (Frontend SPA)                 (FastAPI + Mangum Adapter)
+                                         │
+                 ┌───────────────────────┼───────────────────────┐
+                 ▼                       ▼                       ▼
+        [ DynamoDB Table ]      [ PDF Worker Lambda ]   [ Scraper Worker Lambda ]
+       (Single-Table Design)    (TeX Live + Claude LLM)   (Playwright Chromium)
+                                         │
+                                         ▼
+                                [ S3 Resumes Bucket ]
+                                         │
+                                         ▼
+                             [ CloudFront Resumes CDN ]
+```
 
-### Infrastructure
-- **Terraform** for Infrastructure as Code
-- **AWS** services: ECS, RDS, S3, CloudFront, ALB, VPC
-- **IAM** authentication for secure database access
-- **CloudWatch** for logging and monitoring
-- **SSM Parameter Store** for secrets management
+### 1. Frontend
+- **Framework**: **React 18** with **TypeScript**
+- **Bundler & Tooling**: **Vite** for optimized production builds
+- **Styling**: **TailwindCSS** for responsive, clean design
+- **Hosting**: Static assets hosted on **AWS S3** and distributed globally via **Amazon CloudFront** CDN with SPA routing
+
+### 2. Backend API
+- **Framework**: **FastAPI** (Python 3.12) wrapped with the **Mangum** adapter for AWS Lambda
+- **Routing**: **AWS API Gateway (HTTP API v2)** with CORS and JWT bearer authentication
+- **Execution**: Runs as a lightweight containerized Lambda function (`resumerepublic-api`) with sub-second response times
+
+### 3. Asynchronous Worker Lambdas
+To keep the API fast and responsive, heavy workloads are dispatched asynchronously to dedicated worker Lambdas:
+- **PDF & Resume Generation Worker (`resumerepublic-pdf`)**:
+  - Containerized Lambda packaged with **TeX Live** (`pdflatex`)
+  - Multi-stage LLM pipeline (Keyword Extraction → Content Alignment → LaTeX Generation → Fact-checking Verification)
+  - Compiles `.tex` into PDF and uploads artifacts to the resumes S3 bucket
+- **Job Posting Scraper Worker (`resumerepublic-scraper`)**:
+  - Containerized Lambda running headless **Playwright Chromium**
+  - Handles dynamic JavaScript-rendered career sites with anti-bot resilience and fallback heuristic extraction
+
+### 4. Database (Amazon DynamoDB)
+- **Model**: **Single-Table Design** (`resumerepublic-production`) with Pay-Per-Request billing
+- **Primary Keys**: Composite `PK` and `SK` supporting all entity relationships (Users, Applications, Job Postings, Resumes, Experiences, Skills, Certifications, Publications, Projects, Websites)
+- **Secondary Index**: Global Secondary Index (`GSI1`) for email lookups and inverse entity queries
+
+### 5. Storage, CDN, & Secrets
+- **S3 & CloudFront**: Dedicated S3 buckets for the frontend web application and generated resume PDFs, delivered via separate CloudFront distributions with TLS 1.2+ encryption
+- **Secrets Management**: Configuration and credentials (OAuth client secrets, OpenRouter API keys, JWT signing keys) managed securely via **AWS Systems Manager (SSM) Parameter Store**
+
+---
 
 ## 🚀 Deployment
 
-This project is designed to be deployed to AWS using automated deployment scripts. Local development setup instructions are not provided at this time, as the infrastructure is optimized for cloud deployment.
+ResumeRepublic uses the unified deployment script [`scripts/deploy.sh`](scripts/deploy.sh) to build containers, apply Terraform infrastructure, update Lambda functions, and deploy the frontend.
 
 ### Prerequisites
 
-- AWS account with appropriate permissions
-- AWS CLI configured with credentials
-- Terraform installed (v1.0+)
-- Docker installed
-- Node.js 18+ for frontend builds
+- AWS CLI configured with credentials (`us-east-1`, profile `jahyoty-admin` by default or set via `AWS_PROFILE`)
+- Docker installed and running (for building container images)
+- Terraform (v1.6.0+)
+- Node.js 18+ & npm (for frontend production builds)
 
-### Quick Deploy
+---
 
-#### 1. Deploy Infrastructure
-
-```bash
-# Deploy to development environment
-./scripts/deploy-infrastructure.sh --environment development
-
-# Deploy to production environment
-./scripts/deploy-infrastructure.sh --environment production
-```
-
-This script will:
-- Initialize Terraform
-- Create VPC, subnets, and networking
-- Provision RDS PostgreSQL database
-- Set up ECS cluster and services
-- Create S3 buckets and CloudFront distributions
-- Configure IAM roles and security groups
-
-#### 2. Deploy Backend
+### Deployment Commands
 
 ```bash
-# Deploy backend to development
-./scripts/deploy-backend.sh --environment development
+# 1. Full Deployment (Builds all 3 Lambdas, applies Terraform, builds & syncs frontend to S3/CloudFront)
+./scripts/deploy.sh
 
-# Deploy backend to production with database migrations
-./scripts/deploy-backend.sh --environment production --run-migrations
+# 2. Backend Only (Builds all 3 Lambdas and applies Terraform, skips frontend)
+./scripts/deploy.sh --backend-only
+
+# 3. Frontend Only (Builds frontend and syncs to S3 with CloudFront cache invalidation)
+./scripts/deploy.sh --frontend-only
+
+# 4. Targeted Lambda Updates (Fast iteration when editing a single service)
+./scripts/deploy.sh --api-only      # Build, push & update API Lambda only
+./scripts/deploy.sh --pdf-only      # Build, push & update PDF / LaTeX Lambda only
+./scripts/deploy.sh --scraper-only  # Build, push & update Scraper Lambda only
+
+# 5. Additional Flags
+./scripts/deploy.sh --skip-terraform # Update containers & Lambdas without running terraform apply
+./scripts/deploy.sh --skip-frontend  # Skip building and uploading the frontend
 ```
 
-This script will:
-- Build Docker image
-- Push to AWS ECR
-- Deploy to ECS Fargate with blue-green strategy
-- Optionally run database migrations
-
-#### 3. Deploy Frontend
-
-```bash
-# Deploy frontend to development
-./scripts/deploy-frontend.sh --environment development
-
-# Deploy frontend to production
-./scripts/deploy-frontend.sh --environment production
-```
-
-This script will:
-- Build optimized production bundle
-- Upload to S3
-- Invalidate CloudFront cache
-- Verify deployment
-
-### Database Management
-
-The platform includes a secure database connection script for running migrations and administrative tasks:
-
-```bash
-# Connect to database via jump host
-./scripts/connect-to-database.sh --environment production
-
-# This will:
-# - Establish secure tunnel through EC2 jump host
-# - Set up port forwarding to RDS instance
-# - Expose database on localhost for Alembic commands
-```
-
-Once connected, you can run Alembic migrations:
-
-```bash
-# In a separate terminal (while tunnel is active)
-cd backend
-alembic upgrade head              # Apply all migrations
-alembic revision -m "description" # Create new migration
-alembic current                   # Show current revision
-```
-
-The jump host provides secure access to the private RDS instance without exposing it to the public internet.
-
-### Environment Configuration
-
-Set up environment-specific variables in:
-- `infrastructure/terraform/environments/development/terraform.tfvars`
-- `infrastructure/terraform/environments/production/terraform.tfvars`
-
-See `terraform.tfvars.example` files for required variables.
+---
 
 ## 🔧 Technology Stack
 
-### Frontend Technologies
-- React 18
-- TypeScript
-- Vite
+### Frontend
+- React 18, TypeScript, Vite
 - TailwindCSS
-- Axios
-- React Router
-- Context API for state management
+- Axios, React Router, Context API
 
-### Backend Technologies
-- FastAPI
-- Python 3.11+
-- SQLAlchemy
-- Alembic
-- Pydantic
-- Playwright
-- LaTeX (TeX Live)
-- Structlog
+### Backend
+- Python 3.12, FastAPI, Mangum
+- Pydantic v2
+- Boto3 (DynamoDB, S3, Lambda invocation)
+- TeX Live (LaTeX compiler)
+- Playwright Chromium (Web scraping)
+- OpenRouter API (Claude Sonnet LLM)
 
-### AWS Services
-- ECS Fargate
-- RDS PostgreSQL
-- S3
-- CloudFront
-- Application Load Balancer
-- ECR
-- VPC
-- IAM
-- CloudWatch
-- SSM Parameter Store
-- Secrets Manager
+### AWS Serverless Services
+- **AWS Lambda** (Container images: API, PDF compiler, Playwright scraper)
+- **Amazon API Gateway** (HTTP API v2)
+- **Amazon DynamoDB** (Single-table architecture)
+- **Amazon S3** (Frontend hosting & resume PDF storage)
+- **Amazon CloudFront** (Global CDN for frontend and PDFs)
+- **Amazon ECR** (Elastic Container Registry for Lambda images)
+- **AWS SSM Parameter Store** (Secure secrets and configuration)
+- **Amazon CloudWatch** (Structured JSON logging & metrics)
 
-## 📖 Documentation
-
-- **Project Requirements**: See `docs/requirements.md`
-- **API Documentation**: Available at `/docs` when running the backend
-- **Infrastructure Diagrams**: Generated by Terraform in `infrastructure/terraform/`
+---
 
 ## 🔐 Security
 
-- All secrets managed via AWS Secrets Manager and SSM Parameter Store
-- IAM-based database authentication
-- HTTPS/TLS encryption in transit
-- S3 bucket encryption at rest
-- CloudFront signed URLs for secure PDF access
-- CORS configuration for API security
+- **Zero Open Ports**: No EC2 instances, public databases, or SSH ports exposed.
+- **TLS 1.2+ Enforcement**: Strict HTTPS/TLS enforcement on all API calls, CloudFront distributions, and outbound external connections.
+- **Secrets Encryption**: All application secrets and API keys are stored in AWS SSM Parameter Store with KMS encryption.
+- **Least Privilege IAM**: Dedicated Lambda execution roles scoped strictly to required DynamoDB table keys and S3 buckets.
+- **Content Security**: CloudFront CDN security headers and CORS whitelisting for verified domains.
+
+---
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👨‍💻 Author
-
-Created by Jaakko Hyöty
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome! Feel free to check the issues page.
-
----
-
-**Note**: This project is optimized for AWS deployment. The deployment scripts handle infrastructure provisioning, application deployment, and configuration management. For local development setup, please contact the maintainer.
-

@@ -154,3 +154,11 @@ keys/
 keys/development/
 keys/production/
 *.pem
+
+# Backups and temporary files
+*.bak
+*.bak.*
+response.json
+ssm_secrets_export.json
+data_export/
+

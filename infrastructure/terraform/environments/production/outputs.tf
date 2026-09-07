@@ -1,66 +1,5 @@
 # Production Environment Outputs
 
-# Networking outputs
-output "vpc_id" {
-  description = "VPC ID"
-  value       = module.networking.vpc_id
-}
-
-# output "private_subnets" {
-#   description = "List of private subnet IDs for backend services"
-#   value       = module.networking.private_subnets
-# }
-
-output "alb_dns_name" {
-  description = "Application Load Balancer DNS name"
-  value       = module.networking.alb_dns_name
-}
-
-# Database outputs
-output "rds_endpoint" {
-  description = "RDS endpoint"
-  value       = module.database.db_endpoint
-  sensitive   = true
-}
-
-output "db_hostname" {
-  description = "RDS hostname (without port)"
-  value       = module.database.db_hostname
-  sensitive   = true
-}
-
-output "db_name" {
-  description = "Database name"
-  value       = module.database.db_name
-}
-
-output "db_username" {
-  description = "Database username"
-  value       = module.database.db_username
-}
-
-output "db_master_user_secret_arn" {
-  description = "ARN of the RDS master user secret"
-  value       = module.database.db_master_user_secret_arn
-}
-
-
-# Compute outputs
-output "ecs_cluster_name" {
-  description = "ECS cluster name"
-  value       = module.compute.ecs_cluster_name
-}
-
-output "ecs_cluster_arn" {
-  description = "ECS cluster ARN"
-  value       = module.compute.ecs_cluster_arn
-}
-
-output "ecs_security_group_id" {
-  description = "ECS security group ID"
-  value       = module.networking.ecs_security_group_id
-}
-
 # Storage outputs
 output "s3_bucket_name" {
   description = "S3 bucket name for frontend"
@@ -75,54 +14,6 @@ output "cloudfront_domain" {
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID"
   value       = module.storage.cloudfront_distribution_id
-}
-
-output "jump_host_instance_id" {
-  description = "Jump host instance ID for database access"
-  value       = module.jump_host.jump_host_instance_id
-}
-
-output "ecr_repository_url" {
-  description = "ECR repository URL"
-  value       = module.storage.ecr_repository_url
-}
-
-# DNS outputs
-output "custom_domain" {
-  description = "Custom domain name"
-  value       = var.domain_name
-}
-
-output "www_domain" {
-  description = "WWW domain name"
-  value       = "www.${var.domain_name}"
-}
-
-output "api_domain_name" {
-  description = "API domain name"
-  value       = var.api_domain_name != "" ? var.api_domain_name : null
-}
-
-
-output "acm_certificate_arn" {
-  description = "ACM certificate ARN"
-  value       = length(module.dns) > 0 ? module.dns[0].acm_certificate_arn : null
-}
-
-# IAM outputs
-output "ecs_execution_role_arn" {
-  description = "ECS execution role ARN"
-  value       = module.iam.ecs_execution_role_arn
-}
-
-output "ecs_task_role_arn" {
-  description = "ECS task role ARN"
-  value       = module.iam.ecs_task_role_arn
-}
-
-output "cloudfront_key_pair_id" {
-  description = "CloudFront key pair ID for signed URLs"
-  value       = module.iam.cloudfront_key_pair_id
 }
 
 output "resumes_s3_bucket_name" {
@@ -140,3 +31,72 @@ output "resumes_cloudfront_distribution_id" {
   value       = module.storage.resumes_cloudfront_distribution_id
 }
 
+output "cloudfront_public_key_id" {
+  description = "CloudFront public key ID for signed URLs"
+  value       = module.storage.cloudfront_public_key_id
+}
+
+# ECR outputs
+output "ecr_repository_url" {
+  description = "ECR repository URL for backend API"
+  value       = aws_ecr_repository.backend.repository_url
+}
+
+output "pdf_ecr_repository_url" {
+  description = "ECR repository URL for PDF generator"
+  value       = aws_ecr_repository.pdf.repository_url
+}
+
+output "scraper_ecr_repository_url" {
+  description = "ECR repository URL for job scraper"
+  value       = aws_ecr_repository.scraper.repository_url
+}
+
+# Serverless outputs
+output "dynamodb_table_name" {
+  description = "DynamoDB table name"
+  value       = module.serverless.dynamodb_table_name
+}
+
+output "lambda_function_name" {
+  description = "Backend API Lambda function name"
+  value       = module.serverless.lambda_function_name
+}
+
+output "pdf_lambda_function_name" {
+  description = "PDF Lambda function name"
+  value       = "${var.project_name}-pdf"
+}
+
+output "scraper_lambda_function_name" {
+  description = "Scraper Lambda function name"
+  value       = "${var.project_name}-scraper"
+}
+
+output "api_gateway_endpoint" {
+  description = "API Gateway endpoint URL"
+  value       = module.serverless.api_gateway_endpoint
+}
+
+
+# IAM outputs
+output "lambda_execution_role_arn" {
+  description = "Lambda execution role ARN"
+  value       = module.iam.lambda_execution_role_arn
+}
+
+# DNS outputs
+output "custom_domain" {
+  description = "Custom domain name"
+  value       = var.domain_name
+}
+
+output "api_domain_name" {
+  description = "API domain name"
+  value       = var.api_domain_name != "" ? var.api_domain_name : null
+}
+
+output "acm_certificate_arn" {
+  description = "ACM certificate ARN"
+  value       = length(module.dns) > 0 ? module.dns[0].acm_certificate_arn : null
+}

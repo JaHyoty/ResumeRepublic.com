@@ -1,66 +1,22 @@
-# IAM Module
-# Handles IAM roles, policies, and SSM parameters
+###############################################################################
+# IAM Module — Serverless version (Lambda execution role)
+# Replaces ECS execution/task roles with Lambda execution role
+###############################################################################
 
-terraform {
-  required_version = ">= 1.0"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.1"
-    }
-    tls = {
-      source  = "hashicorp/tls"
-      version = "~> 4.0"
-    }
-  }
-}
-
-# Data sources
 data "aws_caller_identity" "current" {}
 
-# Generate a secure secret key for the application
+# Generate a random secret key if none provided
 resource "random_password" "secret_key" {
   length  = 64
   special = true
-  upper   = true
-  lower   = true
-  numeric = true
 }
 
-# Generate CloudFront key pair for signed URLs
-resource "tls_private_key" "cloudfront" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
+# ---------------------------------------------------------------
+# Lambda Execution Role
+# ---------------------------------------------------------------
 
-# Store CloudFront private key in SSM Parameter Store
-resource "aws_ssm_parameter" "cloudfront_private_key" {
-  name  = "/${var.project_name}/${var.environment}/cloudfront/private_key"
-  type  = "SecureString"
-  value = tls_private_key.cloudfront.private_key_pem
-  tags  = var.common_tags
-}
-
-# Store CloudFront public key in SSM Parameter Store (for reference)
-resource "aws_ssm_parameter" "cloudfront_public_key" {
-  name  = "/${var.project_name}/${var.environment}/cloudfront/public_key"
-  type  = "SecureString"
-  value = tls_private_key.cloudfront.public_key_pem
-  tags  = var.common_tags
-}
-
-# Generate a unique key pair ID for CloudFront
-resource "random_id" "cloudfront_key_pair_id" {
-  byte_length = 8
-}
-
-# ECS Execution Role
-resource "aws_iam_role" "ecs_execution_role" {
-  name = "${var.project_name}-${var.environment}-ecs-execution-role"
+resource "aws_iam_role" "lambda_execution_role" {
+  name = "${var.project_name}-${var.environment}-lambda-execution-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -69,7 +25,7 @@ resource "aws_iam_role" "ecs_execution_role" {
         Action = "sts:AssumeRole"
         Effect = "Allow"
         Principal = {
-          Service = "ecs-tasks.amazonaws.com"
+          Service = "lambda.amazonaws.com"
         }
       }
     ]
@@ -78,15 +34,16 @@ resource "aws_iam_role" "ecs_execution_role" {
   tags = var.common_tags
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_execution_role_policy" {
-  role       = aws_iam_role.ecs_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+# CloudWatch Logs policy (required for Lambda)
+resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
+  role       = aws_iam_role.lambda_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# ECS Execution Role needs SSM and Secrets Manager permissions to inject secrets during container startup
-resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
-  name = "${var.project_name}-${var.environment}-ecs-execution-secrets-policy"
-  role = aws_iam_role.ecs_execution_role.id
+# DynamoDB access policy
+resource "aws_iam_role_policy" "lambda_dynamodb_policy" {
+  name = "${var.project_name}-${var.environment}-lambda-dynamodb-policy"
+  role = aws_iam_role.lambda_execution_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -94,105 +51,32 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
       {
         Effect = "Allow"
         Action = [
-          "ssm:GetParameters",
-          "ssm:GetParameter"
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:BatchWriteItem",
+          "dynamodb:BatchGetItem"
         ]
         Resource = [
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret"
-        ]
-        Resource = [
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-*",
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rds!db-*"
+          "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-*",
+          "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${var.project_name}-*/index/*"
         ]
       }
     ]
   })
 }
 
-# ECS Task Role
-resource "aws_iam_role" "ecs_task_role" {
-  name = "${var.project_name}-${var.environment}-ecs-task-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ecs-tasks.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = var.common_tags
-}
-
-# ECS Task Role Policy for RDS IAM Authentication
-resource "aws_iam_role_policy" "ecs_task_rds_iam_policy" {
-  count = var.iam_database_authentication_enabled ? 1 : 0
-  name  = "${var.project_name}-${var.environment}-ecs-task-rds-iam-policy"
-  role  = aws_iam_role.ecs_task_role.id
+# S3 access policy (for resume PDFs)
+resource "aws_iam_role_policy" "lambda_s3_policy" {
+  name = "${var.project_name}-${var.environment}-lambda-s3-policy"
+  role = aws_iam_role.lambda_execution_role.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "rds-db:connect"
-        ]
-        Resource = var.iam_database_authentication_enabled ? "arn:aws:rds-db:${var.aws_region}:${data.aws_caller_identity.current.account_id}:dbuser:${var.project_name}-${var.environment}-db/resumerepublic_iam_user" : "arn:aws:rds-db:${var.aws_region}:${data.aws_caller_identity.current.account_id}:dbuser:${var.project_name}-${var.environment}-db/${var.database_user}"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "rds:DescribeDBInstances"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-# ECS Task Role Policy for application access to AWS services
-resource "aws_iam_role_policy" "ecs_task_application_policy" {
-  name = "${var.project_name}-${var.environment}-ecs-task-application-policy"
-  role = aws_iam_role.ecs_task_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ssm:GetParameters",
-          "ssm:GetParameter",
-          "ssm:GetParametersByPath"
-        ]
-        Resource = [
-          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:DescribeSecret"
-        ]
-        Resource = [
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-*",
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:rds!db-*"
-        ]
-      },
       {
         Effect = "Allow"
         Action = [
@@ -210,168 +94,127 @@ resource "aws_iam_role_policy" "ecs_task_application_policy" {
   })
 }
 
-# EC2 SSM Role for dev machines
-resource "aws_iam_role" "ec2_ssm_role" {
-  count = var.create_ec2_ssm_role ? 1 : 0
-  name  = "${var.project_name}-${var.environment}-ec2-ssm-role"
+# SSM Parameter Store access
+resource "aws_iam_role_policy" "lambda_ssm_policy" {
+  name = "${var.project_name}-${var.environment}-lambda-ssm-policy"
+  role = aws_iam_role.lambda_execution_role.id
 
-  assume_role_policy = jsonencode({
+  policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
+        Action = [
+          "ssm:GetParameters",
+          "ssm:GetParameter",
+          "ssm:GetParametersByPath"
+        ]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/*"
+        ]
       }
     ]
   })
-
-  tags = var.common_tags
 }
 
-resource "aws_iam_role_policy_attachment" "ec2_ssm_policy_attachment" {
-  count      = var.create_ec2_ssm_role ? 1 : 0
-  role       = aws_iam_role.ec2_ssm_role[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+# Lambda invoke policy (for API Lambda to invoke worker Lambdas)
+resource "aws_iam_role_policy" "lambda_invoke_policy" {
+  name = "${var.project_name}-${var.environment}-lambda-invoke-policy"
+  role = aws_iam_role.lambda_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = [
+          "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-*"
+        ]
+      }
+    ]
+  })
 }
 
+# ---------------------------------------------------------------
 # SSM Parameters for secrets
+# ---------------------------------------------------------------
+
 resource "aws_ssm_parameter" "google_client_id" {
   name  = "/${var.project_name}/${var.environment}/google/client_id"
   type  = "SecureString"
   value = var.google_client_id
+  tags  = var.common_tags
 
-  tags = var.common_tags
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 resource "aws_ssm_parameter" "google_client_secret" {
   name  = "/${var.project_name}/${var.environment}/google/client_secret"
   type  = "SecureString"
   value = var.google_client_secret
+  tags  = var.common_tags
 
-  tags = var.common_tags
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 resource "aws_ssm_parameter" "github_client_id" {
   name  = "/${var.project_name}/${var.environment}/github/client_id"
   type  = "SecureString"
   value = var.github_client_id
+  tags  = var.common_tags
 
-  tags = var.common_tags
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 resource "aws_ssm_parameter" "github_client_secret" {
   name  = "/${var.project_name}/${var.environment}/github/client_secret"
   type  = "SecureString"
   value = var.github_client_secret
+  tags  = var.common_tags
 
-  tags = var.common_tags
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 resource "aws_ssm_parameter" "openrouter_api_key" {
   name  = "/${var.project_name}/${var.environment}/openrouter/api_key"
   type  = "SecureString"
   value = var.openrouter_api_key
+  tags  = var.common_tags
 
-  tags = var.common_tags
-}
-
-resource "aws_ssm_parameter" "database_password" {
-  count = var.manage_master_user_password ? 0 : 1
-  name  = "/${var.project_name}/${var.environment}/database/password"
-  type  = "SecureString"
-  value = var.database_password
-
-  tags = var.common_tags
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
 
 resource "aws_ssm_parameter" "secret_key" {
   name  = "/${var.project_name}/${var.environment}/app/secret_key"
   type  = "SecureString"
   value = var.secret_key != "" ? var.secret_key : random_password.secret_key.result
+  tags  = var.common_tags
 
-  tags = var.common_tags
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
-
-# Additional application secrets
 
 resource "aws_ssm_parameter" "openrouter_llm_model" {
   name  = "/${var.project_name}/${var.environment}/app/openrouter_llm_model"
   type  = "String"
   value = var.openrouter_llm_model
+  tags  = var.common_tags
 
-  tags = var.common_tags
+  lifecycle {
+    ignore_changes = [value]
+  }
 }
-
-# AWS credentials (if provided)
-resource "aws_ssm_parameter" "aws_access_key_id" {
-  count = var.aws_access_key_id != "" ? 1 : 0
-  name  = "/${var.project_name}/${var.environment}/aws/access_key_id"
-  type  = "SecureString"
-  value = var.aws_access_key_id
-
-  tags = var.common_tags
-}
-
-resource "aws_ssm_parameter" "aws_secret_access_key" {
-  count = var.aws_secret_access_key != "" ? 1 : 0
-  name  = "/${var.project_name}/${var.environment}/aws/secret_access_key"
-  type  = "SecureString"
-  value = var.aws_secret_access_key
-
-  tags = var.common_tags
-}
-
-resource "aws_ssm_parameter" "aws_s3_bucket" {
-  count = var.aws_s3_bucket != "" ? 1 : 0
-  name  = "/${var.project_name}/${var.environment}/aws/s3_bucket"
-  type  = "String"
-  value = var.aws_s3_bucket
-
-  tags = var.common_tags
-}
-
-# SSL/TLS Configuration
-resource "aws_ssm_parameter" "ssl_cipher_suites" {
-  name  = "/${var.project_name}/${var.environment}/app/ssl_cipher_suites"
-  type  = "String"
-  value = var.ssl_cipher_suites
-
-  tags = var.common_tags
-}
-
-resource "aws_ssm_parameter" "min_tls_version" {
-  name  = "/${var.project_name}/${var.environment}/app/min_tls_version"
-  type  = "String"
-  value = var.min_tls_version
-
-  tags = var.common_tags
-}
-
-# Database connection details
-resource "aws_ssm_parameter" "database_host" {
-  name  = "/${var.project_name}/${var.environment}/database/host"
-  type  = "String"
-  value = var.database_host
-
-  tags = var.common_tags
-}
-
-resource "aws_ssm_parameter" "database_name" {
-  name  = "/${var.project_name}/${var.environment}/database/name"
-  type  = "String"
-  value = var.database_name
-
-  tags = var.common_tags
-}
-
-resource "aws_ssm_parameter" "database_user" {
-  name  = "/${var.project_name}/${var.environment}/database/user"
-  type  = "String"
-  value = var.database_user
-
-  tags = var.common_tags
-}
-
