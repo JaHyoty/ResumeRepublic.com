@@ -25,8 +25,8 @@ export default defineConfig({
     sourcemap: true,
   },
   define: {
-    'import.meta.env.GOOGLE_CLIENT_ID': JSON.stringify(process.env.GOOGLE_CLIENT_ID || ''),
+    'import.meta.env.GOOGLE_CLIENT_ID': JSON.stringify(process.env.GOOGLE_CLIENT_ID || '33579734169-5ddjnedcelge8p5dnj0jo40cqvf67add.apps.googleusercontent.com'),
     'import.meta.env.GITHUB_CLIENT_ID': JSON.stringify(process.env.GITHUB_CLIENT_ID || ''),
-    'import.meta.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL || 'http://localhost:8000'),
+    'import.meta.env.API_BASE_URL': JSON.stringify(process.env.API_BASE_URL || 'https://xem0v9bjlk.execute-api.us-east-1.amazonaws.com'),
   },
 })

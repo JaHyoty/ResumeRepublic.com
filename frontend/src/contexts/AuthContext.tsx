@@ -85,9 +85,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     throw new Error('GitHub login not implemented yet');
   };
 
-  const logout = (): void => {
-    authService.logout();
-    setUser(null);
+  const logout = async (): Promise<void> => {
+    try {
+      await authService.logout();
+    } finally {
+      setUser(null);
+    }
   };
 
   const refreshToken = async (): Promise<void> => {

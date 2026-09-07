@@ -85,7 +85,7 @@ const CertificationsForm: React.FC<CertificationsFormProps> = ({
       const submitData: CreateCertificationRequest = {
         name: formData.name.trim(),
         issuer: formData.issuer.trim(),
-        issue_date: formData.issue_date.trim(),
+        issue_date: formData.issue_date.trim() || null,
         expiry_date: formData.expiry_date?.trim() || null,
         credential_id: formData.credential_id?.trim() || null,
         credential_url: formData.credential_url?.trim() || null

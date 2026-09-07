@@ -49,7 +49,7 @@ export interface AuthContextType {
   register: (credentials: RegisterCredentials) => Promise<void>;
   loginWithGoogle: (idToken: string) => Promise<any>;
   loginWithGitHub: (credentials: OAuthCredentials) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }

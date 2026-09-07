@@ -1,9 +1,10 @@
+import { api } from './api'
+
 // Simple browser-compatible event emitter
 class EventEmitter {
   private listeners: { [key: string]: Function[] } = {}
 
   setMaxListeners(_n: number) {
-    // Browser doesn't need max listeners limit, but keeping API compatibility
     return this
   }
 
@@ -42,7 +43,6 @@ class EventEmitter {
     return this
   }
 
-  // Check if there are any active listeners
   hasActiveListeners(): boolean {
     return Object.keys(this.listeners).some(key => this.listeners[key].length > 0)
   }
@@ -74,19 +74,13 @@ export interface WebhookEvent {
   user_id?: number      // Target user (for user-specific events)
 }
 
-// Webhook service for handling real-time updates
+// Webhook / Polling service for real-time status updates in serverless environment
 class WebhookService extends EventEmitter {
-  private isConnected = false
-  private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private reconnectDelay = 1000
-  private eventSource: EventSource | null = null
-  private heartbeatInterval: NodeJS.Timeout | null = null
+  private isConnected = true
+  private activePollers: Map<string, { interval: ReturnType<typeof setInterval>; lastStatus?: string; isFinished?: boolean }> = new Map()
 
   constructor() {
     super()
-    
-    // Set up automatic disconnection on page unload
     if (typeof window !== 'undefined') {
       window.addEventListener('beforeunload', () => {
         this.disconnect()
@@ -94,129 +88,132 @@ class WebhookService extends EventEmitter {
     }
   }
 
-  // Connect to webhook endpoint
+  // Connect to webhook / polling service
   connect(): void {
-    if (this.isConnected) {
-      console.log('Webhook service already connected')
-      return
-    }
-
-    try {
-      // EventSource will send cookies automatically since we use withCredentials
-      // The backend webhook endpoint validates auth via cookies
-      const webhookUrl = `${import.meta.env.API_BASE_URL || 'http://localhost:8000'}/api/webhooks/events`
-      this.eventSource = new EventSource(webhookUrl, { withCredentials: true })
-
-      this.eventSource.onopen = () => {
-        console.log('Webhook connection established')
-        this.isConnected = true
-        this.reconnectAttempts = 0
-        this.emit('connected')
-      }
-
-      this.eventSource.onmessage = (event) => {
-        try {
-          const webhookEvent: WebhookEvent = JSON.parse(event.data)
-          this.handleWebhookEvent(webhookEvent)
-        } catch (error) {
-          console.error('Failed to parse webhook event:', error)
-        }
-      }
-
-      this.eventSource.onerror = (error) => {
-        console.error('Webhook connection error:', error)
-        this.isConnected = false
-        this.emit('disconnected')
-        this.handleReconnection()
-      }
-
-      // Start heartbeat to keep connection alive
-      this.startHeartbeat()
-
-    } catch (error) {
-      console.error('Failed to connect to webhooks:', error)
-      this.handleReconnection()
-    }
+    this.isConnected = true
+    this.emit('connected')
   }
 
-  // Force connect (useful for manual connection)
   forceConnect(): boolean {
     this.connect()
     return true
   }
 
-  // Disconnect from webhook endpoint
+  // Disconnect and stop all active polling
   disconnect(): void {
-    console.log('Disconnecting webhook service')
-    
-    if (this.eventSource) {
-      this.eventSource.close()
-      this.eventSource = null
-    }
-    
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval)
-      this.heartbeatInterval = null
-    }
-
+    this.activePollers.forEach(poller => clearInterval(poller.interval))
+    this.activePollers.clear()
     this.isConnected = false
-    this.reconnectAttempts = 0
     this.emit('disconnected')
   }
 
-  // Handle webhook events
+  // Handle webhook events internally
   private handleWebhookEvent(event: WebhookEvent): void {
-    console.log('Received webhook event:', event)
-    
-    // Emit specific event types
+    console.log('Processed real-time status event:', event)
     this.emit(event.type, event)
-    
-    // Emit entity-specific events
     if (event.entity_type && event.entity_id) {
       this.emit(`${event.entity_type}_${event.entity_id}`, event)
     }
-    
-    // Emit general webhook event
     this.emit('webhook_event', event)
   }
 
-  // Handle reconnection logic
-  private handleReconnection(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached')
-      this.emit('max_reconnect_attempts_reached')
-      return
+  // Start polling an entity until complete or failed
+  private startEntityPolling(entityType: string, entityId: string): void {
+    const key = `${entityType}:${entityId}`
+    if (this.activePollers.has(key)) return
+
+    const poll = async () => {
+      try {
+        if (entityType === 'job_posting') {
+          const res = await api.get(`/api/job-postings/${entityId}`)
+          const job = res.data
+          if (job) {
+            const currentStatus = job.status
+            const poller = this.activePollers.get(key)
+            if (!poller || poller.isFinished) return
+
+            poller.lastStatus = currentStatus
+
+            let eventType: WebhookEventType = 'job_posting_status_update'
+            if (currentStatus === 'complete') eventType = 'job_posting_completed'
+            else if (currentStatus === 'failed') eventType = 'job_posting_failed'
+
+            if (currentStatus === 'complete' || currentStatus === 'failed') {
+              poller.isFinished = true
+              this.stopEntityPolling(entityType, entityId)
+            }
+
+            const event: WebhookEvent = {
+              type: eventType,
+              entity_type: 'job_posting',
+              entity_id: entityId,
+              status: currentStatus,
+              data: {
+                title: job.title,
+                company: job.company,
+                description: job.description,
+                ...job,
+              },
+              timestamp: job.updated_at || new Date().toISOString(),
+            }
+            this.handleWebhookEvent(event)
+          }
+        } else if (entityType === 'resume_generation') {
+          const res = await api.get(`/api/webhooks/status/${entityId}`)
+          const data = res.data
+          if (data && data.status !== 'unknown') {
+            const currentStatus = data.status
+            const poller = this.activePollers.get(key)
+            if (!poller || poller.isFinished) return
+
+            poller.lastStatus = currentStatus
+
+            let eventType: WebhookEventType = 'resume_generation_status_update'
+            if (currentStatus === 'complete') eventType = 'resume_generation_completed'
+            else if (currentStatus === 'failed') eventType = 'resume_generation_failed'
+
+            if (currentStatus === 'complete' || currentStatus === 'failed') {
+              poller.isFinished = true
+              this.stopEntityPolling(entityType, entityId)
+            }
+
+            const event: WebhookEvent = {
+              type: eventType,
+              entity_type: 'resume_generation',
+              entity_id: entityId,
+              status: currentStatus,
+              data: data.data || { message: data.message },
+              timestamp: data.updated_at || new Date().toISOString(),
+            }
+            this.handleWebhookEvent(event)
+          }
+        }
+      } catch (err) {
+        // Suppress temporary polling errors
+      }
     }
 
-    this.reconnectAttempts++
-    const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1) // Exponential backoff
-    
-    console.log(`Attempting to reconnect in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
-    
-    setTimeout(() => {
-      this.connect()
-    }, delay)
+    // Immediate first poll
+    poll()
+    // Poll every 2 seconds
+    const interval = setInterval(poll, 2000)
+    this.activePollers.set(key, { interval })
   }
 
-  // Start heartbeat to keep connection alive
-  private startHeartbeat(): void {
-    this.heartbeatInterval = setInterval(() => {
-      if (this.isConnected && this.eventSource) {
-        // Send ping to keep connection alive
-        this.eventSource.dispatchEvent(new MessageEvent('ping'))
-      }
-    }, 30000) // Ping every 30 seconds
+  private stopEntityPolling(entityType: string, entityId: string): void {
+    const key = `${entityType}:${entityId}`
+    const poller = this.activePollers.get(key)
+    if (poller) {
+      clearInterval(poller.interval)
+      this.activePollers.delete(key)
+    }
   }
 
-  // Generic subscription methods
-  
-  // Subscribe to specific entity updates
+  // Subscribe to specific entity updates (e.g. job_posting or resume_generation)
   subscribeToEntity(entityType: string, entityId: string, callback: (event: WebhookEvent) => void): () => void {
-    console.log(`Subscribing to ${entityType}:${entityId}, current connection status: ${this.isConnected}`)
-    
-    // Connect lazily if not already connected
+    console.log(`Subscribing to ${entityType}:${entityId}`)
+
     if (!this.isConnected) {
-      console.log('Webhook not connected, attempting to connect...')
       this.connect()
     }
 
@@ -227,34 +224,31 @@ class WebhookService extends EventEmitter {
     }
 
     this.on('webhook_event', handler)
-    
-    // Return unsubscribe function
+    this.startEntityPolling(entityType, entityId)
+
     return () => {
       this.off('webhook_event', handler)
-      // Check if we should disconnect after unsubscribing
+      this.stopEntityPolling(entityType, entityId)
       setTimeout(() => this.disconnectIfNoListeners(), 100)
     }
   }
 
   // Subscribe to specific event types
   subscribeToEventType(eventType: WebhookEventType, callback: (event: WebhookEvent) => void): () => void {
-    // Connect lazily if not already connected
     if (!this.isConnected) {
       this.connect()
     }
 
     this.on(eventType, callback)
-    
+
     return () => {
       this.off(eventType, callback)
-      // Check if we should disconnect after unsubscribing
       setTimeout(() => this.disconnectIfNoListeners(), 100)
     }
   }
 
   // Subscribe to all events for a specific entity type
   subscribeToEntityType(entityType: string, callback: (event: WebhookEvent) => void): () => void {
-    // Connect lazily if not already connected
     if (!this.isConnected) {
       this.connect()
     }
@@ -266,23 +260,19 @@ class WebhookService extends EventEmitter {
     }
 
     this.on('webhook_event', handler)
-    
+
     return () => {
       this.off('webhook_event', handler)
-      // Check if we should disconnect after unsubscribing
       setTimeout(() => this.disconnectIfNoListeners(), 100)
     }
   }
 
-  // Get connection status
   getConnectionStatus(): boolean {
     return this.isConnected
   }
 
-  // Disconnect if no active listeners (useful for cleanup)
   disconnectIfNoListeners(): void {
-    if (!this.hasActiveListeners()) {
-      console.log('No active listeners, disconnecting webhook service')
+    if (!this.hasActiveListeners() && this.activePollers.size === 0) {
       this.disconnect()
     }
   }
@@ -290,5 +280,4 @@ class WebhookService extends EventEmitter {
 
 // Create singleton instance
 export const webhookService = new WebhookService()
-
 export default webhookService

@@ -11,8 +11,8 @@ const DashboardHeader: React.FC = () => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    await logout()
     navigate('/')
   }
 
@@ -21,8 +21,8 @@ const DashboardHeader: React.FC = () => {
     setIsDropdownOpen(false)
   }
 
-  const handleLogoutClick = () => {
-    handleLogout()
+  const handleLogoutClick = async () => {
+    await handleLogout()
     setIsDropdownOpen(false)
   }
 
