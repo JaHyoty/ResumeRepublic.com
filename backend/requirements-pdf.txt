@@ -1,0 +1,26 @@
+# PDF Lambda — resume generation with LaTeX
+# System deps (pdflatex) come from the Docker image
+
+# AWS SDK
+boto3>=1.26.0
+
+# Data validation
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# HTTP client (for LLM API calls)
+httpx>=0.23.0
+aiofiles>=23.1.0
+
+# Logging
+structlog>=23.1.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Template engine (for LaTeX templates)
+jinja2>=3.1.0
+
+# PDF processing
+PyPDF2>=3.0.1
+fastapi>=0.100.0

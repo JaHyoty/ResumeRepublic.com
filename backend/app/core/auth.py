@@ -1,18 +1,18 @@
 """
-Authentication utilities — dual-cookie (access + refresh) token strategy
+Authentication utilities — dual-cookie (access + refresh) token strategy.
+DynamoDB version: uses DynamoDB client instead of SQLAlchemy session.
 """
 
 from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import structlog
 
-from app.core.database import get_db
+from app.core.dynamodb import DynamoDBClient, get_db
 from app.core.settings import settings
-from app.models.user import User
+from app.core.dynamodb_models import UserItem
 
 logger = structlog.get_logger()
 security = HTTPBearer(auto_error=False)
@@ -64,33 +64,29 @@ def verify_token(token: str, expected_type: Optional[str] = None) -> Optional[di
 # ---------------------------------------------------------------------------
 
 def set_auth_cookies(response: Response, user_id: int) -> dict:
-    """Create access + refresh tokens and set them as httpOnly cookies.
-    
-    Returns a dict with token metadata (for JSON response body).
-    """
+    """Create access + refresh tokens and set them as httpOnly cookies."""
     access_token = create_access_token(data={"sub": str(user_id)})
     refresh_token = create_refresh_token(data={"sub": str(user_id)})
+    cookie_domain = settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN else None
 
-    # Access token cookie — shorter lived, Lax SameSite for normal navigation
     response.set_cookie(
         key="access_token",
         value=access_token,
         httponly=True,
         secure=settings.COOKIE_SECURE,
         samesite=settings.COOKIE_SAMESITE,
-        domain=settings.COOKIE_DOMAIN,
+        domain=cookie_domain,
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )
 
-    # Refresh token cookie — long lived, Strict SameSite, scoped to /api/auth
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=settings.COOKIE_SECURE,
-        samesite="strict",
-        domain=settings.COOKIE_DOMAIN,
+        samesite=settings.COOKIE_SAMESITE,
+        domain=cookie_domain,
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
         path="/api/auth",
     )
@@ -103,16 +99,32 @@ def set_auth_cookies(response: Response, user_id: int) -> dict:
 
 
 def clear_auth_cookies(response: Response) -> None:
-    """Delete both auth cookies."""
+    """Delete both auth cookies with matching security and samesite attributes."""
+    cookie_domain = settings.COOKIE_DOMAIN if settings.COOKIE_DOMAIN else None
     response.delete_cookie(
         key="access_token",
         path="/",
-        domain=settings.COOKIE_DOMAIN,
+        domain=cookie_domain,
+        secure=settings.COOKIE_SECURE,
+        httponly=True,
+        samesite=settings.COOKIE_SAMESITE,
     )
     response.delete_cookie(
         key="refresh_token",
         path="/api/auth",
-        domain=settings.COOKIE_DOMAIN,
+        domain=cookie_domain,
+        secure=settings.COOKIE_SECURE,
+        httponly=True,
+        samesite=settings.COOKIE_SAMESITE,
+    )
+    # Also delete refresh_token at root path in case it was set there
+    response.delete_cookie(
+        key="refresh_token",
+        path="/",
+        domain=cookie_domain,
+        secure=settings.COOKIE_SECURE,
+        httponly=True,
+        samesite=settings.COOKIE_SAMESITE,
     )
 
 
@@ -136,8 +148,8 @@ def _extract_token(
 def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: Session = Depends(get_db),
-) -> User:
+    db: DynamoDBClient = Depends(get_db),
+) -> UserItem:
     """Get current user from access_token cookie or Bearer header."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -157,18 +169,19 @@ def get_current_user(
     if user_id is None:
         raise credentials_exception
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
+    # Fetch user from DynamoDB
+    user_data = db.get_item(f"USER#{user_id}", "PROFILE")
+    if user_data is None:
         raise credentials_exception
 
-    return user
+    return UserItem(user_data)
 
 
 def get_current_user_optional(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False)),
-    db: Session = Depends(get_db),
-) -> Optional[User]:
+    db: DynamoDBClient = Depends(get_db),
+) -> Optional[UserItem]:
     """Get current user, returns None if not authenticated."""
     token = _extract_token(request, credentials)
     if not token:
@@ -181,6 +194,9 @@ def get_current_user_optional(
         user_id = payload.get("sub")
         if user_id is None:
             return None
-        return db.query(User).filter(User.id == user_id).first()
+        user_data = db.get_item(f"USER#{user_id}", "PROFILE")
+        if user_data is None:
+            return None
+        return UserItem(user_data)
     except JWTError:
         return None

@@ -1,0 +1,25 @@
+# Scraper Lambda — job posting parsing with Playwright
+# System deps (Chromium) come from the Docker image
+
+# AWS SDK
+boto3>=1.26.0
+
+# Data validation
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# HTTP client
+httpx>=0.23.0
+
+# Logging
+structlog>=23.1.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Scraping
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+extruct>=0.13.0
+playwright>=1.40.0
+fastapi>=0.100.0

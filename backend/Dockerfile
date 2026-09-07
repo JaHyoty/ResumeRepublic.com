@@ -1,56 +1,14 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# API Lambda — lightweight FastAPI application
+# No LaTeX or Playwright — those run in separate worker Lambdas
 
-# Set working directory
-WORKDIR /app
+FROM public.ecr.aws/lambda/python:3.12
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
-
-# Install system dependencies including LaTeX
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    texlive-latex-base \
-    texlive-latex-extra \
-    texlive-fonts-recommended \
-    texlive-fonts-extra \
-    texlive-latex-recommended \
-    texlive-xetex \
-    texlive-science \
-    poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verify LaTeX and PDF tools installation
-RUN pdflatex --version && pdfinfo -v
-
-# Copy requirements first for better caching
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements and install Python dependencies (API-only, ~50MB)
+COPY requirements-api.txt ${LAMBDA_TASK_ROOT}/requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt
 
 # Copy application code
-COPY . .
+COPY . ${LAMBDA_TASK_ROOT}/
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
-
-# Switch to non-root user
-USER app
-
-# Install Playwright browsers as app user (without system deps)
-RUN playwright install chromium
-
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Set the Lambda handler
+CMD ["lambda_handler.handler"]

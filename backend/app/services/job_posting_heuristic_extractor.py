@@ -396,12 +396,19 @@ class JobPostingHeuristicExtractor:
         
         for selector in navigation_selectors:
             for nav_element in filtered_element.select(selector):
-                nav_element.decompose()
+                if hasattr(nav_element, 'attrs') and nav_element.attrs is not None:
+                    nav_element.decompose()
         
         # Remove elements with navigation-related classes or IDs
-        for elem in filtered_element.find_all():
-            classes = elem.get('class', [])
-            elem_id = elem.get('id', '')
+        for elem in list(filtered_element.find_all()):
+            if not hasattr(elem, 'attrs') or elem.attrs is None:
+                continue
+            classes = elem.get('class', []) or []
+            if isinstance(classes, str):
+                classes = [classes]
+            elem_id = elem.get('id', '') or ''
+            if isinstance(elem_id, list):
+                elem_id = ' '.join(elem_id)
             
             # Check for navigation-related class names
             nav_keywords = [

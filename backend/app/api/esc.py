@@ -1,22 +1,22 @@
 """
-Experience and Skills Catalog API routes
+Experience and Skills Catalog API routes — DynamoDB version
 """
 
 from typing import List
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import case, desc, nullslast
+import structlog
 
-from app.core.database import get_db
+from app.core.dynamodb import DynamoDBClient, get_db
 from app.core.auth import get_current_user
-from app.models.user import User
-from app.models.experience import Experience as ExperienceModel, ExperienceTitle as ExperienceTitleModel
-from app.models.skill import Skill as SkillModel
-from app.models.certification import Certification as CertificationModel
-from app.models.publication import Publication as PublicationModel
-from app.models.education import Education as EducationModel
-from app.models.website import Website as WebsiteModel
-from app.models.project import Project as ProjectModel
+from app.core.dynamodb_models import (
+    UserItem, DynamoItem,
+    build_experience_item, build_experience_title_item,
+    build_skill_item, build_certification_item,
+    build_publication_item, build_education_item,
+    build_website_item, build_project_item,
+    SK_EXP, SK_EXPTITLE, SK_SKILL, SK_CERT, SK_PUB, SK_EDU, SK_WEBSITE, SK_PROJECT,
+)
 from app.schemas.experience import Experience, ExperienceCreate, ExperienceUpdate
 from app.schemas.skill import Skill, SkillCreate, SkillUpdate
 from app.schemas.certification import Certification, CertificationCreate, CertificationUpdate
@@ -25,816 +25,606 @@ from app.schemas.education import Education, EducationCreate, EducationUpdate
 from app.schemas.website import Website, WebsiteCreate, WebsiteUpdate
 from app.schemas.project import Project, ProjectCreate, ProjectUpdate
 
+logger = structlog.get_logger()
 router = APIRouter()
 
 
+def _user_pk(user: UserItem) -> str:
+    return f"USER#{user.id}"
+
+
+def _attach_titles(db: DynamoDBClient, user_pk: str, experience: dict) -> dict:
+    """Attach titles list to an experience dict."""
+    exp_id = experience["id"]
+    titles = db.query(user_pk, sk_prefix=f"{SK_EXPTITLE}{exp_id}#")
+    experience["titles"] = titles
+    return experience
+
+
+# =====================================================================
+# Experiences
+# =====================================================================
+
 @router.get("/experiences", response_model=List[Experience])
 def get_user_experiences(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Get all experiences for the current user, sorted by end date descending (most recent first)"""
-    
-    experiences = db.query(ExperienceModel).filter(
-        ExperienceModel.user_id == current_user.id
-    ).order_by(
-        # Sort by end_date descending, but put current positions (is_current=True) at the top
-        case(
-            (ExperienceModel.is_current == True, 0),
-            else_=1
-        ),
-        # Then sort by end_date descending (most recent first)
-        # Use nullslast to put experiences without end_date (current positions) at the top
-        nullslast(desc(ExperienceModel.end_date)),
-        # Finally sort by start_date descending as a tiebreaker
-        desc(ExperienceModel.start_date)
-    ).all()
+    """Get all experiences for the current user"""
+    pk = _user_pk(current_user)
+    experiences = db.query(pk, sk_prefix=SK_EXP)
+    # Filter out experience titles (they share the EXP prefix pattern but have EXPTITLE)
+    experiences = [e for e in experiences if e.get("entity_type") == "experience"]
+
+    # Attach titles
+    for exp in experiences:
+        _attach_titles(db, pk, exp)
+
+    # Sort: current first, then by end_date desc, then start_date desc
+    def sort_key(e):
+        is_current = 0 if e.get("is_current") else 1
+        end = e.get("end_date") or "9999-12-31"
+        start = e.get("start_date") or "0000-01-01"
+        return (is_current, end, start)
+
+    experiences.sort(key=sort_key, reverse=False)
+    # Reverse the date sorting (we want desc)
+    experiences.sort(key=lambda e: (0 if e.get("is_current") else 1))
+
     return experiences
 
 
 @router.post("/experiences", response_model=Experience, status_code=status.HTTP_201_CREATED)
 def create_experience(
     experience_data: ExperienceCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
     """Create a new work experience"""
-    # Create the main experience record
-    db_experience = ExperienceModel(
+    pk = _user_pk(current_user)
+    exp_id = db.next_id("experience")
+
+    exp_item = build_experience_item(
         user_id=current_user.id,
+        experience_id=exp_id,
         company=experience_data.company,
         location=experience_data.location,
         start_date=experience_data.start_date,
         end_date=experience_data.end_date,
         description=experience_data.description,
-        is_current=experience_data.is_current
+        is_current=experience_data.is_current,
     )
-    
-    db.add(db_experience)
-    db.flush()  # Flush to get the ID
-    
-    # Add titles
+    db.put_item(exp_item)
+
+    # Create titles
+    titles = []
     for title_data in experience_data.titles:
-        db_title = ExperienceTitleModel(
-            experience_id=db_experience.id,
+        title_id = db.next_id("experience_title")
+        title_item = build_experience_title_item(
+            user_id=current_user.id,
+            experience_id=exp_id,
+            title_id=title_id,
             title=title_data.title,
-            is_primary=title_data.is_primary
+            is_primary=title_data.is_primary,
         )
-        db.add(db_title)
-    
-    
-    db.commit()
-    db.refresh(db_experience)
-    return db_experience
+        db.put_item(title_item)
+        titles.append(title_item)
+
+    exp_item["titles"] = titles
+    return exp_item
 
 
 @router.get("/experiences/{experience_id}", response_model=Experience)
 def get_experience(
     experience_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
     """Get a specific experience by ID"""
-    experience = db.query(ExperienceModel).filter(
-        ExperienceModel.id == experience_id,
-        ExperienceModel.user_id == current_user.id
-    ).first()
-    
-    if not experience:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Experience not found"
-        )
-    
-    return experience
+    pk = _user_pk(current_user)
+    exp = db.get_item(pk, f"{SK_EXP}{experience_id}")
+    if not exp:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experience not found")
+    _attach_titles(db, pk, exp)
+    return exp
 
 
 @router.put("/experiences/{experience_id}", response_model=Experience)
 def update_experience(
     experience_id: int,
     experience_data: ExperienceUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
     """Update an existing experience"""
-    experience = db.query(ExperienceModel).filter(
-        ExperienceModel.id == experience_id,
-        ExperienceModel.user_id == current_user.id
-    ).first()
-    
-    if not experience:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Experience not found"
-        )
-    
-    # Update main experience fields if provided
-    update_data = experience_data.model_dump(exclude_unset=True, exclude={'titles'})
-    for field, value in update_data.items():
-        setattr(experience, field, value)
-    
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_EXP}{experience_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experience not found")
+
+    update_data = experience_data.model_dump(exclude_unset=True, exclude={"titles"})
+    # Convert date objects to strings
+    for key in ("start_date", "end_date"):
+        if key in update_data and update_data[key] is not None:
+            update_data[key] = str(update_data[key])
+
+    if update_data:
+        db.update_item(pk, f"{SK_EXP}{experience_id}", update_data)
+
     # Update titles if provided
-    if hasattr(experience_data, 'titles') and experience_data.titles is not None:
+    if hasattr(experience_data, "titles") and experience_data.titles is not None:
         # Delete existing titles
-        db.query(ExperienceTitleModel).filter(
-            ExperienceTitleModel.experience_id == experience_id
-        ).delete()
-        
-        # Add new titles
+        old_titles = db.query(pk, sk_prefix=f"{SK_EXPTITLE}{experience_id}#")
+        if old_titles:
+            db.batch_delete([{"PK": t["PK"], "SK": t["SK"]} for t in old_titles])
+
+        # Create new titles
         for title_data in experience_data.titles:
-            db_title = ExperienceTitleModel(
+            title_id = db.next_id("experience_title")
+            title_item = build_experience_title_item(
+                user_id=current_user.id,
                 experience_id=experience_id,
+                title_id=title_id,
                 title=title_data.title,
-                is_primary=title_data.is_primary
+                is_primary=title_data.is_primary,
             )
-            db.add(db_title)
-    
-    
-    db.commit()
-    db.refresh(experience)
-    return experience
+            db.put_item(title_item)
+
+    # Return updated experience
+    result = db.get_item(pk, f"{SK_EXP}{experience_id}")
+    _attach_titles(db, pk, result)
+    return result
 
 
 @router.delete("/experiences/{experience_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_experience(
     experience_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
     """Delete an experience"""
-    experience = db.query(ExperienceModel).filter(
-        ExperienceModel.id == experience_id,
-        ExperienceModel.user_id == current_user.id
-    ).first()
-    
-    if not experience:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Experience not found"
-        )
-    
-    db.delete(experience)
-    db.commit()
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_EXP}{experience_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Experience not found")
+
+    # Delete titles first
+    titles = db.query(pk, sk_prefix=f"{SK_EXPTITLE}{experience_id}#")
+    if titles:
+        db.batch_delete([{"PK": t["PK"], "SK": t["SK"]} for t in titles])
+
+    db.delete_item(pk, f"{SK_EXP}{experience_id}")
     return None
 
 
-# Skills endpoints
+# =====================================================================
+# Skills
+# =====================================================================
+
 @router.get("/skills", response_model=List[Skill])
 def get_user_skills(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Get all skills for the current user, sorted by category and name"""
-    skills = db.query(SkillModel).filter(
-        SkillModel.user_id == current_user.id
-    ).order_by(
-        SkillModel.name
-    ).all()
+    """Get all skills for the current user"""
+    skills = db.query(_user_pk(current_user), sk_prefix=SK_SKILL)
+    skills.sort(key=lambda s: s.get("name", "").lower())
     return skills
 
 
 @router.post("/skills", response_model=Skill)
 def create_skill(
     skill: SkillCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Create a new skill for the current user"""
-    db_skill = SkillModel(
-        **skill.dict(),
-        user_id=current_user.id
-    )
-    db.add(db_skill)
-    db.commit()
-    db.refresh(db_skill)
-    return db_skill
+    """Create a new skill"""
+    skill_id = db.next_id("skill")
+    item = build_skill_item(user_id=current_user.id, skill_id=skill_id, name=skill.name)
+    db.put_item(item)
+    return item
+
+
+@router.post("/skills/bulk", response_model=List[Skill])
+def create_skills_bulk(
+    skill_names: List[str],
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
+):
+    """Create multiple skills at once from a list of skill names"""
+    if not skill_names:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No skill names provided"
+        )
+
+    # Get existing skill names for the user to avoid duplicates
+    existing_skills = db.query(_user_pk(current_user), sk_prefix=SK_SKILL)
+    existing_skill_names = {s.get("name", "").lower() for s in existing_skills}
+
+    created = []
+    for skill_name in skill_names:
+        name_clean = skill_name.strip()
+        if name_clean and name_clean.lower() not in existing_skill_names:
+            skill_id = db.next_id("skill")
+            item = build_skill_item(user_id=current_user.id, skill_id=skill_id, name=name_clean)
+            db.put_item(item)
+            created.append(item)
+            existing_skill_names.add(name_clean.lower())
+
+    return created
 
 
 @router.get("/skills/{skill_id}", response_model=Skill)
 def get_skill(
     skill_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
     """Get a specific skill by ID"""
-    skill = db.query(SkillModel).filter(
-        SkillModel.id == skill_id,
-        SkillModel.user_id == current_user.id
-    ).first()
-    
-    if not skill:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Skill not found"
-        )
-    
-    return skill
+    item = db.get_item(_user_pk(current_user), f"{SK_SKILL}{skill_id}")
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Skill not found")
+    return item
 
 
 @router.put("/skills/{skill_id}", response_model=Skill)
 def update_skill(
     skill_id: int,
     skill_update: SkillUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
     """Update a skill"""
-    skill = db.query(SkillModel).filter(
-        SkillModel.id == skill_id,
-        SkillModel.user_id == current_user.id
-    ).first()
-    
-    if not skill:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Skill not found"
-        )
-    
-    # Update only provided fields
-    update_data = skill_update.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(skill, field, value)
-    
-    db.commit()
-    db.refresh(skill)
-    return skill
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_SKILL}{skill_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Skill not found")
+
+    update_data = skill_update.model_dump(exclude_unset=True)
+    if update_data:
+        return db.update_item(pk, f"{SK_SKILL}{skill_id}", update_data)
+    return existing
 
 
 @router.delete("/skills/{skill_id}")
 def delete_skill(
     skill_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
     """Delete a skill"""
-    skill = db.query(SkillModel).filter(
-        SkillModel.id == skill_id,
-        SkillModel.user_id == current_user.id
-    ).first()
-    
-    if not skill:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Skill not found"
-        )
-    
-    db.delete(skill)
-    db.commit()
-    
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_SKILL}{skill_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Skill not found")
+    db.delete_item(pk, f"{SK_SKILL}{skill_id}")
     return {"message": "Skill deleted successfully"}
 
 
-@router.post("/skills/bulk", response_model=List[Skill])
-def create_skills_bulk(
-    skill_names: List[str],
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create multiple skills at once from a list of skill names"""
-    
-    if not skill_names:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No skill names provided"
-        )
-    
-    # Get existing skill names for the user to avoid duplicates
-    existing_skills = db.query(SkillModel).filter(
-        SkillModel.user_id == current_user.id
-    ).all()
-    existing_skill_names = {skill.name.lower() for skill in existing_skills}
-    
-    # Filter out duplicates and empty names
-    new_skills = []
-    for skill_name in skill_names:
-        skill_name = skill_name.strip()
-        if skill_name and skill_name.lower() not in existing_skill_names:
-            new_skills.append(SkillModel(
-                user_id=current_user.id,
-                name=skill_name
-            ))
-            existing_skill_names.add(skill_name.lower())  # Prevent duplicates within the same request
-    
-    if not new_skills:
-        # If no new skills to add, return empty list
-        return []
-    
-    # Add all new skills to database
-    db.add_all(new_skills)
-    db.commit()
-    
-    # Refresh all new skills to get their IDs
-    for skill in new_skills:
-        db.refresh(skill)
-    
-    return new_skills
+# =====================================================================
+# Certifications
+# =====================================================================
 
-
-# Certifications endpoints
 @router.get("/certifications", response_model=List[Certification])
 def get_user_certifications(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Get all certifications for the current user, sorted by issue date descending"""
-    certifications = db.query(CertificationModel).filter(
-        CertificationModel.user_id == current_user.id
-    ).order_by(
-        desc(CertificationModel.issue_date)
-    ).all()
-    return certifications
+    certs = db.query(_user_pk(current_user), sk_prefix=SK_CERT)
+    certs.sort(key=lambda c: c.get("issue_date") or "", reverse=True)
+    return certs
 
 
 @router.post("/certifications", response_model=Certification)
 def create_certification(
-    certification: CertificationCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    cert_data: CertificationCreate,
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Create a new certification for the current user"""
-    db_certification = CertificationModel(
-        **certification.dict(),
-        user_id=current_user.id
+    cert_id = db.next_id("certification")
+    item = build_certification_item(
+        user_id=current_user.id, cert_id=cert_id, **cert_data.model_dump()
     )
-    db.add(db_certification)
-    db.commit()
-    db.refresh(db_certification)
-    return db_certification
-
-
-@router.get("/certifications/{certification_id}", response_model=Certification)
-def get_certification(
-    certification_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get a specific certification by ID"""
-    certification = db.query(CertificationModel).filter(
-        CertificationModel.id == certification_id,
-        CertificationModel.user_id == current_user.id
-    ).first()
-    
-    if not certification:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Certification not found"
-        )
-    
-    return certification
+    db.put_item(item)
+    return item
 
 
 @router.put("/certifications/{certification_id}", response_model=Certification)
 def update_certification(
     certification_id: int,
-    certification_update: CertificationUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    cert_data: CertificationUpdate,
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Update a certification"""
-    certification = db.query(CertificationModel).filter(
-        CertificationModel.id == certification_id,
-        CertificationModel.user_id == current_user.id
-    ).first()
-    
-    if not certification:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Certification not found"
-        )
-    
-    # Update only provided fields
-    update_data = certification_update.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(certification, field, value)
-    
-    db.commit()
-    db.refresh(certification)
-    return certification
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_CERT}{certification_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certification not found")
+    update_data = cert_data.model_dump(exclude_unset=True, exclude_none=False)
+    for key in ("issue_date", "expiry_date"):
+        if key in update_data and update_data[key] is not None:
+            update_data[key] = str(update_data[key])
+    if update_data:
+        return db.update_item(pk, f"{SK_CERT}{certification_id}", update_data)
+    return existing
 
 
 @router.delete("/certifications/{certification_id}")
 def delete_certification(
     certification_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Delete a certification"""
-    certification = db.query(CertificationModel).filter(
-        CertificationModel.id == certification_id,
-        CertificationModel.user_id == current_user.id
-    ).first()
-    
-    if not certification:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Certification not found"
-        )
-    
-    db.delete(certification)
-    db.commit()
-    
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_CERT}{certification_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Certification not found")
+    db.delete_item(pk, f"{SK_CERT}{certification_id}")
     return {"message": "Certification deleted successfully"}
 
 
-# Publications endpoints
+# =====================================================================
+# Publications
+# =====================================================================
+
 @router.get("/publications", response_model=List[Publication])
 def get_user_publications(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Get all publications for the current user, sorted by publication date descending"""
-    publications = db.query(PublicationModel).filter(
-        PublicationModel.user_id == current_user.id
-    ).order_by(
-        desc(PublicationModel.publication_date)
-    ).all()
-    return publications
+    pubs = db.query(_user_pk(current_user), sk_prefix=SK_PUB)
+    pubs.sort(key=lambda p: p.get("publication_date") or "", reverse=True)
+    return pubs
 
 
 @router.post("/publications", response_model=Publication)
 def create_publication(
-    publication: PublicationCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    pub_data: PublicationCreate,
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Create a new publication for the current user"""
-    db_publication = PublicationModel(
-        **publication.dict(),
-        user_id=current_user.id
-    )
-    db.add(db_publication)
-    db.commit()
-    db.refresh(db_publication)
-    return db_publication
-
-
-@router.get("/publications/{publication_id}", response_model=Publication)
-def get_publication(
-    publication_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get a specific publication by ID"""
-    publication = db.query(PublicationModel).filter(
-        PublicationModel.id == publication_id,
-        PublicationModel.user_id == current_user.id
-    ).first()
-    
-    if not publication:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Publication not found"
-        )
-    
-    return publication
+    pub_id = db.next_id("publication")
+    item = build_publication_item(user_id=current_user.id, pub_id=pub_id, **pub_data.model_dump())
+    db.put_item(item)
+    return item
 
 
 @router.put("/publications/{publication_id}", response_model=Publication)
 def update_publication(
     publication_id: int,
-    publication_update: PublicationUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    pub_data: PublicationUpdate,
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Update a publication"""
-    publication = db.query(PublicationModel).filter(
-        PublicationModel.id == publication_id,
-        PublicationModel.user_id == current_user.id
-    ).first()
-    
-    if not publication:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Publication not found"
-        )
-    
-    # Update only provided fields
-    update_data = publication_update.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(publication, field, value)
-    
-    db.commit()
-    db.refresh(publication)
-    return publication
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_PUB}{publication_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Publication not found")
+    update_data = pub_data.model_dump(exclude_unset=True, exclude_none=False)
+    if "publication_date" in update_data and update_data["publication_date"] is not None:
+        update_data["publication_date"] = str(update_data["publication_date"])
+    if update_data:
+        return db.update_item(pk, f"{SK_PUB}{publication_id}", update_data)
+    return existing
 
 
 @router.delete("/publications/{publication_id}")
 def delete_publication(
     publication_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Delete a publication"""
-    publication = db.query(PublicationModel).filter(
-        PublicationModel.id == publication_id,
-        PublicationModel.user_id == current_user.id
-    ).first()
-    
-    if not publication:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Publication not found"
-        )
-    
-    db.delete(publication)
-    db.commit()
-    
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_PUB}{publication_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Publication not found")
+    db.delete_item(pk, f"{SK_PUB}{publication_id}")
     return {"message": "Publication deleted successfully"}
 
 
-# Education endpoints
+# =====================================================================
+# Education
+# =====================================================================
+
 @router.get("/education", response_model=List[Education])
-def get_education(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+def get_user_education(
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Get all education entries for the current user"""
-    education = db.query(EducationModel).filter(
-        EducationModel.user_id == current_user.id
-    ).order_by(EducationModel.start_date.desc()).all()
-    
-    return education
+    edu = db.query(_user_pk(current_user), sk_prefix=SK_EDU)
+    edu.sort(key=lambda e: e.get("start_date") or "", reverse=True)
+    return edu
 
 
 @router.post("/education", response_model=Education)
 def create_education(
     education_data: EducationCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Create a new education entry"""
-    education = EducationModel(
-        user_id=current_user.id,
-        **education_data.model_dump()
-    )
-    
-    db.add(education)
-    db.commit()
-    db.refresh(education)
-    
-    return education
+    edu_id = db.next_id("education")
+    item = build_education_item(user_id=current_user.id, education_id=edu_id, **education_data.model_dump())
+    db.put_item(item)
+    return item
 
 
 @router.put("/education/{education_id}", response_model=Education)
 def update_education(
     education_id: int,
     education_data: EducationUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Update an education entry"""
-    education = db.query(EducationModel).filter(
-        EducationModel.id == education_id,
-        EducationModel.user_id == current_user.id
-    ).first()
-    
-    if not education:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Education entry not found"
-        )
-    
-    # Update provided fields, including those explicitly set to None (to clear them)
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_EDU}{education_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Education entry not found")
     update_data = education_data.model_dump(exclude_unset=True, exclude_none=False)
-    for field, value in update_data.items():
-        setattr(education, field, value)
-    
-    db.commit()
-    db.refresh(education)
-    
-    return education
+    for key in ("start_date", "end_date"):
+        if key in update_data and update_data[key] is not None:
+            update_data[key] = str(update_data[key])
+    if update_data:
+        return db.update_item(pk, f"{SK_EDU}{education_id}", update_data)
+    return existing
 
 
 @router.delete("/education/{education_id}")
 def delete_education(
     education_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Delete an education entry"""
-    education = db.query(EducationModel).filter(
-        EducationModel.id == education_id,
-        EducationModel.user_id == current_user.id
-    ).first()
-    
-    if not education:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Education entry not found"
-        )
-    
-    db.delete(education)
-    db.commit()
-    
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_EDU}{education_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Education entry not found")
+    db.delete_item(pk, f"{SK_EDU}{education_id}")
     return {"message": "Education entry deleted successfully"}
 
 
-# Website endpoints
+# =====================================================================
+# Websites
+# =====================================================================
+
 @router.get("/websites", response_model=List[Website])
 def get_user_websites(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Get all websites for the current user"""
-    websites = db.query(WebsiteModel).filter(
-        WebsiteModel.user_id == current_user.id
-    ).order_by(WebsiteModel.created_at.desc()).all()
-    
-    return websites
+    sites = db.query(_user_pk(current_user), sk_prefix=SK_WEBSITE)
+    sites.sort(key=lambda s: s.get("created_at") or "", reverse=True)
+    return sites
 
 
 @router.post("/websites", response_model=Website)
 def create_website(
     website_data: WebsiteCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Create a new website entry"""
-    website = WebsiteModel(
+    site_id = db.next_id("website")
+    item = build_website_item(
         user_id=current_user.id,
+        website_id=site_id,
         site_name=website_data.site_name,
-        url=str(website_data.url)
+        url=str(website_data.url),
     )
-    
-    db.add(website)
-    db.commit()
-    db.refresh(website)
-    
-    return website
+    db.put_item(item)
+    return item
 
 
 @router.put("/websites/{website_id}", response_model=Website)
 def update_website(
     website_id: int,
     website_data: WebsiteUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Update a website entry"""
-    website = db.query(WebsiteModel).filter(
-        WebsiteModel.id == website_id,
-        WebsiteModel.user_id == current_user.id
-    ).first()
-    
-    if not website:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Website not found"
-        )
-    
-    # Update fields if provided
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_WEBSITE}{website_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Website not found")
+    updates = {}
     if website_data.site_name is not None:
-        website.site_name = website_data.site_name
+        updates["site_name"] = website_data.site_name
     if website_data.url is not None:
-        website.url = str(website_data.url)
-    
-    db.commit()
-    db.refresh(website)
-    
-    return website
+        updates["url"] = str(website_data.url)
+    if updates:
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        return db.update_item(pk, f"{SK_WEBSITE}{website_id}", updates)
+    return existing
 
 
 @router.delete("/websites/{website_id}")
 def delete_website(
     website_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Delete a website entry"""
-    website = db.query(WebsiteModel).filter(
-        WebsiteModel.id == website_id,
-        WebsiteModel.user_id == current_user.id
-    ).first()
-    
-    if not website:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Website not found"
-        )
-    
-    db.delete(website)
-    db.commit()
-    
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_WEBSITE}{website_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Website not found")
+    db.delete_item(pk, f"{SK_WEBSITE}{website_id}")
     return {"message": "Website deleted successfully"}
 
 
-# Project endpoints
+# =====================================================================
+# Projects
+# =====================================================================
+
 @router.get("/projects", response_model=List[Project])
 def get_user_projects(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Get all projects for the current user, sorted by end date descending (most recent first)"""
-    projects = db.query(ProjectModel).filter(
-        ProjectModel.user_id == current_user.id
-    ).order_by(
-        # Sort by end_date descending, but put current projects (is_current=True) at the top
-        case(
-            (ProjectModel.is_current == True, 0),
-            else_=1
+    projects = db.query(_user_pk(current_user), sk_prefix=SK_PROJECT)
+    # Sort: current first, then by end_date desc
+    projects.sort(
+        key=lambda p: (
+            0 if p.get("is_current") else 1,
+            p.get("end_date") or "9999-12-31",
+            p.get("start_date") or "0000-01-01",
         ),
-        # Then sort by end_date descending (most recent first)
-        # Use nullslast to put projects without end_date (current projects) at the top
-        nullslast(desc(ProjectModel.end_date)),
-        # Finally sort by start_date descending as a tiebreaker
-        desc(ProjectModel.start_date)
-    ).all()
+        reverse=False,
+    )
     return projects
 
 
 @router.post("/projects", response_model=Project, status_code=status.HTTP_201_CREATED)
 def create_project(
     project_data: ProjectCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Create a new project"""
-    # Create the main project record
-    db_project = ProjectModel(
-        user_id=current_user.id,
-        name=project_data.name,
-        description=project_data.description,
-        start_date=project_data.start_date,
-        end_date=project_data.end_date,
-        url=project_data.url,
-        is_current=project_data.is_current,
-        technologies_used=project_data.technologies_used
-    )
-    
-    db.add(db_project)
-    db.commit()
-    db.refresh(db_project)
-    return db_project
+    proj_id = db.next_id("project")
+    item = build_project_item(user_id=current_user.id, project_id=proj_id, **project_data.model_dump())
+    db.put_item(item)
+    return item
 
 
 @router.get("/projects/{project_id}", response_model=Project)
 def get_project(
     project_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Get a specific project by ID"""
-    project = db.query(ProjectModel).filter(
-        ProjectModel.id == project_id,
-        ProjectModel.user_id == current_user.id
-    ).first()
-    
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-    
-    return project
+    item = db.get_item(_user_pk(current_user), f"{SK_PROJECT}{project_id}")
+    if not item:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    return item
 
 
 @router.put("/projects/{project_id}", response_model=Project)
 def update_project(
     project_id: int,
     project_data: ProjectUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Update an existing project"""
-    project = db.query(ProjectModel).filter(
-        ProjectModel.id == project_id,
-        ProjectModel.user_id == current_user.id
-    ).first()
-    
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-    
-    # Update project fields if provided
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_PROJECT}{project_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     update_data = project_data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(project, field, value)
-    
-    db.commit()
-    db.refresh(project)
-    return project
+    for key in ("start_date", "end_date"):
+        if key in update_data and update_data[key] is not None:
+            update_data[key] = str(update_data[key])
+    if update_data:
+        return db.update_item(pk, f"{SK_PROJECT}{project_id}", update_data)
+    return existing
 
 
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
     project_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    current_user: UserItem = Depends(get_current_user),
+    db: DynamoDBClient = Depends(get_db),
 ):
-    """Delete a project"""
-    project = db.query(ProjectModel).filter(
-        ProjectModel.id == project_id,
-        ProjectModel.user_id == current_user.id
-    ).first()
-    
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found"
-        )
-    
-    db.delete(project)
-    db.commit()
+    pk = _user_pk(current_user)
+    existing = db.get_item(pk, f"{SK_PROJECT}{project_id}")
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    db.delete_item(pk, f"{SK_PROJECT}{project_id}")
     return None

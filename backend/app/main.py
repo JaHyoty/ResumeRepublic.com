@@ -1,29 +1,25 @@
 """
-CareerPathPro Backend API
-Main FastAPI application entry point
+ResumeRepublic Backend API
+Main FastAPI application entry point — DynamoDB serverless version
 """
-
-from datetime import datetime
-from fastapi import FastAPI, Depends, Request, Response
+from datetime import datetime, timezone
+from fastapi import FastAPI, Depends, Request, Response, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from sqlalchemy import text
-from sqlalchemy.orm import Session
 import structlog
 import logging
-import uvicorn
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.settings import settings
-from app.core.secret_manager import clear_credentials_cache
-from app.core.database import get_db
-# Note: engine imported dynamically to get fresh reference after refresh
+from app.core.limiter import limiter
+from app.core.dynamodb import DynamoDBClient, get_db
 from app.api import auth, esc, resume, user, applications, job_posting, webhooks
 
 # Configure structured logging
 if settings.ENVIRONMENT == "development":
-    # Development: Human-readable format to console
     structlog.configure(
         processors=[
             structlog.stdlib.filter_by_level,
@@ -39,7 +35,6 @@ if settings.ENVIRONMENT == "development":
         cache_logger_on_first_use=True,
     )
 else:
-    # Production: JSON format
     structlog.configure(
         processors=[
             structlog.stdlib.filter_by_level,
@@ -60,13 +55,21 @@ else:
 
 logger = structlog.get_logger()
 
-# Configure standard Python logging for development
+# Set standard logging level
 if settings.ENVIRONMENT == "development":
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.StreamHandler()  # Output to console
+            logging.StreamHandler()
+        ]
+    )
+else:
+    logging.basicConfig(
+        level=logging.WARNING,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler()
         ]
     )
 
@@ -77,27 +80,47 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs" if settings.ENVIRONMENT == "development" else None,
     redoc_url="/redoc" if settings.ENVIRONMENT == "development" else None,
+    openapi_url="/openapi.json" if settings.ENVIRONMENT == "development" else None,
 )
 
-# Add rate limit exception handler
-app.state.limiter = resume.limiter
+# Add rate limit exception handler and middleware
+app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
-# Add middleware
+# Maximum request body size (6MB, matching Lambda / API Gateway limit)
+MAX_BODY_SIZE = 6 * 1024 * 1024
+
+
+@app.middleware("http")
+async def limit_request_body_size(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_BODY_SIZE:
+                return JSONResponse(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    content={"detail": "Request entity too large (max 6MB)"},
+                )
+        except ValueError:
+            pass
+    return await call_next(request)
+
+
+# Add CORS middleware (credentials allowed only if wildcard is not in origins)
+has_wildcard = "*" in settings.ALLOWED_ORIGINS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_credentials=not has_wildcard,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Only add TrustedHostMiddleware if we have specific hosts configured and no wildcards
-# Skip in containerized environments where ALB health checks come from internal IPs
-if (settings.ALLOWED_HOSTS and 
-    len(settings.ALLOWED_HOSTS) > 0 and 
-    not any("*" in host for host in settings.ALLOWED_HOSTS) and
-    not any("elb.amazonaws.com" in host for host in settings.ALLOWED_HOSTS)):
+# Only add TrustedHostMiddleware if we have specific hosts configured
+if (settings.ALLOWED_HOSTS and
+    len(settings.ALLOWED_HOSTS) > 0 and
+    not any("*" in host for host in settings.ALLOWED_HOSTS)):
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=settings.ALLOWED_HOSTS
@@ -113,7 +136,6 @@ app.include_router(job_posting.router, prefix="/api/job-postings", tags=["job-po
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
 
 
-
 @app.get("/")
 async def root():
     """Health check endpoint"""
@@ -121,46 +143,31 @@ async def root():
 
 
 @app.get("/health")
-async def health_check(db: Session = Depends(get_db)):
-    """Simple health check with database migration status"""
-    logger = structlog.get_logger()
-    
-    # Check database connection and migration status
+async def health_check(db: DynamoDBClient = Depends(get_db)):
+    """Health check with DynamoDB connectivity test"""
     db_status = "unknown"
     try:
-        # Check if alembic_version table exists
-        result = db.execute(text("""
-            SELECT EXISTS (
-                SELECT FROM information_schema.tables 
-                WHERE table_name = 'alembic_version'
-            )
-        """))
-        has_alembic_table = result.fetchone()[0]
-        
-        if has_alembic_table:
-            # Get current migration version
-            result = db.execute(text("SELECT version_num FROM alembic_version"))
-            current_version = result.fetchone()[0] if result.rowcount > 0 else "unknown"
-            db_status = f"migrated (version: {current_version})"
-        else:
-            db_status = "no_migrations"
-            
+        # Simple connectivity test: try to read the counter item
+        db.get_item("COUNTER", "user")
+        db_status = "connected"
     except Exception as e:
-        logger.error("Database connection failed", error=str(e))
+        logger.error("DynamoDB connection check failed", error=str(e))
         db_status = "connection_failed"
-    
-    return {
-        "status": "healthy" if "migrated" in db_status or "no_migrations" in db_status else "unhealthy",
+
+    response_data = {
+        "status": "healthy" if db_status == "connected" else "degraded",
         "environment": settings.ENVIRONMENT,
         "version": "1.0.0",
-        "database": db_status,
-        "timestamp": datetime.utcnow().isoformat()
+        "database": f"dynamodb ({db_status})",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-
-
+    if settings.ENVIRONMENT == "development":
+        response_data["table"] = settings.DYNAMODB_TABLE_NAME
+    return response_data
 
 
 if __name__ == "__main__":
+    import uvicorn
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

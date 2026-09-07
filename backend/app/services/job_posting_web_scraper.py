@@ -19,9 +19,9 @@ class JobPostingWebScraper:
     """Web scraper for job posting pages"""
     
     def __init__(self):
-        self.timeout = 8
+        self.timeout = 15
         self.max_retries = 3
-        self.user_agent = "Mozilla/5.0 (compatible; JobPostingBot/1.0; +https://resumerepublic.com/bot)"
+        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     
     async def fetch_html(self, url: str) -> Optional[str]:
         """
@@ -42,9 +42,18 @@ class JobPostingWebScraper:
     async def _fetch_with_httpx(self, url: str) -> Optional[str]:
         """Fetch HTML using basic HTTP request"""
         try:
+            headers = {
+                'User-Agent': self.user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Upgrade-Insecure-Requests': '1',
+            }
             async with httpx.AsyncClient(
                 timeout=self.timeout,
-                headers={'User-Agent': self.user_agent},
+                headers=headers,
                 follow_redirects=True
             ) as client:
                 response = await client.get(url)
@@ -69,6 +78,8 @@ class JobPostingWebScraper:
                 # Launch browser with stealth settings to avoid bot detection
                 # Add more robust arguments for containerized environments
                 browser_args = [
+                    '--single-process',
+                    '--no-zygote',
                     '--no-sandbox',
                     '--disable-setuid-sandbox',  # Additional sandbox bypass for containers
                     '--disable-blink-features=AutomationControlled',
@@ -194,3 +205,10 @@ class JobPostingWebScraper:
         
         # If we found at least 3 job-related indicators, consider it substantial
         return found_indicators >= 3
+
+    # Alias for fetch_html
+    fetch_page = fetch_html
+
+
+# Backward compatibility alias
+JobPostingFetcher = JobPostingWebScraper

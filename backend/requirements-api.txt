@@ -1,3 +1,6 @@
+# API Lambda — lightweight FastAPI application
+# No LaTeX, Playwright, or heavy scraping dependencies
+
 # FastAPI and web framework
 fastapi>=0.100.0
 python-multipart>=0.0.6
@@ -6,7 +9,7 @@ slowapi>=0.1.9
 # Lambda adapter
 mangum>=0.17.0
 
-# AWS SDK for DynamoDB and S3
+# AWS SDK for DynamoDB, S3, and Lambda invoke
 boto3>=1.26.0
 
 # Authentication and security
@@ -34,15 +37,3 @@ structlog>=23.1.0
 
 # Environment and configuration
 python-dotenv>=1.0.0
-
-# File processing
-PyPDF2>=3.0.1
-
-# Job posting parsing dependencies
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-extruct>=0.13.0
-playwright>=1.40.0
-
-# Development / local only (not needed in Lambda but kept for local dev)
-uvicorn[standard]>=0.20.0
