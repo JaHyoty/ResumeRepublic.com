@@ -44,7 +44,7 @@ const DashboardHeader: React.FC = () => {
     <header className="bg-white sticky top-0 z-40 w-screen left-0 right-0" style={{ marginLeft: 'calc(50% - 50vw)' }}>
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto flex justify-between items-center py-4">
-          <h1 className="text-lg font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
+          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-700 to-slate-900 bg-clip-text text-transparent">
             {APP_NAME}
           </h1>
           <div className="flex items-center gap-4">

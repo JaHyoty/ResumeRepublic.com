@@ -23,7 +23,7 @@ const HowItWorks: React.FC = () => {
     {
       stepNumber: 1,
       title: "Upload & Parse",
-      description: "Upload your existing resume and let our system extract all your professional information automatically."
+      description: "Upload your existing resume and let the system extract all your professional information automatically."
     },
     {
       stepNumber: 2,
@@ -45,7 +45,7 @@ const HowItWorks: React.FC = () => {
             How it works
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Get started in minutes with our simple 3-step process
+            Get started in minutes with a simple 3-step process
           </p>
         </div>
         

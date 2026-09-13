@@ -71,7 +71,7 @@ const Features: React.FC = () => {
         </div>
       ),
       title: "PDF Resume Generation",
-      description: "Generate professional, ATS-optimized resumes with our clean resume templates.",
+      description: "Generate professional, ATS-optimized resumes with clean resume templates.",
       features: [
         "Multiple templates",
         "ATS optimization",
@@ -81,7 +81,7 @@ const Features: React.FC = () => {
     {
       icon: (
         <div className="w-12 h-12 bg-yellow-200 rounded-lg flex items-center justify-center">
-          <FileText className="w-6 h-6 text-primary-600" />
+          <FileText className="w-6 h-6 text-amber-600" />
         </div>
       ),
       title: "Job Description Parsing",
@@ -94,8 +94,8 @@ const Features: React.FC = () => {
     },
     {
       icon: (
-        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-          <Search className="w-6 h-6 text-purple-600" />
+        <div className="w-12 h-12 bg-sky-100 rounded-lg flex items-center justify-center">
+          <Search className="w-6 h-6 text-sky-600" />
         </div>
       ),
       title: "Job Description Analysis",

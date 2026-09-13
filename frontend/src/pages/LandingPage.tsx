@@ -3,8 +3,8 @@ import {
   Header,
   Hero,
   Features,
-  CTA
-  // Footer
+  CTA,
+  Footer
 } from '../components/landing'
 
 const LandingPage: React.FC = () => {
@@ -16,7 +16,7 @@ const LandingPage: React.FC = () => {
       {/* <HowItWorks /> */}
       {/* <Testimonials /> */}
       <CTA />
-      {/* <Footer /> */}
+      <Footer />
     </div>
   )
 }

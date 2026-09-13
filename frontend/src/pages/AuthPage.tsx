@@ -31,13 +31,13 @@ const AuthPage: React.FC = () => {
   if (authStateMachine.isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 w-screen left-0 right-0 relative" style={{ marginLeft: 'calc(50% - 50vw)' }}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 w-screen left-0 right-0 relative" style={{ marginLeft: 'calc(50% - 50vw)' }}>
       {/* Close Button */}
       <button
         onClick={() => authStateMachine.navigate('/')}
@@ -60,7 +60,7 @@ const AuthPage: React.FC = () => {
                 Or{' '}
                 <button
                   onClick={() => setMode('signup')}
-                  className="font-medium text-purple-600 hover:text-purple-500"
+                  className="font-medium text-blue-600 hover:text-blue-500"
                 >
                   create a new account
                 </button>
@@ -70,7 +70,7 @@ const AuthPage: React.FC = () => {
                 Or{' '}
                 <button
                   onClick={() => setMode('login')}
-                  className="font-medium text-purple-600 hover:text-purple-500"
+                  className="font-medium text-blue-600 hover:text-blue-500"
                 >
                   sign in to existing account
                 </button>
@@ -96,7 +96,7 @@ const AuthPage: React.FC = () => {
               <div className="w-full border-t border-gray-300" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-gradient-to-br from-purple-50 to-indigo-100 text-gray-500">
+              <span className="px-2 bg-gradient-to-br from-slate-50 to-blue-50 text-gray-500">
                 Or continue with email
               </span>
             </div>

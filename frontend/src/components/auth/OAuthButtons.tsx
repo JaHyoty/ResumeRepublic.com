@@ -206,7 +206,7 @@ const OAuthButtons: React.FC<OAuthButtonsProps> = ({
     <div className="space-y-3 relative">
       {isOAuthLoading && (
         <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-10 rounded-md">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
         </div>
       )}
       <div 

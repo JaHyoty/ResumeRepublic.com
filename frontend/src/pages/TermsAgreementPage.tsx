@@ -55,14 +55,14 @@ const TermsAgreementPage: React.FC = () => {
   // Show loading while checking authentication
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100 flex items-center justify-center py-12 w-screen" style={{ marginLeft: 'calc(50% - 50vw)', marginRight: 'calc(50% - 50vw)' }}>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center py-12 w-screen" style={{ marginLeft: 'calc(50% - 50vw)', marginRight: 'calc(50% - 50vw)' }}>
       <div className="max-w-2xl w-full px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-8">
@@ -70,7 +70,7 @@ const TermsAgreementPage: React.FC = () => {
             Terms & Privacy Policy Agreement
           </h1>
           <p className="text-gray-600">
-            To continue using ResumeRepublic, please review and accept our Terms of Service and Privacy Policy.
+            To continue using ResumeRepublic, please review and accept the Terms of Service and Privacy Policy.
           </p>
         </div>
 
@@ -101,7 +101,7 @@ const TermsAgreementPage: React.FC = () => {
                   type="checkbox"
                   checked={termsAccepted}
                   onChange={(e) => setTermsAccepted(e.target.checked)}
-                  className="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   disabled={isSubmitting}
                 />
                 <div className="flex-1">
@@ -111,7 +111,7 @@ const TermsAgreementPage: React.FC = () => {
                       href="/terms-of-service.html"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-purple-600 hover:text-purple-500 underline"
+                      className="text-blue-600 hover:text-blue-500 underline"
                     >
                       Terms of Service
                     </a>
@@ -128,7 +128,7 @@ const TermsAgreementPage: React.FC = () => {
                   type="checkbox"
                   checked={privacyAccepted}
                   onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                  className="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   disabled={isSubmitting}
                 />
                 <div className="flex-1">
@@ -138,7 +138,7 @@ const TermsAgreementPage: React.FC = () => {
                       href="/privacy-policy.html"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-purple-600 hover:text-purple-500 underline"
+                      className="text-blue-600 hover:text-blue-500 underline"
                     >
                       Privacy Policy
                     </a>
@@ -164,7 +164,7 @@ const TermsAgreementPage: React.FC = () => {
                 type="button"
                 onClick={handleDecline}
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Decline & Logout
               </button>
@@ -172,7 +172,7 @@ const TermsAgreementPage: React.FC = () => {
                 type="button"
                 onClick={handleAccept}
                 disabled={!canAccept || isSubmitting}
-                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSubmitting ? (
                   <div className="flex items-center justify-center space-x-2">
@@ -190,7 +190,7 @@ const TermsAgreementPage: React.FC = () => {
         {/* Footer */}
         <div className="text-center mt-6">
           <p className="text-sm text-gray-500">
-            By continuing, you acknowledge that you have read and understood our terms and policies.
+            By continuing, you acknowledge that you have read and understood the terms and policies.
           </p>
         </div>
       </div>

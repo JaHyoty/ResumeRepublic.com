@@ -203,8 +203,8 @@ const ExperienceSkillsView: React.FC = () => {
       title: 'Education',
       description: 'Your academic background, degrees, and educational achievements',
       icon: '🎓',
-      color: 'bg-purple-50 border-purple-200',
-      iconColor: 'text-purple-600',
+      color: 'bg-sky-50 border-sky-200',
+      iconColor: 'text-sky-600',
       fields: ['Institution', 'Degree', 'Field of Study', 'Graduation Date', 'GPA', 'Completed Coursework']
     },
     {
@@ -239,8 +239,8 @@ const ExperienceSkillsView: React.FC = () => {
       title: 'Publications',
       description: 'Articles, papers, blog posts, and other publications',
       icon: '📚',
-      color: 'bg-indigo-50 border-indigo-200',
-      iconColor: 'text-indigo-600',
+      color: 'bg-teal-50 border-teal-200',
+      iconColor: 'text-teal-600',
       fields: ['Title', 'Author(s)', 'Publication Date', 'URL', 'Description', 'Publication Type']
     },
     {

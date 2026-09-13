@@ -111,7 +111,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
               required
               value={formData.first_name}
               onChange={handleChange}
-              className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+              className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
               placeholder="First name"
             />
           </div>
@@ -127,7 +127,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
               required
               value={formData.last_name}
               onChange={handleChange}
-              className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+              className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
               placeholder="Last name"
             />
           </div>
@@ -145,7 +145,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
             required
             value={formData.email}
             onChange={handleChange}
-            className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+            className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
             placeholder="Enter your email"
           />
         </div>
@@ -161,7 +161,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
             autoComplete="given-name"
             value={formData.preferred_first_name}
             onChange={handleChange}
-            className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+            className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
             placeholder="What should we call you?"
           />
         </div>
@@ -178,7 +178,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
             required
             value={formData.password}
             onChange={handleChange}
-            className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+            className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
             placeholder="Create a password"
           />
         </div>
@@ -195,7 +195,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
             required
             value={confirmPassword}
             onChange={handleConfirmPasswordChange}
-            className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-purple-500 focus:border-purple-500 focus:z-10 sm:text-sm"
+            className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
             placeholder="Confirm your password"
           />
           {passwordError && (
@@ -210,15 +210,15 @@ const SignupForm: React.FC<SignupFormProps> = ({
           name="agree-terms"
           type="checkbox"
           required
-          className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
         />
         <label htmlFor="agree-terms" className="ml-2 block text-sm text-gray-900">
           I agree to the{' '}
-          <a href="/terms-of-service.html" target="_blank" className="text-purple-600 hover:text-purple-500">
+          <a href="/terms-of-service.html" target="_blank" className="text-blue-600 hover:text-blue-500">
             Terms of Service
           </a>{' '}
           and{' '}
-          <a href="/privacy-policy.html" target="_blank" className="text-purple-600 hover:text-purple-500">
+          <a href="/privacy-policy.html" target="_blank" className="text-blue-600 hover:text-blue-500">
             Privacy Policy
           </a>
         </label>
@@ -228,7 +228,7 @@ const SignupForm: React.FC<SignupFormProps> = ({
         <button
           type="submit"
           disabled={isLoading}
-          className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? 'Creating account...' : 'Create account'}
         </button>

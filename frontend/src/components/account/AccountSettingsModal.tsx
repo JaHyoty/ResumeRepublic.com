@@ -112,7 +112,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
 
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -131,7 +131,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       value={formData.first_name}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -145,7 +145,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       value={formData.last_name}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -158,7 +158,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       name="preferred_first_name"
                       value={formData.preferred_first_name}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -171,7 +171,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -185,7 +185,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       value={formData.location}
                       onChange={handleInputChange}
                       placeholder="e.g., San Francisco, CA"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -206,7 +206,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       value={formData.linkedin_url}
                       onChange={handleInputChange}
                       placeholder="https://linkedin.com/in/yourprofile"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
@@ -220,7 +220,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       value={formData.website_url}
                       onChange={handleInputChange}
                       placeholder="https://yourwebsite.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   {/* Professional Summary - Commented out for now */}
@@ -235,7 +235,7 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                       onChange={handleInputChange}
                       rows={4}
                       placeholder="Brief summary of your professional background and expertise..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                     />
                   </div> */}
                 </div>
@@ -259,14 +259,14 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({
                     type="button"
                     onClick={onClose}
                     disabled={updateUserMutation.isPending}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={updateUserMutation.isPending}
-                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-transparent rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                   >
                     {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
                   </button>

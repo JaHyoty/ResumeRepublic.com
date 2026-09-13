@@ -24,7 +24,7 @@ const Header: React.FC = () => {
     <header className="bg-white sticky top-0 z-40 w-screen left-0 right-0" style={{ marginLeft: 'calc(50% - 50vw)' }}>
       <div className="w-full px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto flex justify-between items-center py-4">
-          <h1 className="text-lg font-bold bg-gradient-to-r from-purple-600 to-purple-800 bg-clip-text text-transparent">
+          <h1 className="text-lg font-bold bg-gradient-to-r from-blue-700 to-slate-900 bg-clip-text text-transparent">
             {APP_NAME}
           </h1>
           <div className="flex items-center gap-4">
@@ -41,7 +41,7 @@ const Header: React.FC = () => {
                 </button>
                 <button 
                   onClick={() => navigate('/dashboard')}
-                  className="bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white font-semibold px-6 py-2 rounded-full text-sm transition-all duration-200 shadow-md hover:shadow-lg"
+                  className="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-semibold px-6 py-2 rounded-full text-sm transition-all duration-200 shadow-md hover:shadow-lg"
                 >
                   Dashboard
                 </button>
@@ -49,7 +49,7 @@ const Header: React.FC = () => {
             ) : (
               <button 
                 onClick={handleAuthClick}
-                className="bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-700 hover:to-purple-900 text-white font-semibold px-6 py-2 rounded-full text-sm transition-all duration-200 shadow-md hover:shadow-lg"
+                className="bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-semibold px-6 py-2 rounded-full text-sm transition-all duration-200 shadow-md hover:shadow-lg"
               >
                 Login
               </button>
