@@ -100,3 +100,15 @@ output "acm_certificate_arn" {
   description = "ACM certificate ARN"
   value       = length(module.dns) > 0 ? module.dns[0].acm_certificate_arn : null
 }
+
+output "route53_name_servers" {
+  description = "Route 53 hosted zone name servers"
+  value       = length(module.dns) > 0 ? module.dns[0].route53_zone_name_servers : null
+}
+
+output "route53_zone_id" {
+  description = "Route 53 hosted zone ID"
+  value       = length(module.dns) > 0 ? module.dns[0].route53_zone_id : null
+}
+
+

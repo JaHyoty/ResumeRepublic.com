@@ -58,7 +58,7 @@ const Hero: React.FC = () => {
           </div>
           <p className="text-purple-400 text-sm">
             Made to promote responsible AI usage in the application process.<br/>
-            As such, we'd like to offer this service for <b>free</b> to all users.
+            As such, this service is <b>free to use</b>, provided as-is with no liabilities.
           </p>
         </div>
       </div>

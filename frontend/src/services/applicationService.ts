@@ -19,6 +19,9 @@ export interface Application {
   job_title?: string
   company?: string
   job_description?: string
+  // Resume metadata
+  has_resume?: boolean
+  resume_count?: number
 }
 
 export interface ApplicationStats {
@@ -43,9 +46,11 @@ export interface UpdateApplicationRequest {
 }
 
 export const applicationService = {
-  // Get all applications
-  async getApplications(): Promise<Application[]> {
-    const response = await api.get('/api/applications/')
+  // Get all applications with pagination
+  async getApplications(skip: number = 0, limit: number = 50): Promise<Application[]> {
+    const response = await api.get('/api/applications/', {
+      params: { skip, limit }
+    })
     return response.data
   },
 

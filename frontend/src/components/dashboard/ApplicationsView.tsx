@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { applicationService } from '../../services/applicationService'
 import { resumeService } from '../../services/resumeService'
@@ -30,6 +30,10 @@ const ApplicationsView: React.FC = () => {
   const [stats, setStats] = useState<ApplicationStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // State for pagination / infinite scroll
+  const [hasMore, setHasMore] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
   // State for delete confirmation
   const [deletingApplication, setDeletingApplication] = useState<Application | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -167,11 +171,12 @@ const ApplicationsView: React.FC = () => {
     try {
       setLoading(true)
       const [applicationsData, statsData] = await Promise.all([
-        applicationService.getApplications(),
+        applicationService.getApplications(0, 50),
         applicationService.getApplicationStats()
       ])
       setRecentApplications(applicationsData)
       setStats(statsData)
+      setHasMore(applicationsData.length === 50)
     } catch (err) {
       setError('Failed to load applications data')
       console.error('Error loading data:', err)
@@ -179,6 +184,48 @@ const ApplicationsView: React.FC = () => {
       setLoading(false)
     }
   }
+
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || !hasMore) return
+    try {
+      setLoadingMore(true)
+      const nextBatch = await applicationService.getApplications(recentApplications.length, 50)
+      if (nextBatch.length === 0) {
+        setHasMore(false)
+      } else {
+        setRecentApplications(prev => {
+          const existingIds = new Set(prev.map(a => a.id))
+          const filtered = nextBatch.filter(a => !existingIds.has(a.id))
+          return [...prev, ...filtered]
+        })
+        if (nextBatch.length < 50) {
+          setHasMore(false)
+        }
+      }
+    } catch (err) {
+      console.error('Error loading more applications:', err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loading, loadingMore, hasMore, recentApplications.length])
+
+  // Attach IntersectionObserver to sentinel for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadMore()
+        }
+      },
+      { rootMargin: '200px' }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadMore])
 
 
   const handleStatusChange = async (applicationId: number, statusType: 'online_assessment' | 'interview' | 'rejected') => {
@@ -620,10 +667,15 @@ const ApplicationsView: React.FC = () => {
                 {/* Desktop Layout */}
                 <div className="hidden md:flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-4 mb-2">
+                    <div className="flex items-center gap-4 mb-2 flex-wrap">
                       <h4 className="text-lg font-medium text-gray-900">{application.job_title}</h4>
                       <span className="text-sm text-gray-500">at</span>
                       <span className="text-lg font-medium text-gray-700">{application.company}</span>
+                      {application.has_resume && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                          📄 {application.resume_count || 1} Resume{application.resume_count && application.resume_count > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                     
                     {/* Status Checkboxes */}
@@ -683,9 +735,14 @@ const ApplicationsView: React.FC = () => {
                 <div className="md:hidden">
                   <div className="mb-3">
                     <h4 className="text-lg font-medium text-gray-900 mb-1">{application.job_title}</h4>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm text-gray-500">at</span>
                       <span className="text-lg font-medium text-gray-700">{application.company}</span>
+                      {application.has_resume && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                          📄 {application.resume_count || 1} Resume{application.resume_count && application.resume_count > 1 ? 's' : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
                   
@@ -763,6 +820,22 @@ const ApplicationsView: React.FC = () => {
               )}
             </div>
           ))}
+        </div>
+
+        {/* Infinite Scroll Sentinel & Loading Indicator */}
+        <div ref={sentinelRef} className="py-4 text-center border-t border-gray-100">
+          {loadingMore && (
+            <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+              <svg className="animate-spin h-5 w-5 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>Loading more applications...</span>
+            </div>
+          )}
+          {!hasMore && recentApplications.length > 0 && (
+            <p className="text-xs text-gray-400 py-2">All {recentApplications.length} applications loaded</p>
+          )}
         </div>
       </div>
 

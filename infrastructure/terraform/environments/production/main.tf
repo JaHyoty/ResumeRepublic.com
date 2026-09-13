@@ -135,7 +135,7 @@ module "serverless" {
   github_client_secret      = data.aws_ssm_parameter.github_client_secret.value
   openrouter_api_key        = data.aws_ssm_parameter.openrouter_api_key.value
   openrouter_llm_model      = data.aws_ssm_parameter.openrouter_llm_model.value
-  cookie_domain             = var.domain_name != "" ? ".${var.domain_name}" : ""
+  cookie_domain             = ""
 
   allowed_origins = concat(
     var.domain_name != "" ? [

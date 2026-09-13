@@ -35,20 +35,35 @@ def _enrich_application(app_item: dict, db: DynamoDBClient) -> dict:
 @router.get("/", response_model=List[ApplicationResponse])
 async def get_applications(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 50,
     current_user: UserItem = Depends(get_current_user),
     db: DynamoDBClient = Depends(get_db),
 ):
-    """Get all applications for the current user"""
+    """Get all applications for the current user with pagination"""
     apps = db.query(f"USER#{current_user.id}", sk_prefix=SK_APP)
     # Sort by created_at desc
     apps.sort(key=lambda a: a.get("created_at") or "", reverse=True)
 
-    # Enrich with job posting data
-    for app in apps:
-        _enrich_application(app, db)
+    # Slice requested page
+    paged_apps = apps[skip: skip + limit]
 
-    return apps[skip: skip + limit]
+    # Pre-fetch user's resumes to annotate applications with resume counts
+    resumes = db.query(f"USER#{current_user.id}", sk_prefix=SK_RESUME)
+    resume_counts: dict = {}
+    for r in resumes:
+        aid = r.get("application_id")
+        if aid:
+            resume_counts[aid] = resume_counts.get(aid, 0) + 1
+
+    # Enrich only the applications being returned
+    for app in paged_apps:
+        _enrich_application(app, db)
+        app_id = app.get("id")
+        cnt = resume_counts.get(app_id, 0)
+        app["has_resume"] = cnt > 0
+        app["resume_count"] = cnt
+
+    return paged_apps
 
 
 @router.get("/stats", response_model=ApplicationStats)

@@ -80,7 +80,7 @@ const ResumeDesigner: React.FC<ResumeDesignerProps> = ({
 
   const { data: applications } = useQuery({
     queryKey: ['applications'],
-    queryFn: applicationService.getApplications
+    queryFn: () => applicationService.getApplications(0, 200)
   })
 
   // Handle navigation state from ApplicationsView

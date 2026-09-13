@@ -46,6 +46,10 @@ class ApplicationResponse(ApplicationBase):
     company: Optional[str] = None
     job_description: Optional[str] = None
 
+    # Resume metadata
+    has_resume: bool = False
+    resume_count: int = 0
+
     class Config:
         from_attributes = True
 
