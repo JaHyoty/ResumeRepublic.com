@@ -134,6 +134,7 @@ archive/
 .terraform/
 .terraform.lock.hcl
 terraform.tfvars
+!infrastructure/terraform/environments/production/terraform.tfvars
 *tfplan
 *.tfplan.*
 .terraformrc

@@ -1,0 +1,112 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write # GitHub OIDC -> AWS
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_DIR: infrastructure/terraform/environments/production
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform -chdir="$TF_DIR" init -input=false
+
+      # ECR repos must exist before images can be pushed (fresh-account safe, no-op otherwise)
+      - name: Ensure ECR repositories
+        run: |
+          terraform -chdir="$TF_DIR" apply -input=false -auto-approve \
+            -target=aws_ecr_repository.backend \
+            -target=aws_ecr_repository.pdf \
+            -target=aws_ecr_repository.scraper
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Lambda images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          build_push() {
+            local repo="$1" dockerfile="$2"
+            docker build --provenance=false -t "$REGISTRY/$repo:latest" -f "backend/$dockerfile" backend
+            docker push "$REGISTRY/$repo:latest"
+          }
+          build_push resumerepublic-backend Dockerfile
+          build_push resumerepublic-pdf Dockerfile.pdf
+          build_push resumerepublic-scraper Dockerfile.scraper
+
+      - name: Terraform apply
+        run: terraform -chdir="$TF_DIR" apply -input=false -auto-approve
+
+      # Terraform sees an unchanged ":latest" URI, so roll the new images out explicitly
+      - name: Update Lambda code
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          for pair in api:backend pdf:pdf scraper:scraper; do
+            fn="resumerepublic-${pair%%:*}"
+            aws lambda update-function-code --function-name "$fn" \
+              --image-uri "$REGISTRY/resumerepublic-${pair##*:}:latest" > /dev/null
+            aws lambda wait function-updated --function-name "$fn"
+          done
+
+      - name: Read Terraform outputs
+        id: tf
+        run: |
+          {
+            echo "api_url=$(terraform -chdir="$TF_DIR" output -raw api_gateway_endpoint)"
+            echo "bucket=$(terraform -chdir="$TF_DIR" output -raw s3_bucket_name)"
+            echo "distribution=$(terraform -chdir="$TF_DIR" output -raw cloudfront_distribution_id)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          API_BASE_URL: ${{ steps.tf.outputs.api_url }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish frontend
+        run: |
+          aws s3 sync frontend/dist/ "s3://${{ steps.tf.outputs.bucket }}" --delete
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ steps.tf.outputs.distribution }}" --paths "/*" > /dev/null

@@ -27,7 +27,7 @@ ResumeRepublic is a comprehensive career management platform that helps job seek
 ## 🏗️ Architecture
 
 > ℹ️ **Looking for the previous infrastructure?**  
-> ResumeRepublic was originally deployed on a containerized, VPC-bound infrastructure using Amazon ECS Fargate, RDS PostgreSQL, and an EC2 Bastion/Jump Host. The documentation and Terraform modules for that legacy setup are archived in [**`infrastructure/terraform/modules/_archived/`**](infrastructure/terraform/modules/_archived/README.md).
+> ResumeRepublic was originally deployed on a containerized, VPC-bound infrastructure using Amazon ECS Fargate, RDS PostgreSQL, and an EC2 Bastion/Jump Host. The Terraform modules for that legacy setup were removed and remain available in git history.
 
 ResumeRepublic now runs on a modern, fully **Serverless** architecture on AWS designed for high performance, infinite scalability, and zero idle costs:
 
